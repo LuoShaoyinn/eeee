@@ -1,3 +1,3 @@
 idf_component_register(SRCS "servo_test_main.c"
                        INCLUDE_DIRS "."
-                       REQUIRES esp_driver_gpio esp_driver_ledc)
+                       REQUIRES standard-3wire)

@@ -65,14 +65,25 @@ idf.py -p /dev/ttyUSB0 monitor
 
 The monitor should show the motor test configuration. Press `Ctrl-]` to exit.
 
+## Servo test
+
+The `test/servo` branch selects the reusable `servo-driver/standard-3wire` component and runs a conservative sweep on GPIO27. The servo needs a separate regulated 5-6 V supply, with servo black and ESP32 GND connected together. Servo yellow connects to GPIO27; servo red must not connect to an ESP32 3.3 V pin.
+
+The test uses 50 Hz PWM and sweeps 1200-1800 us. A standard three-wire servo provides no position feedback, so the driver can report only the commanded pulse.
+
 ## Project layout
 
 - `CMakeLists.txt`: ESP-IDF project definition
-- `main/motor_test_main.c`: small application-level test harness
+- `main/motor_test_main.c`: motor application-level test harness
+- `main/servo_test_main.c`: servo application-level test harness
 - `main/CMakeLists.txt`: component registration
 - `motor-driver/JCA25-2430-CE/`: reusable motor-driver component
 - `motor-driver/JCA25-2430-CE/include/jga25_2430_ce.h`: public driver API
 - `motor-driver/JCA25-2430-CE/src/jga25_2430_ce.c`: MCPWM implementation
 - `motor-driver/JCA25-2430-CE/README.md`: component-specific wiring and ratings
+- `servo-driver/standard-3wire/`: reusable three-wire servo component
+- `servo-driver/standard-3wire/include/standard_servo.h`: public servo API
+- `servo-driver/standard-3wire/src/standard_servo.c`: LEDC implementation
+- `servo-driver/standard-3wire/README.md`: servo wiring and API documentation
 - `sdkconfig.defaults`: shared default configuration
 - `.gitignore`: generated ESP-IDF output exclusions
