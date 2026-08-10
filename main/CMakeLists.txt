@@ -1,3 +1,3 @@
-idf_component_register(SRCS "motor_test_main.c"
+idf_component_register(SRCS "servo_test_main.c"
                        INCLUDE_DIRS "."
-                       REQUIRES JCA25-2430-CE)
+                       REQUIRES esp_driver_gpio esp_driver_ledc)
