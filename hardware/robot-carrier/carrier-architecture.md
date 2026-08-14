@@ -24,6 +24,11 @@ motor or servo power.
 The current placement sample does not yet include reverse-polarity
 protection; add and verify that stage before connecting a battery.
 
+The supplied IMU is a WitMotion WT901/WT901S-style 9-axis module. Its
+hardware I2C supports up to 400 kHz, uses open-drain SDA/SCL, and defaults to
+the 7-bit address `0x50`. Power it at 3.3 V on this carrier so the external
+4.7 k pull-ups are always at safe ESP32 logic level.
+
 The sample assumes a 6S Li-ion battery marketed as 24 V / 9 Ah. The motor rail
 is not regulated: expect approximately 18-25.2 V over the discharge cycle.
 The JGA25-2430-CE is specified as a 24 V motor, but the manufacturer does not
@@ -132,6 +137,18 @@ J2 pin 2  GND           -> buck IN-
 J3 pin 1  +5V           <- buck OUT+
 J3 pin 2  GND           <- buck OUT-
 ```
+
+### WT901 IMU connector J30
+
+```text
+1  +3V3    -> WT901 VCC
+2  GND     -> WT901 GND
+3  I2C_SDA -> WT901 SDA
+4  I2C_SCL -> WT901 SCL
+```
+
+The WT901 offers UART as an alternative interface, but the carrier uses its
+I2C pins. R5 and R6 provide the required 4.7 k pull-ups to 3.3 V.
 
 ### GM25-370 / L298N interface
 

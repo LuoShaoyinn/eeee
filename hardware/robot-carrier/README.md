@@ -10,6 +10,8 @@ must be reviewed before ordering a PCB.
 - `robot-carrier.kicad_pcb`: 80 mm x 65 mm dense two-sided placement trial.
 - `robot-carrier.kicad_pro`: KiCad project metadata.
 - `carrier-architecture.md`: power tree, pin map, connector pinouts, and bring-up notes.
+- `lcsc-selected-parts.md`: selected purchasable LCSC parts and remaining
+  safety-critical sourcing decisions.
 
 The board keeps the ESP32 DevKit on the carrier. The Raspberry Pi 4B is
 physically separate and connects through `JPI1` using a jumper harness for
@@ -46,8 +48,11 @@ L298N module's own output screw terminals. The module is not galvanically
 isolated: its ground must join carrier ground. Remove its `5V_EN` jumper and
 feed the 5 V logic terminal from J41 pin 3.
 
-The supplied IMU connects at `J30`. It is powered from the ESP32 DevKit's
-3.3 V output, and the I2C pull-ups are also tied to that same 3.3 V rail.
+The supplied WitMotion WT901/WT901S-style IMU connects at `J30` using I2C.
+It supports hardware I2C up to 400 kHz and uses open-drain SDA/SCL; the
+carrier's external 4.7 k pull-ups therefore remain fitted. It is powered from
+the ESP32 DevKit's 3.3 V output, not 5 V, so the bus never exceeds ESP32
+logic voltage. Its default I2C address is `0x50`.
 
 The 5 V converter is specified for the battery input range. The motor rail is
 not regulated, so confirm the motor's full-charge voltage tolerance and use a

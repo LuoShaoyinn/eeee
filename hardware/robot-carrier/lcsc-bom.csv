@@ -1,20 +1,20 @@
 Designator,Quantity,Description,Manufacturer Part Number,LCSC Part,Footprint,Assembly status
 J1,1,5.5mm DC barrel input,Exact jack to be selected,TBD,Through-hole,Verify mechanical fit
-J2,1,External buck input screw terminal 2-pin 5.08mm,Exact terminal to be selected,TBD,Through-hole,24V and GND to external buck input
-J3,1,External buck output screw terminal 2-pin 5.08mm,Exact terminal to be selected,TBD,Through-hole,5V and GND from external buck output
+J2,1,External buck input screw terminal 2-pin 5.08mm,DB128L-5.08-2P-GY-S,C500021,Through-hole,16A 300V; 24V and GND to external buck input
+J3,1,External buck output screw terminal 2-pin 5.08mm,DB128L-5.08-2P-GY-S,C500021,Through-hole,16A 300V; 5V and GND from external buck output
 F1,1,15A provisional battery fuse,Automotive or cartridge fuse,TBD,Through-hole,Hand install; size after converter test
-D1,1,Input TVS selected for battery pack,SMBJ33A provisional,TBD,SMB,Verify standoff voltage
-C1,1,220uF 50V input bulk,Aluminum electrolytic,TBD,Radial,Hand install
-C2,1,470uF 35V motor bulk,Aluminum electrolytic,TBD,Radial,Hand install
-C3,1,1000uF 10V 5V bus bulk,Low ESR aluminum electrolytic,TBD,Radial,Hand install
-C4,1,100nF local bypass,Multilayer ceramic,TBD,Radial placeholder,Replace with verified SMD footprint
-R1-R4,4,10k encoder pull-up to 3.3V,0805 1 percent,TBD,0805,SMT candidate
-R5-R6,2,4.7k I2C pull-up to ESP32 3.3V,0805 1 percent,TBD,0805,SMT candidate
-R7,1,10k GM IN2 boot pull-down,0805 1 percent,TBD,0805,SMT candidate
-R8,1,10k GM ENA safe pull-down,0805 1 percent,TBD,0805,SMT candidate
-J10-J13,4,Five-pin motor connector,5.08mm terminal block or locking connector,TBD,Through-hole,Verify cable current rating
+D1,1,Input TVS selected for battery pack,SMBJ33A,C78419,SMB (DO-214AA),33V standoff; verify against final battery transient requirements
+C1,1,220uF 50V input bulk,GR227V050G13RR0VL4FP0,C44705,Radial D10 P5,Hand install
+C2,1,470uF 35V motor bulk,DUK035M477G20CS1AA,C46551024,Radial D8 P3.5,Hand install
+C3,1,1000uF 10V 5V bus bulk,EEUFR1A102L,C79119,Radial D8 P3.5,Low ESR; hand install
+C4,1,100nF 50V local bypass,C0805X104K050T,C502153,0805,SMT candidate
+R1-R4,4,10k encoder pull-up to 3.3V,RC0805FR-0710KL,C17414,0805,SMT candidate
+R5-R6,2,4.7k I2C pull-up to ESP32 3.3V,FRR0805F4701TS,C55174750,0805,SMT candidate
+R7,1,10k GM IN2 boot pull-down,RC0805FR-0710KL,C17414,0805,SMT candidate
+R8,1,10k GM ENA safe pull-down,RC0805FR-0710KL,C17414,0805,SMT candidate
+J10-J13,4,Five-pin motor connector,GPHA101-0502A001A1BA,C7434483,1x5 2.54mm Through-hole,3A per contact; verify motor controller connector pitch before purchase
 J20-J23,4,Three-pin 5V servo connector,2.54mm header or locking connector,TBD,Through-hole,Verify servo current rating
 J40,1,External L298N logic interface,1x3 2.54mm male Dupont header,TBD,Through-hole,Female-female Dupont wires to ENA/IN1/IN2
-J41,1,External L298N power screw terminal,3-pin 5.08mm terminal,TBD,Through-hole,5V motor / GND / 5V logic
+J41,1,External L298N power screw terminal,DB128L-5.08-3P-BK-S,C430602,Through-hole,16A 300V; 5V motor / GND / 5V logic
 JPI1,1,Raspberry Pi 4B remote power/UART jumper,1x6 2.54mm male Dupont header,TBD,Through-hole,Use multiple power and ground wires
 JESP1,2,ESP32-WROOM-32 DevKitC Type-C socket,1x19 2.54mm female Dupont header,TBD,Through-hole,Two female strips; hand install
