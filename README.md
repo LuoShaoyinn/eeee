@@ -87,3 +87,17 @@ The test uses 50 Hz PWM and sweeps 1200-1800 us. A standard three-wire servo pro
 - `servo-driver/standard-3wire/README.md`: servo wiring and API documentation
 - `sdkconfig.defaults`: shared default configuration
 - `.gitignore`: generated ESP-IDF output exclusions
+
+## KiCad carrier board
+
+The `test/kicad-eda` branch contains the first integrated carrier-board sample
+for Raspberry Pi 4B, ESP32-WROOM-32 DevKit, four JGA25-2430-CE motors, and six
+servos:
+
+- `hardware/robot-carrier/robot-carrier.kicad_pcb`: placement prototype
+- `hardware/robot-carrier/carrier-architecture.md`: power tree, pin map, and connector wiring
+- `hardware/robot-carrier/README.md`: converter selection, safety notes, and LCSC production workflow
+
+The carrier routes the tested JGA25-2430-CE PWM and direction signals directly
+from ESP32 3.3 V GPIOs. Each open-collector encoder input has a 10 k pull-up
+to 3.3 V; do not pull encoder outputs up to the 5 V or motor rail.
