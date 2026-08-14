@@ -7,18 +7,25 @@ must be reviewed before ordering a PCB.
 
 ## Project files
 
-- `robot-carrier.kicad_pcb`: 160 mm x 100 mm two-layer placement prototype.
+- `robot-carrier.kicad_pcb`: 80 mm x 65 mm dense two-sided placement trial.
 - `robot-carrier.kicad_pro`: KiCad project metadata.
 - `carrier-architecture.md`: power tree, pin map, connector pinouts, and bring-up notes.
 
-The board intentionally uses through-hole sockets and module footprints so the
-Pi and ESP32 can be replaced without redesigning the PCB. The ESP32 socket is
-the common 30-pin DevKit header order, not a bare WROOM module footprint.
+The board keeps the ESP32 DevKit on the carrier. The Raspberry Pi 4B is
+physically separate and connects through `JPI1` using a jumper harness for
+5 V, ground, and 3.3 V UART. The ESP32 socket is the common 38-pin DevKitC
+header order, not a bare WROOM module footprint. It is the 38-pin, Type-C
+DevKitC-style board shown by the supplied photograph, mounted on the underside
+using two 1x19 female Dupont headers. Its mechanical keep-out is 27.94 mm x
+54.36 mm: 25.40 mm between header rows and 45.72 mm between the end header
+pads.
 
-## Power module selected for the sample
+## External power converter
 
-- `Mornsun URF2405QB-100WR3`: 9-36 V input, regulated 5 V output, 20 A,
-  100 W, isolated, 1/4-brick DIP package.
+The 24 V to 5 V converter is off-board. Use a four-wire module rated for at
+least 10 A continuous (15 A preferred), with an input rating that includes the
+6S battery's 25.2 V full-charge voltage. `J2` is its 24 V input terminal and
+`J3` is its 5 V output terminal.
 
 The 6S Li-ion battery is used directly for the motor rail. Its advertised
 24 V rating is nominal; the actual rail is approximately 18-25.2 V. The
@@ -27,8 +34,20 @@ buck-boost stage only if the final motor test requires a constant voltage.
 
 The tested JGA25-2430-CE controller accepts direct 3.3 V PWM and direction
 signals from the ESP32. The carrier does not use the previously considered
-74AHCT125 level shifters. Motor signal traces share the carrier ground with
-the motor power return; the yellow feedback input has a 10 k pull-up to 3.3 V.
+74AHCT125 level shifters. The motor connectors carry direct battery power;
+the `*_3V3` names refer only to logic signals, never to motor power. Motor
+signal traces share the carrier ground with the motor power return; the yellow
+feedback input has a 10 k pull-up to the ESP32 DevKit's 3.3 V output.
+
+The GM25-370 uses a physically external L298N module. `J40` is a three-pin
+Dupont logic header for `ENA`, `IN1`, and `IN2`; `J41` is a three-position
+screw terminal for motor 5 V, ground, and logic 5 V. The motor connects to the
+L298N module's own output screw terminals. The module is not galvanically
+isolated: its ground must join carrier ground. Remove its `5V_EN` jumper and
+feed the 5 V logic terminal from J41 pin 3.
+
+The supplied IMU connects at `J30`. It is powered from the ESP32 DevKit's
+3.3 V output, and the I2C pull-ups are also tied to that same 3.3 V rail.
 
 The 5 V converter is specified for the battery input range. The motor rail is
 not regulated, so confirm the motor's full-charge voltage tolerance and use a
@@ -40,13 +59,17 @@ Before connecting a battery:
 
 1. Populate and verify the input fuse and TVS. The current sample still needs
    a verified reverse-polarity stage before battery connection.
-2. Install the 5 V converter only after confirming its pinout against the
-   purchased manufacturer's part.
+2. Wire the external buck as `J2 -> IN` and `OUT -> J3`, only after confirming
+   its pinout against the purchased manufacturer's part.
 3. Power the board without motors or servos and verify the battery rail and
-   `+5V`.
+   `+5V` at J3 and at the remote Pi harness.
 4. Set the ESP32 motor PWM outputs high during reset; the motor PWM input is
    active-low, so high is the safe stopped state.
 5. Add a hardware emergency-stop that removes motor and servo power.
+6. Verify the Pi UART harness direction: ESP32 TX goes to Pi RX, and Pi TX
+   goes to ESP32 RX. The UART uses the ESP32's UART0 pins and must be isolated
+   or disconnected while using the DevKit USB port for flashing if contention
+   occurs.
 
 ## KiCad checks
 

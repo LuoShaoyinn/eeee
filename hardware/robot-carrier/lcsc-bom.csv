@@ -1,15 +1,20 @@
 Designator,Quantity,Description,Manufacturer Part Number,LCSC Part,Footprint,Assembly status
-U6,1,9-36V to 5V 20A isolated converter,Mornsun URF2405QB-100WR3,TBD,1/4-brick DIP,Customer supplied / hand install
 J1,1,5.5mm DC barrel input,Exact jack to be selected,TBD,Through-hole,Verify mechanical fit
+J2,1,External buck input screw terminal 2-pin 5.08mm,Exact terminal to be selected,TBD,Through-hole,24V and GND to external buck input
+J3,1,External buck output screw terminal 2-pin 5.08mm,Exact terminal to be selected,TBD,Through-hole,5V and GND from external buck output
 F1,1,15A provisional battery fuse,Automotive or cartridge fuse,TBD,Through-hole,Hand install; size after converter test
 D1,1,Input TVS selected for battery pack,SMBJ33A provisional,TBD,SMB,Verify standoff voltage
 C1,1,220uF 50V input bulk,Aluminum electrolytic,TBD,Radial,Hand install
 C2,1,470uF 35V motor bulk,Aluminum electrolytic,TBD,Radial,Hand install
-C3,1,1000uF 10V servo bulk,Low ESR aluminum electrolytic,TBD,Radial,Hand install
+C3,1,1000uF 10V 5V bus bulk,Low ESR aluminum electrolytic,TBD,Radial,Hand install
 C4,1,100nF local bypass,Multilayer ceramic,TBD,Radial placeholder,Replace with verified SMD footprint
 R1-R4,4,10k encoder pull-up to 3.3V,0805 1 percent,TBD,0805,SMT candidate
 R5-R6,2,4.7k I2C pull-up to ESP32 3.3V,0805 1 percent,TBD,0805,SMT candidate
+R7,1,10k GM IN2 boot pull-down,0805 1 percent,TBD,0805,SMT candidate
+R8,1,10k GM ENA safe pull-down,0805 1 percent,TBD,0805,SMT candidate
 J10-J13,4,Five-pin motor connector,5.08mm terminal block or locking connector,TBD,Through-hole,Verify cable current rating
-J20-J25,6,Three-pin servo connector,2.54mm header or locking connector,TBD,Through-hole,Verify servo current rating
-JPI1,1,Raspberry Pi 4B 40-pin socket,2x20 2.54mm header,TBD,Through-hole,Hand install
-JESP1,1,ESP32-WROOM-32 DevKit socket,2x15 2.54mm header,TBD,Through-hole,Hand install
+J20-J23,4,Three-pin 5V servo connector,2.54mm header or locking connector,TBD,Through-hole,Verify servo current rating
+J40,1,External L298N logic interface,1x3 2.54mm male Dupont header,TBD,Through-hole,Female-female Dupont wires to ENA/IN1/IN2
+J41,1,External L298N power screw terminal,3-pin 5.08mm terminal,TBD,Through-hole,5V motor / GND / 5V logic
+JPI1,1,Raspberry Pi 4B remote power/UART jumper,1x6 2.54mm male Dupont header,TBD,Through-hole,Use multiple power and ground wires
+JESP1,2,ESP32-WROOM-32 DevKitC Type-C socket,1x19 2.54mm female Dupont header,TBD,Through-hole,Two female strips; hand install
