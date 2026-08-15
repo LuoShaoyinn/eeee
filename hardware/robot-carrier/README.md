@@ -7,8 +7,9 @@ must be reviewed before ordering a PCB.
 
 ## Project files
 
-- `robot-carrier.kicad_pcb`: implemented 60 mm x 73.5 mm two-sided placement.
-- `robot-carrier.kicad_sch`: authoritative pre-routing schematic.
+- `robot-carrier.kicad_pcb`: routed 60 mm x 73.5 mm two-sided board.
+- `robot-carrier.kicad_sch`: authoritative electrical schematic.
+- `robot-carrier.kicad_dru`: minimum widths for any added 5 V or battery tracks.
 - `robot-carrier.kicad_pro`: KiCad project metadata.
 - `RobotCarrier.kicad_sym`, `Custom.pretty/`, `sym-lib-table`, and
   `fp-lib-table`: project-local symbols and footprints.
@@ -153,17 +154,15 @@ kicad-cli pcb export gerbers robot-carrier.kicad_pcb \
   --output gerbers
 ```
 
-The schematic is the authoritative electrical source and currently passes
-KiCad CLI ERC. The PCB is deliberately not routed. The next design pass must
-update the PCB from the schematic, then route the high-current nets with widths
-and copper weight justified by the measured current and allowed temperature
-rise.
-
-Do not autoroute `VIN_PROTECTED`, `+5V`, or `GND` with the project's 0.2 mm
-default signal width. Route the battery and 5 V trunks manually and use a ground
-plane or suitably wide ground copper, then lock those features before running an
-autorouter on the logic signals. The final power widths still depend on measured
-motor/servo current, copper weight, trace length, and permitted temperature rise.
+The schematic is the authoritative electrical source and currently passes ERC.
+Freerouting routed the logic signals. Its 0.20 mm power trees were subsequently
+removed through KiCad's `pcbnew` API and replaced with a bottom-layer GND plane,
+a front-layer `VIN_PROTECTED` plane on the left, and a front-layer +5 V plane on
+the right. A 1.5 mm back-layer bridge connects the ESP32 5 V pad to the main 5 V
+plane. R7 and R8 each use a short 0.5 mm track and dedicated via to the GND
+plane. The final current capacity still depends on measured motor/servo current,
+copper weight, neck-downs, ambient temperature, and permitted temperature rise;
+use 2 oz outer copper for the intended high-current prototype.
 
 This revision targets full hand assembly. R1-R4 and R7-R12 are 1206 parts on
 custom extended pads (1.6 mm x 2.0 mm per pad), leaving exposed copper beyond
@@ -219,14 +218,14 @@ In PCB Editor:
 
 1. Use the Appearance panel's **Nets** tab to show or hide a net. Right-click
    a net and choose **Highlight** to dim everything except that connection.
-2. Turn on the ratsnest to see every still-unrouted connection. With this
-   prototype, ratsnest lines are expected because copper routing is not yet
-   present.
+2. Turn on the ratsnest. The saved routed board currently has zero unconnected
+   items; any ratsnest line therefore indicates a new or disturbed connection.
 3. Use **Inspect -> Net Inspector** to verify the pads belonging to a net.
    For example, `M1_PWM_3V3` must contain ESP32 GPIO23 and motor connector J10
    pad 3; `M1_ENC` must contain GPIO36, J10 pad 5, and R1 pad 1.
-4. Run **Inspect -> Design Rules Checker**. Missing connections are expected
-   now; shorts, clearance errors, and wrong-net connections are not acceptable.
+4. Run **Inspect -> Design Rules Checker**. Shorts, clearance errors,
+   wrong-net connections, and missing connections are not acceptable. The ten
+   documented JESP1-to-resistor courtyard overlaps remain intentional.
 5. Use **View -> 3D Viewer** to inspect board orientation, sockets, connector
    positions, and mounting-hole clearance. It does not verify electrical
    connectivity.
@@ -238,10 +237,9 @@ kicad-cli pcb export ipcd356 \
   robot-carrier.kicad_pcb --output /tmp/robot-carrier.ipc356
 ```
 
-Before routing, run schematic ERC and use KiCad's **Update PCB from Schematic**
-workflow. Re-run PCB DRC after every placement or routing pass; unrouted-net
-reports are expected until routing is complete, but shorts and clearance
-violations are not acceptable.
+After any schematic change, run ERC and use KiCad's **Update PCB from
+Schematic** workflow. Refill all zones and re-run PCB DRC after every placement
+or routing change.
 
 ## LCSC / JLC production workflow
 

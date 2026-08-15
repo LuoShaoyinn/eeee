@@ -1,0 +1,9 @@
+(version 1)
+
+(rule "5 V power track minimum"
+    (condition "A.NetName == '+5V'")
+    (constraint track_width (min 1.5mm)))
+
+(rule "Battery power track minimum"
+    (condition "A.NetName == 'VIN_PROTECTED'")
+    (constraint track_width (min 1.5mm)))
