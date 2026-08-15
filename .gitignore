@@ -5,3 +5,5 @@ dependencies.lock
 managed_components/
 .cache/
 *.kicad_prl
+.history
+*.lck
