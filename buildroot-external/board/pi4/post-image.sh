@@ -25,7 +25,7 @@ cp "$BOARD_DIR/config.txt" "$BINARIES_DIR/rpi-firmware/config.txt"
     if [ -n "$kernel" ] && [ -f "$BINARIES_DIR/$kernel" ]; then
         printf '            "%s",\n' "$kernel"
     fi
-    printf '%s\n' '        }' '    }' '    size = 32M' '}'
+    printf '%s\n' '        }' '    }' '    size = 64M' '}'
     printf '%s\n' 'image sdcard.img {' '    hdimage {' '    }' '    partition boot {'
     printf '%s\n' '        partition-type = 0xC' '        bootable = "true"' '        image = "boot.vfat"' '    }'
     printf '%s\n' '    partition rootfs {' '        partition-type = 0x83' '        image = "rootfs.ext4"' '    }' '}'
