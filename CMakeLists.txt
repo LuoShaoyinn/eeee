@@ -7,5 +7,7 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_LIST_DIR}/motor-driver/JCA25-2430-CE")
 list(APPEND EXTRA_COMPONENT_DIRS
      "${CMAKE_CURRENT_LIST_DIR}/servo-driver/standard-3wire")
+list(APPEND EXTRA_COMPONENT_DIRS
+     "${CMAKE_CURRENT_LIST_DIR}/imu-driver/JY61P-UART")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(esp32_hello_world)

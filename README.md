@@ -85,6 +85,8 @@ The test uses 50 Hz PWM and sweeps 1200-1800 us. A standard three-wire servo pro
 - `servo-driver/standard-3wire/include/standard_servo.h`: public servo API
 - `servo-driver/standard-3wire/src/standard_servo.c`: LEDC implementation
 - `servo-driver/standard-3wire/README.md`: servo wiring and API documentation
+- `main/imu_test_main.c`: WT901 UART frame test harness
+- `imu-driver/JY61P-UART/`: reusable JY61P/JY901-family UART driver
 - `sdkconfig.defaults`: shared default configuration
 - `.gitignore`: generated ESP-IDF output exclusions
 
@@ -101,3 +103,14 @@ servos:
 The carrier routes the tested JGA25-2430-CE PWM and direction signals directly
 from ESP32 3.3 V GPIOs. Each open-collector encoder input has a 10 k pull-up
 to 3.3 V; do not pull encoder outputs up to the 5 V or motor rail.
+
+## WT901 UART test
+
+The `test/imu-test` branch uses UART1 at 9600 8N1. For this standalone test,
+connect the IMU VCC to the DevKit 3V3 pin and GND to GND. Cross the data lines:
+IMU TX -> ESP32 GPIO21 (RX), and IMU RX -> ESP32 GPIO22 (TX). Leave SDA, SCL,
+and the other D pins disconnected. The monitor remains on the DevKit USB
+serial port at 115200 baud.
+
+GPIO21 and GPIO22 are temporary test assignments; the carrier layout assigns
+those pins to servo 4 and the GM25-370 controller, respectively.
