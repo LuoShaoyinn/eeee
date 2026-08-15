@@ -2,7 +2,7 @@
 
 Reusable ESP-IDF component for the five-wire JGA25-2430-CE brushless gear motor with integrated controller.
 
-The directory name follows the requested library layout: `motor-driver/JCA25-2430-CE`. The motor marking is commonly written `JGA25-2430-CE`.
+The component directory and motor marking consistently use `JGA25-2430-CE`.
 
 ## Interface
 
@@ -26,7 +26,16 @@ ESP_ERROR_CHECK(jga25_2430_ce_set_duty_percent(motor, 25));
 ESP_ERROR_CHECK(jga25_2430_ce_stop(motor));
 ```
 
-`0%` is implemented as a forced-high output because this motor's controller treats a low PWM input as the full-speed condition. The PWM input accepts the documented 15-25 kHz range; the component defaults to 20 kHz.
+The duty argument is the active-low motor-drive fraction: `0%` forces the PWM
+input high for stop, `100%` forces it low for full speed, and intermediate
+values produce that percentage of low time. The PWM input accepts the
+documented 15-25 kHz range; the component defaults to 20 kHz.
+
+MCPWM is a hardware peripheral and can continue its last waveform if an
+application task or CPU hangs. The carrier's pull-up establishes a stopped
+state during reset or when the GPIO is high-impedance; it is not a runtime
+watchdog. Use an independent enable/watchdog when a stale PWM command must stop
+the motor.
 
 ## Wiring
 

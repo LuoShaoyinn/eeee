@@ -77,10 +77,10 @@ The test uses 50 Hz PWM and sweeps 1200-1800 us. A standard three-wire servo pro
 - `main/motor_test_main.c`: motor application-level test harness
 - `main/servo_test_main.c`: servo application-level test harness
 - `main/CMakeLists.txt`: component registration
-- `motor-driver/JCA25-2430-CE/`: reusable motor-driver component
-- `motor-driver/JCA25-2430-CE/include/jga25_2430_ce.h`: public driver API
-- `motor-driver/JCA25-2430-CE/src/jga25_2430_ce.c`: MCPWM implementation
-- `motor-driver/JCA25-2430-CE/README.md`: component-specific wiring and ratings
+- `motor-driver/JGA25-2430-CE/`: reusable motor-driver component
+- `motor-driver/JGA25-2430-CE/include/jga25_2430_ce.h`: public driver API
+- `motor-driver/JGA25-2430-CE/src/jga25_2430_ce.c`: MCPWM implementation
+- `motor-driver/JGA25-2430-CE/README.md`: component-specific wiring and ratings
 - `servo-driver/standard-3wire/`: reusable three-wire servo component
 - `servo-driver/standard-3wire/include/standard_servo.h`: public servo API
 - `servo-driver/standard-3wire/src/standard_servo.c`: LEDC implementation
@@ -91,7 +91,7 @@ The test uses 50 Hz PWM and sweeps 1200-1800 us. A standard three-wire servo pro
 ## KiCad carrier board
 
 The `test/kicad-eda` branch contains the first integrated carrier-board sample
-for Raspberry Pi 4B, ESP32-WROOM-32 DevKit, four JGA25-2430-CE motors, and six
+for Raspberry Pi 4B, ESP32-WROOM-32 DevKit, four JGA25-2430-CE motors, and four
 servos:
 
 - `hardware/robot-carrier/robot-carrier.kicad_pcb`: placement prototype
@@ -99,5 +99,6 @@ servos:
 - `hardware/robot-carrier/README.md`: converter selection, safety notes, and LCSC production workflow
 
 The carrier routes the tested JGA25-2430-CE PWM and direction signals directly
-from ESP32 3.3 V GPIOs. Each open-collector encoder input has a 10 k pull-up
-to 3.3 V; do not pull encoder outputs up to the 5 V or motor rail.
+from ESP32 3.3 V GPIOs. Each active-low PWM input and each open-collector
+encoder input has a 10 k pull-up to 3.3 V; do not pull these signals up to the
+5 V or motor rail.

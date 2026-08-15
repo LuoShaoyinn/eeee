@@ -92,13 +92,16 @@ esp_err_t jga25_2430_ce_init(const jga25_2430_ce_config_t *config,
         driver->generator,
         MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
                                      MCPWM_TIMER_EVENT_EMPTY,
-                                     MCPWM_GEN_ACTION_HIGH));
+                                     MCPWM_GEN_ACTION_LOW));
     if (err != ESP_OK) goto fail;
     err = mcpwm_generator_set_action_on_compare_event(
         driver->generator,
         MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
                                        driver->comparator,
-                                       MCPWM_GEN_ACTION_LOW));
+                                       MCPWM_GEN_ACTION_HIGH));
+    if (err != ESP_OK) goto fail;
+    // Establish the active-low stop state before the timer can reach the pin.
+    err = mcpwm_generator_set_force_level(driver->generator, 1, true);
     if (err != ESP_OK) goto fail;
     err = mcpwm_timer_enable(timer);
     if (err != ESP_OK) goto fail;
@@ -124,17 +127,24 @@ esp_err_t jga25_2430_ce_set_duty_percent(jga25_2430_ce_handle_t driver,
     if (duty_percent == 0) {
         return mcpwm_generator_set_force_level(driver->generator, 1, true);
     }
+    if (duty_percent == 100) {
+        return mcpwm_generator_set_force_level(driver->generator, 0, true);
+    }
 
     uint32_t compare_ticks = (driver->pwm_period_ticks * duty_percent) / 100;
+    if (compare_ticks == 0) {
+        compare_ticks = 1;
+    }
     if (compare_ticks >= driver->pwm_period_ticks) {
         compare_ticks = driver->pwm_period_ticks - 1;
     }
 
-    esp_err_t err = mcpwm_generator_set_force_level(driver->generator, -1, true);
+    esp_err_t err = mcpwm_comparator_set_compare_value(driver->comparator,
+                                                        compare_ticks);
     if (err != ESP_OK) {
         return err;
     }
-    return mcpwm_comparator_set_compare_value(driver->comparator, compare_ticks);
+    return mcpwm_generator_set_force_level(driver->generator, -1, true);
 }
 
 esp_err_t jga25_2430_ce_set_direction(jga25_2430_ce_handle_t driver,

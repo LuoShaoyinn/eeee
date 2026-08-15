@@ -1,0 +1,5956 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "00000000-0000-4000-8000-000000000001")
+	(paper "A3")
+	(title_block
+		(title "Robot Carrier - 6S / ESP32 / Raspberry Pi / Motors")
+		(date "2026-08-14")
+		(rev "pre-route schematic")
+		(company "Prototype")
+		(comment 1 "Battery output is assumed internally protected; J1 connects directly to VIN_PROTECTED.")
+		(comment 2 "F5V_EXT: provisional external 10 A fuse between buck output and J3.")
+		(comment 3 "No battery fuse footprint is fitted in this revision; a future fuse would be placed ahead of J1.")
+	)
+	(lib_symbols
+		(symbol "RobotCarrier:Conn_01x02"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_01x02"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Robot carrier generic 2-pin connector"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Conn_01x02_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -3.81)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.4130000000000003)
+					(end 0 -2.667)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:Conn_01x03"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_01x03"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Robot carrier generic 3-pin connector"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Conn_01x03_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -6.35)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.4130000000000003)
+					(end 0 -2.667)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -4.953)
+					(end 0 -5.207)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -5.08 0)
+					(length 3.81)
+					(name "Pin_3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:Conn_01x04"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_01x04"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Robot carrier generic 4-pin connector"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Conn_01x04_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -8.89)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.4130000000000003)
+					(end 0 -2.667)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -4.953)
+					(end 0 -5.207)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -5.08 0)
+					(length 3.81)
+					(name "Pin_3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -7.493)
+					(end 0 -7.747)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -7.62 0)
+					(length 3.81)
+					(name "Pin_4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:Conn_01x05"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_01x05"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Robot carrier generic 5-pin connector"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Conn_01x05_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -11.43)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.4130000000000003)
+					(end 0 -2.667)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -4.953)
+					(end 0 -5.207)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -5.08 0)
+					(length 3.81)
+					(name "Pin_3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -7.493)
+					(end 0 -7.747)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -7.62 0)
+					(length 3.81)
+					(name "Pin_4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -10.033)
+					(end 0 -10.287)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -10.16 0)
+					(length 3.81)
+					(name "Pin_5"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:Conn_01x06"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_01x06"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Robot carrier generic 6-pin connector"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Conn_01x06_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -13.969999999999999)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.4130000000000003)
+					(end 0 -2.667)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -4.953)
+					(end 0 -5.207)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -5.08 0)
+					(length 3.81)
+					(name "Pin_3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -7.493)
+					(end 0 -7.747)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -7.62 0)
+					(length 3.81)
+					(name "Pin_4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -10.033)
+					(end 0 -10.287)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -10.16 0)
+					(length 3.81)
+					(name "Pin_5"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -12.572999999999999)
+					(end 0 -12.827)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -12.7 0)
+					(length 3.81)
+					(name "Pin_6"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:Conn_01x38"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "J"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_01x38"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Robot carrier generic 38-pin connector"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Conn_01x38_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -95.25)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.4130000000000003)
+					(end 0 -2.667)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -4.953)
+					(end 0 -5.207)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -5.08 0)
+					(length 3.81)
+					(name "Pin_3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -7.493)
+					(end 0 -7.747)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -7.62 0)
+					(length 3.81)
+					(name "Pin_4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -10.033)
+					(end 0 -10.287)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -10.16 0)
+					(length 3.81)
+					(name "Pin_5"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -12.572999999999999)
+					(end 0 -12.827)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -12.7 0)
+					(length 3.81)
+					(name "Pin_6"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -15.113)
+					(end 0 -15.367)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -15.24 0)
+					(length 3.81)
+					(name "Pin_7"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "7"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -17.653000000000002)
+					(end 0 -17.907)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -17.78 0)
+					(length 3.81)
+					(name "Pin_8"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "8"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -20.193)
+					(end 0 -20.447)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -20.32 0)
+					(length 3.81)
+					(name "Pin_9"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "9"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -22.733)
+					(end 0 -22.987)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -22.86 0)
+					(length 3.81)
+					(name "Pin_10"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "10"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -25.273)
+					(end 0 -25.526999999999997)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -25.4 0)
+					(length 3.81)
+					(name "Pin_11"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "11"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -27.813000000000002)
+					(end 0 -28.067)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -27.94 0)
+					(length 3.81)
+					(name "Pin_12"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "12"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -30.353)
+					(end 0 -30.607)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -30.48 0)
+					(length 3.81)
+					(name "Pin_13"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "13"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -32.893)
+					(end 0 -33.147000000000006)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -33.02 0)
+					(length 3.81)
+					(name "Pin_14"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "14"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -35.433)
+					(end 0 -35.687000000000005)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -35.56 0)
+					(length 3.81)
+					(name "Pin_15"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "15"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -37.973)
+					(end 0 -38.227000000000004)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -38.1 0)
+					(length 3.81)
+					(name "Pin_16"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "16"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -40.513)
+					(end 0 -40.767)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -40.64 0)
+					(length 3.81)
+					(name "Pin_17"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "17"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -43.053)
+					(end 0 -43.307)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -43.18 0)
+					(length 3.81)
+					(name "Pin_18"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "18"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -45.592999999999996)
+					(end 0 -45.847)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -45.72 0)
+					(length 3.81)
+					(name "Pin_19"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "19"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -48.132999999999996)
+					(end 0 -48.387)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -48.26 0)
+					(length 3.81)
+					(name "Pin_20"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "20"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -50.672999999999995)
+					(end 0 -50.927)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -50.8 0)
+					(length 3.81)
+					(name "Pin_21"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "21"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -53.213)
+					(end 0 -53.467000000000006)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -53.34 0)
+					(length 3.81)
+					(name "Pin_22"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "22"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -55.753)
+					(end 0 -56.007000000000005)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -55.88 0)
+					(length 3.81)
+					(name "Pin_23"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "23"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -58.293)
+					(end 0 -58.547000000000004)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -58.42 0)
+					(length 3.81)
+					(name "Pin_24"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "24"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -60.833)
+					(end 0 -61.087)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -60.96 0)
+					(length 3.81)
+					(name "Pin_25"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "25"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -63.373)
+					(end 0 -63.627)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -63.5 0)
+					(length 3.81)
+					(name "Pin_26"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "26"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -65.91300000000001)
+					(end 0 -66.167)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -66.04 0)
+					(length 3.81)
+					(name "Pin_27"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "27"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -68.453)
+					(end 0 -68.707)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -68.58 0)
+					(length 3.81)
+					(name "Pin_28"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "28"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -70.99300000000001)
+					(end 0 -71.247)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -71.12 0)
+					(length 3.81)
+					(name "Pin_29"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "29"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -73.533)
+					(end 0 -73.78699999999999)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -73.66 0)
+					(length 3.81)
+					(name "Pin_30"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "30"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -76.07300000000001)
+					(end 0 -76.327)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -76.2 0)
+					(length 3.81)
+					(name "Pin_31"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "31"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -78.613)
+					(end 0 -78.86699999999999)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -78.74 0)
+					(length 3.81)
+					(name "Pin_32"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "32"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -81.153)
+					(end 0 -81.407)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -81.28 0)
+					(length 3.81)
+					(name "Pin_33"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "33"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -83.69300000000001)
+					(end 0 -83.947)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -83.82 0)
+					(length 3.81)
+					(name "Pin_34"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "34"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -86.233)
+					(end 0 -86.487)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -86.36 0)
+					(length 3.81)
+					(name "Pin_35"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "35"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -88.77300000000001)
+					(end 0 -89.027)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -88.9 0)
+					(length 3.81)
+					(name "Pin_36"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "36"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -91.313)
+					(end 0 -91.567)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -91.44 0)
+					(length 3.81)
+					(name "Pin_37"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "37"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(rectangle
+					(start -1.27 -93.85300000000001)
+					(end 0 -94.107)
+					(stroke (width 0.1524) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at -5.08 -93.98 0)
+					(length 3.81)
+					(name "Pin_38"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "38"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:R"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "R"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "R"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Passive resistor"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "R_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -1.27)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 5.08 0 180)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:C_Polarized"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "C"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "C_Polarized"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Polarized capacitor"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "C_Polarized_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -1.27)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 5.08 0 180)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:C"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "C"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "C"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Non-polarized capacitor"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "C_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -1.27)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 5.08 0 180)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:D_TVS"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "D"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "D_TVS"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Unidirectional TVS diode"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "D_TVS_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -1.27)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 5.08 0 180)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "RobotCarrier:Fuse"
+			(pin_names (offset 1.016) (hide yes))
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board no)
+			(property "Reference" "F"
+				(at 0 3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Fuse_or_Link"
+				(at 0 -3.81 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Fuse or high-current wire link"
+				(at 0 0 0)
+					(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Fuse_1_1"
+				(rectangle
+					(start -1.27 1.27)
+					(end 1.27 -1.27)
+					(stroke (width 0.254) (type default))
+					(fill (type background))
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 5.08 0 180)
+					(length 3.81)
+					(name "Pin_2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+								(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x02")
+		(at 76.2 25.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000007")
+		(property "Reference" "J1"
+			(at 76.2 21.59 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "6S BATTERY INPUT"
+			(at 76.2 29.21 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:TERM_BLOCK_1X02"
+			(at 76.2 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 76.2 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "6S BATTERY INPUT"
+			(at 76.2 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C500021"
+			(at 76.2 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000008"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000009"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 71.12 25.4 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000000a")
+	)
+	(label "GND"
+		(at 71.12 27.94 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000000b")
+	)
+	(symbol
+		(lib_id "RobotCarrier:D_TVS")
+		(at 106.68 25.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000000c")
+		(property "Reference" "D1"
+			(at 106.68 21.59 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "1.5KE33A"
+			(at 106.68 29.21 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Diode_THT:D_DO-201AD_P15.24mm_Horizontal"
+			(at 106.68 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 106.68 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "1.5kW unidirectional TVS at battery input"
+			(at 106.68 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C18198472"
+			(at 106.68 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000000d"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000000e"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "D1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 101.6 25.4 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000000f")
+	)
+	(label "GND"
+		(at 111.76 25.4 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000010")
+	)
+	(symbol
+		(lib_id "RobotCarrier:C_Polarized")
+		(at 137.16 25.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000011")
+		(property "Reference" "C1"
+			(at 137.16 21.59 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "470uF 63V"
+			(at 137.16 29.21 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm"
+			(at 137.16 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 137.16 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "470uF 63V"
+			(at 137.16 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C51953331"
+			(at 137.16 25.4 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000012"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000013"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "C1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 132.08 25.4 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000014")
+	)
+	(label "GND"
+		(at 142.24 25.4 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000015")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x02")
+		(at 45.72 44.45 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000001b")
+		(property "Reference" "J2"
+			(at 45.72 40.64 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "BUCK INPUT 24V"
+			(at 45.72 48.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:TERM_BLOCK_1X02"
+			(at 45.72 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 45.72 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "BUCK INPUT 24V"
+			(at 45.72 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C500021"
+			(at 45.72 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000001c"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000001d"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 40.64 44.45 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000001e")
+	)
+	(label "GND"
+		(at 40.64 46.99 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000001f")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Fuse")
+		(at 106.68 44.45 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000020")
+		(property "Reference" "F101"
+			(at 106.68 40.64 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10A inline blade fuse"
+			(at 106.68 48.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 106.68 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 106.68 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "External 5V output fuse protects J3 and carrier"
+			(at 106.68 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000021"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000022"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "F101")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "BUCK_5V_OUT"
+		(at 101.6 44.45 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000023")
+	)
+	(label "+5V"
+		(at 111.76 44.45 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000024")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x02")
+		(at 137.16 44.45 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000025")
+		(property "Reference" "J3"
+			(at 137.16 40.64 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "BUCK OUTPUT 5V"
+			(at 137.16 48.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:TERM_BLOCK_1X02"
+			(at 137.16 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 137.16 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "BUCK OUTPUT 5V"
+			(at 137.16 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C500021"
+			(at 137.16 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000026"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000027"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 132.08 44.45 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000028")
+	)
+	(label "GND"
+		(at 132.08 46.99 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000029")
+	)
+	(symbol
+		(lib_id "RobotCarrier:C_Polarized")
+		(at 167.64 44.45 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000002a")
+		(property "Reference" "C3"
+			(at 167.64 40.64 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "1000uF 10V"
+			(at 167.64 48.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Capacitor_THT:CP_Radial_D8.0mm_P3.50mm"
+			(at 167.64 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 167.64 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "1000uF 10V"
+			(at 167.64 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C79119"
+			(at 167.64 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000002b"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000002c"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "C3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 162.56 44.45 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000002d")
+	)
+	(label "GND"
+		(at 172.72 44.45 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000002e")
+	)
+	(symbol
+		(lib_id "RobotCarrier:C")
+		(at 198.12 44.45 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000002f")
+		(property "Reference" "C4"
+			(at 198.12 40.64 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100nF 50V"
+			(at 198.12 48.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:C_THT_P5.08_HAND"
+			(at 198.12 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 198.12 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Shared 5V high-frequency bypass beside J41"
+			(at 198.12 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C84772"
+			(at 198.12 44.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000030"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000031"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "C4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 193.04 44.45 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000032")
+	)
+	(label "GND"
+		(at 203.2 44.45 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000033")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x05")
+		(at 39.37 74.93 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000034")
+		(property "Reference" "J10"
+			(at 39.37 71.12 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M1 JGA25-2430-CE"
+			(at 39.37 78.74 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:MOTOR_5PIN"
+			(at 39.37 74.93 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 39.37 74.93 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M1 JGA25-2430-CE"
+			(at 39.37 74.93 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C7434483"
+			(at 39.37 74.93 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000035"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000036"))
+		(pin "3" (uuid "00000000-0000-4000-8000-000000000037"))
+		(pin "4" (uuid "00000000-0000-4000-8000-000000000038"))
+		(pin "5" (uuid "00000000-0000-4000-8000-000000000039"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 34.29 74.93 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000003a")
+	)
+	(label "GND"
+		(at 34.29 77.47 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000003b")
+	)
+	(label "M1_PWM_3V3"
+		(at 34.29 80.01 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000003c")
+	)
+	(label "M1_DIR_3V3"
+		(at 34.29 82.55 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000003d")
+	)
+	(label "M1_ENC"
+		(at 34.29 85.09 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000003e")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x05")
+		(at 39.37 96.52 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000003f")
+		(property "Reference" "J11"
+			(at 39.37 92.71 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M2 JGA25-2430-CE"
+			(at 39.37 100.33 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:MOTOR_5PIN"
+			(at 39.37 96.52 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 39.37 96.52 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M2 JGA25-2430-CE"
+			(at 39.37 96.52 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C7434483"
+			(at 39.37 96.52 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000040"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000041"))
+		(pin "3" (uuid "00000000-0000-4000-8000-000000000042"))
+		(pin "4" (uuid "00000000-0000-4000-8000-000000000043"))
+		(pin "5" (uuid "00000000-0000-4000-8000-000000000044"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 34.29 96.52 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000045")
+	)
+	(label "GND"
+		(at 34.29 99.06 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000046")
+	)
+	(label "M2_PWM_3V3"
+		(at 34.29 101.6 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000047")
+	)
+	(label "M2_DIR_3V3"
+		(at 34.29 104.14 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000048")
+	)
+	(label "M2_ENC"
+		(at 34.29 106.68 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000049")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x05")
+		(at 39.37 119.38 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000004a")
+		(property "Reference" "J12"
+			(at 39.37 115.57 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M3 JGA25-2430-CE"
+			(at 39.37 123.19 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:MOTOR_5PIN"
+			(at 39.37 119.38 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 39.37 119.38 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M3 JGA25-2430-CE"
+			(at 39.37 119.38 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C7434483"
+			(at 39.37 119.38 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000004b"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000004c"))
+		(pin "3" (uuid "00000000-0000-4000-8000-00000000004d"))
+		(pin "4" (uuid "00000000-0000-4000-8000-00000000004e"))
+		(pin "5" (uuid "00000000-0000-4000-8000-00000000004f"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J12")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 34.29 119.38 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000050")
+	)
+	(label "GND"
+		(at 34.29 121.92 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000051")
+	)
+	(label "M3_PWM_3V3"
+		(at 34.29 124.46 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000052")
+	)
+	(label "M3_DIR_3V3"
+		(at 34.29 127 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000053")
+	)
+	(label "M3_ENC"
+		(at 34.29 129.54 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000054")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x05")
+		(at 39.37 140.97 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000055")
+		(property "Reference" "J13"
+			(at 39.37 137.16 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "M4 JGA25-2430-CE"
+			(at 39.37 144.78 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:MOTOR_5PIN"
+			(at 39.37 140.97 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 39.37 140.97 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "M4 JGA25-2430-CE"
+			(at 39.37 140.97 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C7434483"
+			(at 39.37 140.97 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000056"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000057"))
+		(pin "3" (uuid "00000000-0000-4000-8000-000000000058"))
+		(pin "4" (uuid "00000000-0000-4000-8000-000000000059"))
+		(pin "5" (uuid "00000000-0000-4000-8000-00000000005a"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J13")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "VIN_PROTECTED"
+		(at 34.29 140.97 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000005b")
+	)
+	(label "GND"
+		(at 34.29 143.51 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000005c")
+	)
+	(label "M4_PWM_3V3"
+		(at 34.29 146.05 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000005d")
+	)
+	(label "M4_DIR_3V3"
+		(at 34.29 148.59 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000005e")
+	)
+	(label "M4_ENC"
+		(at 34.29 151.13 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000005f")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x03")
+		(at 100.33 74.93 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000060")
+		(property "Reference" "J20"
+			(at 100.33 71.12 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SERVO 1"
+			(at 100.33 78.74 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:SERVO_3PIN"
+			(at 100.33 74.93 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 74.93 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "SERVO 1"
+			(at 100.33 74.93 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000061"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000062"))
+		(pin "3" (uuid "00000000-0000-4000-8000-000000000063"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J20")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 95.25 74.93 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000064")
+	)
+	(label "GND"
+		(at 95.25 77.47 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000065")
+	)
+	(label "S1_PWM"
+		(at 95.25 80.01 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000066")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x03")
+		(at 100.33 92.71 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000067")
+		(property "Reference" "J21"
+			(at 100.33 88.9 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SERVO 2"
+			(at 100.33 96.52 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:SERVO_3PIN"
+			(at 100.33 92.71 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 92.71 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "SERVO 2"
+			(at 100.33 92.71 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000068"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000069"))
+		(pin "3" (uuid "00000000-0000-4000-8000-00000000006a"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J21")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 95.25 92.71 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000006b")
+	)
+	(label "GND"
+		(at 95.25 95.25 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000006c")
+	)
+	(label "S2_PWM"
+		(at 95.25 97.79 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000006d")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x03")
+		(at 100.33 110.49 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000006e")
+		(property "Reference" "J22"
+			(at 100.33 106.68 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SERVO 3"
+			(at 100.33 114.3 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:SERVO_3PIN"
+			(at 100.33 110.49 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 110.49 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "SERVO 3"
+			(at 100.33 110.49 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000006f"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000070"))
+		(pin "3" (uuid "00000000-0000-4000-8000-000000000071"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J22")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 95.25 110.49 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000072")
+	)
+	(label "GND"
+		(at 95.25 113.03 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000073")
+	)
+	(label "S3_PWM"
+		(at 95.25 115.57 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000074")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x03")
+		(at 100.33 129.54 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000075")
+		(property "Reference" "J23"
+			(at 100.33 125.73 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "SERVO 4"
+			(at 100.33 133.35 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:SERVO_3PIN"
+			(at 100.33 129.54 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 129.54 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "SERVO 4"
+			(at 100.33 129.54 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000076"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000077"))
+		(pin "3" (uuid "00000000-0000-4000-8000-000000000078"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J23")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 95.25 129.54 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000079")
+	)
+	(label "GND"
+		(at 95.25 132.08 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000007a")
+	)
+	(label "S4_PWM"
+		(at 95.25 134.62 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000007b")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x06")
+		(at 100.33 154.94 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000007c")
+		(property "Reference" "JPI1"
+			(at 100.33 151.13 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "RPI4B POWER UART"
+			(at 100.33 158.75 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:PI_REMOTE_1X06_MALE"
+			(at 100.33 154.94 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 154.94 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "RPI4B POWER UART"
+			(at 100.33 154.94 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000007d"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000007e"))
+		(pin "3" (uuid "00000000-0000-4000-8000-00000000007f"))
+		(pin "4" (uuid "00000000-0000-4000-8000-000000000080"))
+		(pin "5" (uuid "00000000-0000-4000-8000-000000000081"))
+		(pin "6" (uuid "00000000-0000-4000-8000-000000000082"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "JPI1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 95.25 154.94 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000083")
+	)
+	(label "+5V"
+		(at 95.25 157.48 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000084")
+	)
+	(label "GND"
+		(at 95.25 160.02 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000085")
+	)
+	(label "GND"
+		(at 95.25 162.56 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000086")
+	)
+	(label "PI_UART_TX_3V3"
+		(at 95.25 165.1 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000087")
+	)
+	(label "PI_UART_RX_3V3"
+		(at 95.25 167.64 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000088")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x04")
+		(at 39.37 175.26 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000089")
+		(property "Reference" "J30"
+			(at 39.37 171.45 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "WT901 I2C"
+			(at 39.37 179.07 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:I2C_1X04"
+			(at 39.37 175.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 39.37 175.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "WT901 I2C"
+			(at 39.37 175.26 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000008a"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000008b"))
+		(pin "3" (uuid "00000000-0000-4000-8000-00000000008c"))
+		(pin "4" (uuid "00000000-0000-4000-8000-00000000008d"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J30")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+3V3"
+		(at 34.29 175.26 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000008e")
+	)
+	(label "GND"
+		(at 34.29 177.8 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000008f")
+	)
+	(label "I2C_SDA"
+		(at 34.29 180.34 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000090")
+	)
+	(label "I2C_SCL"
+		(at 34.29 182.88 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000091")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x03")
+		(at 100.33 180.34 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000092")
+		(property "Reference" "J40"
+			(at 100.33 176.53 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GA25 L298N LOGIC"
+			(at 100.33 184.15 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:DUPONT_MALE_1X03"
+			(at 100.33 180.34 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 180.34 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "GA25 L298N LOGIC"
+			(at 100.33 180.34 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000093"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000094"))
+		(pin "3" (uuid "00000000-0000-4000-8000-000000000095"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J40")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "GA25_ENA_PWM_3V3"
+		(at 95.25 180.34 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000096")
+	)
+	(label "GA25_IN1_3V3"
+		(at 95.25 182.88 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000097")
+	)
+	(label "GA25_IN2_3V3"
+		(at 95.25 185.42 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000098")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x03")
+		(at 144.78 180.34 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000099")
+		(property "Reference" "J41"
+			(at 144.78 176.53 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "GA25 L298N POWER"
+			(at 144.78 184.15 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:TERM_BLOCK_1X03"
+			(at 144.78 180.34 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 144.78 180.34 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "GA25 L298N POWER"
+			(at 144.78 180.34 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C430602"
+			(at 144.78 180.34 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000009a"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000009b"))
+		(pin "3" (uuid "00000000-0000-4000-8000-00000000009c"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "J41")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 139.7 180.34 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000009d")
+	)
+	(label "GND"
+		(at 139.7 182.88 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000009e")
+	)
+	(label "+5V"
+		(at 139.7 185.42 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000009f")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Conn_01x38")
+		(at 219.71 30.48 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-0000000000a0")
+		(property "Reference" "JESP1"
+			(at 219.71 26.67 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "ESP32 DEVKITC 38PIN"
+			(at 219.71 34.29 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:ESP32_DEVKITC_38PIN_SOCKET"
+			(at 219.71 30.48 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 219.71 30.48 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "ESP32 DEVKITC 38PIN"
+			(at 219.71 30.48 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000a1"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000a2"))
+		(pin "3" (uuid "00000000-0000-4000-8000-0000000000a3"))
+		(pin "4" (uuid "00000000-0000-4000-8000-0000000000a4"))
+		(pin "5" (uuid "00000000-0000-4000-8000-0000000000a5"))
+		(pin "6" (uuid "00000000-0000-4000-8000-0000000000a6"))
+		(pin "7" (uuid "00000000-0000-4000-8000-0000000000a7"))
+		(pin "8" (uuid "00000000-0000-4000-8000-0000000000a8"))
+		(pin "9" (uuid "00000000-0000-4000-8000-0000000000a9"))
+		(pin "10" (uuid "00000000-0000-4000-8000-0000000000aa"))
+		(pin "11" (uuid "00000000-0000-4000-8000-0000000000ab"))
+		(pin "12" (uuid "00000000-0000-4000-8000-0000000000ac"))
+		(pin "13" (uuid "00000000-0000-4000-8000-0000000000ad"))
+		(pin "14" (uuid "00000000-0000-4000-8000-0000000000ae"))
+		(pin "15" (uuid "00000000-0000-4000-8000-0000000000af"))
+		(pin "16" (uuid "00000000-0000-4000-8000-0000000000b0"))
+		(pin "17" (uuid "00000000-0000-4000-8000-0000000000b1"))
+		(pin "18" (uuid "00000000-0000-4000-8000-0000000000b2"))
+		(pin "19" (uuid "00000000-0000-4000-8000-0000000000b3"))
+		(pin "20" (uuid "00000000-0000-4000-8000-0000000000b4"))
+		(pin "21" (uuid "00000000-0000-4000-8000-0000000000b5"))
+		(pin "22" (uuid "00000000-0000-4000-8000-0000000000b6"))
+		(pin "23" (uuid "00000000-0000-4000-8000-0000000000b7"))
+		(pin "24" (uuid "00000000-0000-4000-8000-0000000000b8"))
+		(pin "25" (uuid "00000000-0000-4000-8000-0000000000b9"))
+		(pin "26" (uuid "00000000-0000-4000-8000-0000000000ba"))
+		(pin "27" (uuid "00000000-0000-4000-8000-0000000000bb"))
+		(pin "28" (uuid "00000000-0000-4000-8000-0000000000bc"))
+		(pin "29" (uuid "00000000-0000-4000-8000-0000000000bd"))
+		(pin "30" (uuid "00000000-0000-4000-8000-0000000000be"))
+		(pin "31" (uuid "00000000-0000-4000-8000-0000000000bf"))
+		(pin "32" (uuid "00000000-0000-4000-8000-0000000000c0"))
+		(pin "33" (uuid "00000000-0000-4000-8000-0000000000c1"))
+		(pin "34" (uuid "00000000-0000-4000-8000-0000000000c2"))
+		(pin "35" (uuid "00000000-0000-4000-8000-0000000000c3"))
+		(pin "36" (uuid "00000000-0000-4000-8000-0000000000c4"))
+		(pin "37" (uuid "00000000-0000-4000-8000-0000000000c5"))
+		(pin "38" (uuid "00000000-0000-4000-8000-0000000000c6"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "JESP1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+3V3"
+		(at 214.63 30.48 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000c7")
+	)
+	(label "M3_ENC"
+		(at 214.63 35.56 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000c8")
+	)
+	(label "M4_ENC"
+		(at 214.63 38.1 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000c9")
+	)
+	(label "M1_ENC"
+		(at 214.63 40.64 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000ca")
+	)
+	(label "M2_ENC"
+		(at 214.63 43.18 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000cb")
+	)
+	(label "GA25_IN1_3V3"
+		(at 214.63 45.72 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000cc")
+	)
+	(label "I2C_SCL"
+		(at 214.63 48.26 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000cd")
+	)
+	(label "M2_DIR_3V3"
+		(at 214.63 50.8 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000ce")
+	)
+	(label "M3_DIR_3V3"
+		(at 214.63 53.34 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000cf")
+	)
+	(label "M4_DIR_3V3"
+		(at 214.63 55.88 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d0")
+	)
+	(label "S2_PWM"
+		(at 214.63 58.42 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d1")
+	)
+	(label "GA25_IN2_3V3"
+		(at 214.63 60.96 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d2")
+	)
+	(label "GND"
+		(at 214.63 63.5 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d3")
+	)
+	(label "M1_PWM_3V3"
+		(at 214.63 66.04 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d4")
+	)
+	(label "+5V"
+		(at 214.63 76.2 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d5")
+	)
+	(label "GND"
+		(at 214.63 78.74 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d6")
+	)
+	(label "M1_DIR_3V3"
+		(at 214.63 81.28 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d7")
+	)
+	(label "GA25_ENA_PWM_3V3"
+		(at 214.63 83.82 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d8")
+	)
+	(label "PI_UART_TX_3V3"
+		(at 214.63 86.36 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000d9")
+	)
+	(label "PI_UART_RX_3V3"
+		(at 214.63 88.9 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000da")
+	)
+	(label "S4_PWM"
+		(at 214.63 91.44 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000db")
+	)
+	(label "GND"
+		(at 214.63 93.98 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000dc")
+	)
+	(label "S3_PWM"
+		(at 214.63 96.52 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000dd")
+	)
+	(label "M4_PWM_3V3"
+		(at 214.63 99.06 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000de")
+	)
+	(label "I2C_SDA"
+		(at 214.63 101.6 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000df")
+	)
+	(label "M3_PWM_3V3"
+		(at 214.63 104.14 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000e0")
+	)
+	(label "M2_PWM_3V3"
+		(at 214.63 106.68 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000e1")
+	)
+	(label "S1_PWM"
+		(at 214.63 109.22 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000e2")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 30.48 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-0000000000e3")
+		(property "Reference" "R1"
+			(at 299.72 26.67 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 34.29 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 30.48 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 30.48 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 30.48 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 30.48 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000e4"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000e5"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M1_ENC"
+		(at 294.64 30.48 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000e6")
+	)
+	(label "+3V3"
+		(at 304.8 30.48 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000e7")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 41.91 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-0000000000e8")
+		(property "Reference" "R2"
+			(at 299.72 38.1 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 45.72 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 41.91 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 41.91 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 41.91 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 41.91 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000e9"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000ea"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M2_ENC"
+		(at 294.64 41.91 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000eb")
+	)
+	(label "+3V3"
+		(at 304.8 41.91 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000ec")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 54.61 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-0000000000ed")
+		(property "Reference" "R3"
+			(at 299.72 50.8 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 58.42 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 54.61 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 54.61 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 54.61 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 54.61 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000ee"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000ef"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M3_ENC"
+		(at 294.64 54.61 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000f0")
+	)
+	(label "+3V3"
+		(at 304.8 54.61 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000f1")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 66.04 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-0000000000f2")
+		(property "Reference" "R4"
+			(at 299.72 62.23 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 69.85 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 66.04 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 66.04 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 66.04 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 66.04 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000f3"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000f4"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R4")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M4_ENC"
+		(at 294.64 66.04 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000f5")
+	)
+	(label "+3V3"
+		(at 304.8 66.04 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000f6")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 77.47 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-0000000000f7")
+		(property "Reference" "R5"
+			(at 299.72 73.66 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "4.7k"
+			(at 299.72 81.28 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 77.47 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 77.47 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "4.7k"
+			(at 299.72 77.47 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17936"
+			(at 299.72 77.47 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000f8"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000f9"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "I2C_SDA"
+		(at 294.64 77.47 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000fa")
+	)
+	(label "+3V3"
+		(at 304.8 77.47 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000fb")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 90.17 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-0000000000fc")
+		(property "Reference" "R6"
+			(at 299.72 86.36 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "4.7k"
+			(at 299.72 93.98 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 90.17 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 90.17 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "4.7k"
+			(at 299.72 90.17 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17936"
+			(at 299.72 90.17 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000fd"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000fe"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "I2C_SCL"
+		(at 294.64 90.17 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-0000000000ff")
+	)
+	(label "+3V3"
+		(at 304.8 90.17 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000100")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 101.6 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000101")
+		(property "Reference" "R7"
+			(at 299.72 97.79 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 105.41 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 101.6 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 101.6 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 101.6 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 101.6 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000102"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000103"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R7")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "GA25_IN2_3V3"
+		(at 294.64 101.6 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000104")
+	)
+	(label "GND"
+		(at 304.8 101.6 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000105")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 114.3 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000106")
+		(property "Reference" "R8"
+			(at 299.72 110.49 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 118.11 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 114.3 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 114.3 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 114.3 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 114.3 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000107"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000108"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R8")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "GA25_ENA_PWM_3V3"
+		(at 294.64 114.3 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000109")
+	)
+	(label "GND"
+		(at 304.8 114.3 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000010a")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 125.73 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000010b")
+		(property "Reference" "R9"
+			(at 299.72 121.92 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 129.54 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 125.73 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 125.73 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 125.73 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 125.73 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000010c"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000010d"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R9")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M1_PWM_3V3"
+		(at 294.64 125.73 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000010e")
+	)
+	(label "+3V3"
+		(at 304.8 125.73 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000010f")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 138.43 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000110")
+		(property "Reference" "R10"
+			(at 299.72 134.62 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 142.24 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 138.43 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 138.43 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 138.43 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 138.43 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000111"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000112"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M2_PWM_3V3"
+		(at 294.64 138.43 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000113")
+	)
+	(label "+3V3"
+		(at 304.8 138.43 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000114")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 149.86 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-000000000115")
+		(property "Reference" "R11"
+			(at 299.72 146.05 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 153.67 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 149.86 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 149.86 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 149.86 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 149.86 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-000000000116"))
+		(pin "2" (uuid "00000000-0000-4000-8000-000000000117"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M3_PWM_3V3"
+		(at 294.64 149.86 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000118")
+	)
+	(label "+3V3"
+		(at 304.8 149.86 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-000000000119")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 162.56 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "00000000-0000-4000-8000-00000000011a")
+		(property "Reference" "R12"
+			(at 299.72 158.75 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "10k"
+			(at 299.72 166.37 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 162.56 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 299.72 162.56 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "10k"
+			(at 299.72 162.56 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C17902"
+			(at 299.72 162.56 0)
+				(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-00000000011b"))
+		(pin "2" (uuid "00000000-0000-4000-8000-00000000011c"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R12")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "M4_PWM_3V3"
+		(at 294.64 162.56 180)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify right bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000011d")
+	)
+	(label "+3V3"
+		(at 304.8 162.56 0)
+			(effects
+			(font
+				(size 1 1)
+			)
+			(justify left bottom)
+		)
+		(uuid "00000000-0000-4000-8000-00000000011e")
+	)
+	(no_connect
+		(at 214.63 33.02)
+		(uuid "00000000-0000-4000-8000-000000002328")
+	)
+	(no_connect
+		(at 214.63 68.58)
+		(uuid "00000000-0000-4000-8000-000000002329")
+	)
+	(no_connect
+		(at 214.63 71.12)
+		(uuid "00000000-0000-4000-8000-00000000232a")
+	)
+	(no_connect
+		(at 214.63 73.66)
+		(uuid "00000000-0000-4000-8000-00000000232b")
+	)
+	(no_connect
+		(at 214.63 111.76)
+		(uuid "00000000-0000-4000-8000-00000000232c")
+	)
+	(no_connect
+		(at 214.63 114.3)
+		(uuid "00000000-0000-4000-8000-00000000232d")
+	)
+	(no_connect
+		(at 214.63 116.84)
+		(uuid "00000000-0000-4000-8000-00000000232e")
+	)
+	(no_connect
+		(at 214.63 119.38)
+		(uuid "00000000-0000-4000-8000-00000000232f")
+	)
+	(no_connect
+		(at 214.63 121.92)
+		(uuid "00000000-0000-4000-8000-000000002330")
+	)
+	(no_connect
+		(at 214.63 124.46)
+		(uuid "00000000-0000-4000-8000-000000002331")
+	)
+	(symbol
+	(lib_id "RobotCarrier:Conn_01x02")
+	(at 20.32 25.4 0)
+	(unit 1)
+	(exclude_from_sim no)
+	(in_bom no)
+	(on_board no)
+	(dnp no)
+	(uuid "00000000-0000-4000-8000-00000000c350")
+	(property "Reference" "J100"
+	(at 20.32 21.59 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+	)
+)
+	(property "Value" "PROTECTED 6S BATTERY"
+	(at 20.32 33.02 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+	)
+)
+	(property "Footprint" ""
+	(at 20.32 25.4 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+		(hide yes)
+	)
+)
+	(property "Datasheet" "~"
+	(at 20.32 25.4 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+		(hide yes)
+	)
+)
+	(property "Description" "External system connection; not fitted to PCB"
+	(at 20.32 25.4 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+		(hide yes)
+	)
+)
+	(pin "1" (uuid "00000000-0000-4000-8000-00000000c351"))
+	(pin "2" (uuid "00000000-0000-4000-8000-00000000c352"))
+	(instances
+		(project "robot-carrier"
+			(path "/00000000-0000-4000-8000-000000000001"
+				(reference "J100")
+				(unit 1)
+			)
+		)
+	)
+)
+	(label "VIN_PROTECTED"
+		(at 15.24 25.4 180)
+		(effects (font (size 1 1)) (justify right bottom))
+		(uuid "00000000-0000-4000-8000-00000000c353")
+	)
+	(label "GND"
+		(at 15.24 27.94 180)
+		(effects (font (size 1 1)) (justify right bottom))
+		(uuid "00000000-0000-4000-8000-00000000c354")
+	)
+	(symbol
+	(lib_id "RobotCarrier:Conn_01x02")
+	(at 76.2 44.45 0)
+	(unit 1)
+	(exclude_from_sim no)
+	(in_bom no)
+	(on_board no)
+	(dnp no)
+	(uuid "00000000-0000-4000-8000-00000000c355")
+	(property "Reference" "J101"
+	(at 76.2 40.64 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+	)
+)
+	(property "Value" "EXTERNAL BUCK 5V OUTPUT"
+	(at 76.2 48.26 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+	)
+)
+	(property "Footprint" ""
+	(at 76.2 44.45 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+		(hide yes)
+	)
+)
+	(property "Datasheet" "~"
+	(at 76.2 44.45 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+		(hide yes)
+	)
+)
+	(property "Description" "External system connection; not fitted to PCB"
+	(at 76.2 44.45 0)
+		(effects
+		(font
+			(size 1.27 1.27)
+		)
+		(hide yes)
+	)
+)
+	(pin "1" (uuid "00000000-0000-4000-8000-00000000c356"))
+	(pin "2" (uuid "00000000-0000-4000-8000-00000000c357"))
+	(instances
+		(project "robot-carrier"
+			(path "/00000000-0000-4000-8000-000000000001"
+				(reference "J101")
+				(unit 1)
+			)
+		)
+	)
+)
+	(label "BUCK_5V_OUT"
+		(at 71.12 44.45 180)
+		(effects (font (size 1 1)) (justify right bottom))
+		(uuid "00000000-0000-4000-8000-00000000c358")
+	)
+	(label "GND"
+		(at 71.12 46.99 180)
+		(effects (font (size 1 1)) (justify right bottom))
+		(uuid "00000000-0000-4000-8000-00000000c359")
+	)
+	(symbol
+		(lib_id "RobotCarrier:C")
+		(at 45.72 182.88 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "10000000-0000-4000-8000-000000000001")
+		(property "Reference" "C5" (at 45.72 179.07 0) (effects (font (size 1.27 1.27))))
+		(property "Value" "100nF 50V" (at 45.72 186.69 0) (effects (font (size 1.27 1.27))))
+		(property "Footprint" "Custom:C_THT_P5.08_HAND" (at 45.72 182.88 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "Datasheet" "~" (at 45.72 182.88 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "Description" "Shared battery-rail high-frequency bypass for J10-J13" (at 45.72 182.88 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "LCSC" "C84772" (at 45.72 182.88 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(pin "1" (uuid "10000000-0000-4000-8000-000000000002"))
+		(pin "2" (uuid "10000000-0000-4000-8000-000000000003"))
+		(instances (project "robot-carrier" (path "/00000000-0000-4000-8000-000000000001" (reference "C5") (unit 1))))
+	)
+	(label "VIN_PROTECTED" (at 40.64 182.88 180) (effects (font (size 1 1)) (justify right bottom)) (uuid "10000000-0000-4000-8000-000000000004"))
+	(label "GND" (at 50.8 182.88 0) (effects (font (size 1 1)) (justify left bottom)) (uuid "10000000-0000-4000-8000-000000000005"))
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

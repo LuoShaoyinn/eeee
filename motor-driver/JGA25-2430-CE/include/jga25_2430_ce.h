@@ -23,6 +23,7 @@ typedef struct {
 esp_err_t jga25_2430_ce_init(const jga25_2430_ce_config_t *config,
                              jga25_2430_ce_handle_t *ret_driver);
 
+// Sets active-low motor drive: 0% is stopped and 100% is full speed.
 esp_err_t jga25_2430_ce_set_duty_percent(jga25_2430_ce_handle_t driver,
                                           uint32_t duty_percent);
 
