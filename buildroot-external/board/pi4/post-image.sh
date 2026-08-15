@@ -10,6 +10,11 @@ CFG="$TMP_DIR/genimage.cfg"
 mkdir -p "$TMP_DIR/root" "$TMP_DIR/work"
 rm -f "$CFG"
 
+# Keep the boot configuration synchronized with the board tree even when
+# Buildroot is rebuilt incrementally and the rpi-firmware package's copy is
+# already up to date.  This also keeps kernel=Image visible to genimage.
+cp "$BOARD_DIR/config.txt" "$BINARIES_DIR/rpi-firmware/config.txt"
+
 {
     printf '%s\n' 'image boot.vfat {' '    vfat {' '        files = {'
     for file in "$BINARIES_DIR"/*.dtb "$BINARIES_DIR"/rpi-firmware/*; do
