@@ -1,9 +1,8 @@
 # LCSC selected parts
 
-This is the first concrete sourcing pass for the current 80 mm x 65 mm
-placement trial. The requested production envelope is 60 mm x 70 mm and still
-needs a separate placement pass before routing. All LCSC stock and assembly
-eligibility must be rechecked at order time.
+This is the first concrete sourcing pass for the implemented 60 mm x 73.5 mm
+placement. All LCSC stock and assembly eligibility must be rechecked at order
+time.
 
 | Ref | LCSC part | Selected part | Physical basis | Assembly plan |
 | --- | --- | --- | --- | --- |
@@ -12,7 +11,6 @@ eligibility must be rechecked at order time.
 | C3 | C79119 | Panasonic EEUFR1A102L | 1000 uF, 10 V, radial D8, 3.5 mm lead pitch | Through-hole, hand install |
 | C4-C5 | C84772 | FH CT4-0805B104K500F3 | 100 nF, 50 V, X7R, 5.08 mm lead pitch | Through-hole, hand install |
 | R1-R4, R7-R12 | C17902 | UNI-ROYAL 1206W4F1002T5E | 10 kOhm, 1%, 0.25 W, 1206 | Hand solder |
-| R5-R6 | C17936 | UNI-ROYAL 1206W4F4701T5E | 4.7 kOhm, 1%, 0.25 W, 1206 | Hand solder |
 | J1-J3 | C500021 | DORABO DB128L-5.08-2P-GY-S | 2-position 5.08 mm screw terminal, 16 A | Through-hole, hand install |
 | J41 | C430602 | DORABO DB128L-5.08-3P-BK-S | 3-position 5.08 mm screw terminal, 16 A | Through-hole, hand install |
 | J10-J13 | C7434483 | GREENCONN GPHA101-0502A001A1BA | 1x5 2.54 mm male header, rated 3 A/contact | Through-hole, hand install |
@@ -27,8 +25,8 @@ connected.
 ## Hand-assembly strategy and external protection
 
 - This revision assumes a bare fabricated PCB with every component installed
-  by hand. R1-R12 remain 1206 parts but use custom 1.6 mm x 2.0 mm solder pads,
-  which expose more copper beyond each resistor end. C4-C5 are leaded parts
+  by hand. R1-R4 and R7-R12 remain 1206 parts but use custom 1.6 mm x 2.0 mm
+  solder pads, which expose more copper beyond each resistor end. C4-C5 are leaded parts
   with 5.08 mm spacing and 2.4 mm through-hole pads; there are no small SMD
   capacitors left to install.
 - D1 is an axial 1.5KE33A so it is easy to install by hand. It is placed across
@@ -52,7 +50,6 @@ connected.
 
 Primary LCSC references: [1.5KE33A C18198472](https://www.lcsc.com/product-detail/C18198472.html),
 [10 kOhm 1206 C17902](https://www.lcsc.com/product-detail/C17902.html),
-[4.7 kOhm 1206 C17936](https://www.lcsc.com/product-detail/C17936.html),
 [100 nF through-hole C84772](https://www.lcsc.com/product-detail/C84772.html),
 [C1 C51953331](https://www.lcsc.com/product-detail/C51953331.html),
 [C3 C79119](https://item.szlcsc.com/80256.html),

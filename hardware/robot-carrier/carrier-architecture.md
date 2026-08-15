@@ -14,13 +14,13 @@ VIN_PROTECTED -> four JGA25-2430-CE motor power connectors
                                 <- external 24 V to 5 V converter output
           -> remote Raspberry Pi harness, four servo connectors, ESP32 DevKit VIN/5V
           -> J41 screw terminal -> external L298N power terminals
-3.3V      <- ESP32 DevKit 3V3 output; encoder and I2C pullups, IMU VCC
+3.3V      <- ESP32 DevKit 3V3 output; encoder pullups and IMU VCC
 ```
 
 The 5 V converter is external and connects through two 5.08 mm screw-terminal
 blocks: `J2` carries its 24 V input and `J3` receives its 5 V output. The
 ESP32 DevKit's on-board regulator creates the low-current 3.3 V rail used by
-the IMU, encoder pullups, and I2C pullups. Do not use that 3.3 V output for
+the IMU and encoder pullups. Do not use that 3.3 V output for
 motor or servo power.
 The normal battery connection assumes its output already includes correctly
 rated protection. J1 therefore connects directly to `VIN_PROTECTED`; there is
@@ -32,10 +32,10 @@ protection. The current placement deliberately has no eFuse or reverse-polarity
 stage, so correct connector polarity and the battery's own over-current
 protection are assumptions, not functions supplied by this PCB.
 
-The supplied IMU is a WitMotion WT901/WT901S-style 9-axis module. Its
-hardware I2C supports up to 400 kHz, uses open-drain SDA/SCL, and defaults to
-the 7-bit address `0x50`. Power it at 3.3 V on this carrier so the external
-4.7 k pull-ups are always at safe ESP32 logic level.
+The supplied IMU is a WitMotion WT901/WT901S-style 9-axis module. This revision
+uses its 3.3 V UART interface rather than I2C. UART2 is remapped through the
+ESP32 GPIO matrix to GPIO5/GPIO33; verify the exact VCC/GND/TX/RX order printed
+on the purchased module before making the harness.
 
 The sample assumes a 6S Li-ion battery marketed as 24 V / 9 Ah. The external
 24 V to 5 V converter is rated for 20 A maximum as redundant capacity, while
@@ -50,47 +50,58 @@ if constant speed or a guaranteed 24 V rail is required.
 
 The board uses a socket for the 38-pin ESP32-WROOM-32 DevKitC-style Type-C
 board shown in the supplied photograph. It has a 25.40 mm header-row spacing
-and 45.72 mm pad-to-pad span for each 19-pin row. The carrier reserves a
-27.94 mm x 54.36 mm body keep-out and places the DevKit on the underside. The
-mapping below assumes the official DevKitC header order with the USB connector
-at the marked edge.
+and 45.72 mm pad-to-pad span for each 19-pin row. The DevKit is mounted on the
+front, component side up, with its antenna toward the top power terminals and
+its USB-C connector toward J30/JPI1. Relative to the header-field center, the
+carrier reserves an asymmetric 28.5 mm-wide clearance envelope extending
+24.5 mm toward the antenna and 31.0 mm toward USB. The extra USB-side length
+accounts for the connector rather than incorrectly centering the overall board
+length on the headers. The mapping below assumes the official DevKitC 38-pin
+header order in that orientation.
 
 | Function | ESP32 GPIO | Carrier signal |
 | --- | ---: | --- |
-| Motor 1 PWM | 13 | `M1_PWM_3V3` direct to motor |
-| Motor 2 PWM | 16 | `M2_PWM_3V3` direct to motor |
-| Motor 3 PWM | 17 | `M3_PWM_3V3` direct to motor |
-| Motor 4 PWM | 18 | `M4_PWM_3V3` direct to motor |
-| Motor 1 direction | 23 | `M1_DIR_3V3` direct to motor |
+| Motor 1 PWM | 23 | `M1_PWM_3V3` direct to motor |
+| Motor 2 PWM | 21 | `M2_PWM_3V3` direct to motor |
+| Motor 3 PWM | 26 | `M3_PWM_3V3` direct to motor |
+| Motor 4 PWM | 19 | `M4_PWM_3V3` direct to motor |
+| Motor 1 direction | 32 | `M1_DIR_3V3` direct to motor |
 | Motor 2 direction | 25 | `M2_DIR_3V3` direct to motor |
-| Motor 3 direction | 26 | `M3_DIR_3V3` direct to motor |
-| Motor 4 direction | 27 | `M4_DIR_3V3` direct to motor |
-| Motor 1 encoder | 34 | `M1_ENC`, 3.3 V pull-up |
-| Motor 2 encoder | 35 | `M2_ENC`, 3.3 V pull-up |
-| Motor 3 encoder | 36 | `M3_ENC`, 3.3 V pull-up |
-| Motor 4 encoder | 39 | `M4_ENC`, 3.3 V pull-up |
-| Servo 1 PWM | 4 | `S1_PWM` |
-| Servo 2 PWM | 14 | `S2_PWM` |
-| Servo 3 PWM | 19 | `S3_PWM` |
-| Servo 4 PWM | 21 | `S4_PWM` |
-| L298N ENA / PWM | 22 | `GA25_ENA_PWM_3V3` |
-| L298N IN1 | 32 | `GA25_IN1_3V3` |
+| Motor 3 direction | 27 | `M3_DIR_3V3` direct to motor |
+| Motor 4 direction | 13 | `M4_DIR_3V3` direct to motor |
+| Motor 1 encoder | 36 | `M1_ENC`, 3.3 V pull-up |
+| Motor 2 encoder | 39 | `M2_ENC`, 3.3 V pull-up |
+| Motor 3 encoder | 35 | `M3_ENC`, 3.3 V pull-up |
+| Motor 4 encoder | 34 | `M4_ENC`, 3.3 V pull-up |
+| Servo 1 PWM | 22 | `S1_PWM` |
+| Servo 2 PWM | 18 | `S2_PWM` |
+| Servo 3 PWM | 17 | `S3_PWM` |
+| Servo 4 PWM | 4 | `S4_PWM` |
+| L298N ENA / PWM | 16 | `GA25_ENA_PWM_3V3` |
+| L298N IN1 | 14 | `GA25_IN1_3V3` |
 | L298N IN2 | 12 | `GA25_IN2_3V3` |
-| I2C SDA | 5 | `I2C_SDA` |
-| I2C SCL | 33 | `I2C_SCL` |
-| Raspberry Pi UART TX | 1 | `PI_UART_TX_3V3` |
-| Raspberry Pi UART RX | 3 | `PI_UART_RX_3V3` |
+| IMU UART2 TX (ESP -> IMU) | 5 | `IMU_UART_TX_3V3` |
+| IMU UART2 RX (IMU -> ESP) | 33 | `IMU_UART_RX_3V3` |
+| Raspberry Pi UART0 TX (ESP -> Pi) | 1 | `PI_UART_TX_3V3` |
+| Raspberry Pi UART0 RX (Pi -> ESP) | 3 | `PI_UART_RX_3V3` |
+
+The interchangeable PWM, servo, encoder, and GA25 control assignments are
+ordered for the current connector placement to reduce ratsnest crossings before
+automatic routing. Connector pin numbers and external harnesses do not change.
 
 GPIO34-39 are input-only and are reserved for encoder signals. GPIO6-11 are
 not used because they are connected to the ESP32 flash. GPIO5 is a strapping
-pin; the I2C pull-up must remain high during reset. GPIO12 is used only for
-L298N `IN2` and has a 10 k pull-down because it is a boot-configuration pin.
+pin and is deliberately the ESP32's IMU TX output, so the IMU does not drive it
+during reset. GPIO12 is used only for L298N `IN2` and has a 10 k pull-down
+because it is a boot-configuration pin.
 
 The carrier feeds the ESP32 socket with +5 V on VIN and uses the DevKit's
-regulated 3.3 V output for encoder pull-ups, the IMU, and the I2C pull-ups.
-The Pi's 3.3 V pin is not connected. The Pi UART is 3.3 V logic and shares
-the DevKit UART0 pins; disconnect the Pi harness if the DevKit USB serial
-adapter drives those pins during flashing.
+regulated 3.3 V output for encoder pull-ups and the IMU. The Pi's 3.3 V pin is
+not connected. The Pi UART is 3.3 V logic and shares the DevKit UART0 pins. The
+Pi can flash the ESP32 over this link after manually entering download mode;
+disable the Pi serial console and stop the normal UART application first. Do
+not let both the Pi UART and the DevKit USB-UART adapter drive GPIO1/GPIO3 at
+the same time.
 
 ## Connectors
 
@@ -175,12 +186,14 @@ J3 pin 2  GND           <- buck OUT-
 ```text
 1  +3V3    -> WT901 VCC
 2  GND     -> WT901 GND
-3  I2C_SDA -> WT901 SDA
-4  I2C_SCL -> WT901 SCL
+3  IMU_UART_TX_3V3 -> WT901 RX
+4  IMU_UART_RX_3V3 <- WT901 TX
 ```
 
-The WT901 offers UART as an alternative interface, but the carrier uses its
-I2C pins. R5 and R6 provide the required 4.7 k pull-ups to 3.3 V.
+Signal names are from the ESP32's perspective, so TX and RX cross in the
+harness. R5 and R6 have been removed because UART is push-pull and does not use
+I2C pull-ups. Confirm the exact connector order and 3.3 V UART logic level of
+the purchased WT901 variant before connection.
 
 ### GA25-370 / L298N interface
 
@@ -228,9 +241,10 @@ therefore has no unused safe GPIO pair for the GA25-370 quadrature outputs.
 ## Required next revision
 
 - Keep the KiCad schematic and PCB net assignments synchronized after routing changes.
-- Repack the current 80 mm x 65 mm placement trial into the requested 60 mm x
-  70 mm production outline while retaining tool access around the hand-soldered
-  parts.
+- Dry-fit the exact Type-C clone before soldering both 1x19 sockets; its header
+  geometry should match DevKitC, but body and USB-shell offsets can vary slightly.
+- Verify the implemented 60 mm x 73.5 mm connector orientation against the final
+  cable exit directions and enclosure before routing.
 - Verify the purchased 5 V converter pinout and thermal derating.
 - Route high-current input, motor, and servo copper.
 - Keep D1, C4, and C5 close to the connectors they protect or bypass when finalizing placement.

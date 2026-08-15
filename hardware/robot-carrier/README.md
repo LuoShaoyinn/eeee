@@ -7,9 +7,7 @@ must be reviewed before ordering a PCB.
 
 ## Project files
 
-- `robot-carrier.kicad_pcb`: current 80 mm x 65 mm two-sided placement trial.
-  The requested production envelope is 60 mm x 70 mm; that repacking has not
-  yet been applied and must be completed before routing or ordering.
+- `robot-carrier.kicad_pcb`: implemented 60 mm x 73.5 mm two-sided placement.
 - `robot-carrier.kicad_sch`: authoritative pre-routing schematic.
 - `robot-carrier.kicad_pro`: KiCad project metadata.
 - `RobotCarrier.kicad_sym`, `Custom.pretty/`, `sym-lib-table`, and
@@ -22,10 +20,19 @@ The board keeps the ESP32 DevKit on the carrier. The Raspberry Pi 4B is
 physically separate and connects through `JPI1` using a jumper harness for
 5 V, ground, and 3.3 V UART. The ESP32 socket is the common 38-pin DevKitC
 header order, not a bare WROOM module footprint. It is the 38-pin, Type-C
-DevKitC-style board shown by the supplied photograph, mounted on the underside
-using two 1x19 female Dupont headers. Its mechanical keep-out is 27.94 mm x
-54.36 mm: 25.40 mm between header rows and 45.72 mm between the end header
-pads.
+DevKitC-style board shown by the supplied photograph, mounted on the front,
+component side up, using two 1x19 female Dupont headers. The antenna points
+toward the top power terminals and USB-C points toward J30/JPI1. The header
+geometry is 25.40 mm between rows and 45.72 mm between the end pads. The
+mechanical envelope is intentionally asymmetric about those headers: 28.5 mm
+wide, extending 24.5 mm toward the antenna and 31.0 mm toward USB. This adds
+clearance beyond Espressif's nominal 27.94 mm width and approximately 54.3 mm
+overall length, but the exact clone should still be dry-fitted before soldering
+both socket strips.
+
+Reference: Espressif's
+[ESP32-DevKitC V4 pin layout](https://documentation.espressif.com/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html)
+and [mechanical drawing](https://dl.espressif.com/dl/schematics/esp32_devkitc_v4_dimensions.pdf).
 
 The current JPI1 power pins may instead feed a short, 3 A-rated captive cable
 ending in a USB-C male plug, so the Pi receives power through its USB-C input
@@ -93,11 +100,12 @@ to the four JGA25-2430-CE motors. The only otherwise unused exposed GPIOs are
 GPIO0, GPIO2, and GPIO15, all of which are boot-strapping pins; there is no
 unused safe GPIO pair for the GA25-370 quadrature encoder.
 
-The supplied WitMotion WT901/WT901S-style IMU connects at `J30` using I2C.
-It supports hardware I2C up to 400 kHz and uses open-drain SDA/SCL; the
-carrier's external 4.7 k pull-ups therefore remain fitted. It is powered from
-the ESP32 DevKit's 3.3 V output, not 5 V, so the bus never exceeds ESP32
-logic voltage. Its default I2C address is `0x50`.
+The supplied WitMotion WT901/WT901S-style IMU connects at `J30` using UART2
+remapped to GPIO5 (ESP32 TX) and GPIO33 (ESP32 RX). R5 and R6 have been removed
+because UART is push-pull and does not require I2C pull-ups. The module is
+powered from the ESP32 DevKit's 3.3 V output, not 5 V. Verify the exact
+VCC/GND/TX/RX order and 3.3 V UART level of the purchased module before making
+the harness; the carrier net names are from the ESP32's perspective.
 
 The 5 V converter is specified for the battery input range. The motor rail is
 not regulated, so confirm the motor's full-charge voltage tolerance and use a
@@ -126,9 +134,9 @@ Before connecting a battery:
    motors.
 5. Add a hardware emergency-stop that removes motor and servo power.
 6. Verify the Pi UART harness direction: ESP32 TX goes to Pi RX, and Pi TX
-   goes to ESP32 RX. The UART uses the ESP32's UART0 pins and must be isolated
-   or disconnected while using the DevKit USB port for flashing if contention
-   occurs.
+   goes to ESP32 RX. The Pi may flash the ESP32 through UART0 after the serial
+   console and normal application are stopped and the ESP32 is manually put in
+   download mode. Do not connect a DevKit USB-UART transmitter at the same time.
 
 ## KiCad checks
 
@@ -147,24 +155,47 @@ kicad-cli pcb export gerbers robot-carrier.kicad_pcb \
 
 The schematic is the authoritative electrical source and currently passes
 KiCad CLI ERC. The PCB is deliberately not routed. The next design pass must
-repack the placement into the requested 60 mm x 70 mm outline without reducing
-the hand-solder clearances, update the PCB from the schematic, then route the
-high-current nets with widths and copper weight justified by the measured
-current and allowed temperature rise.
+update the PCB from the schematic, then route the high-current nets with widths
+and copper weight justified by the measured current and allowed temperature
+rise.
 
-This revision targets full hand assembly. R1-R12 are 1206 parts on custom
-extended pads (1.6 mm x 2.0 mm per pad), leaving exposed copper beyond both
-ends for an iron tip. C4 and C5 are through-hole ceramics on 5.08 mm pitch with
-2.4 mm pads. There are no small SMD capacitors to install. JLC/LCSC Basic
+Do not autoroute `VIN_PROTECTED`, `+5V`, or `GND` with the project's 0.2 mm
+default signal width. Route the battery and 5 V trunks manually and use a ground
+plane or suitably wide ground copper, then lock those features before running an
+autorouter on the logic signals. The final power widths still depend on measured
+motor/servo current, copper weight, trace length, and permitted temperature rise.
+
+This revision targets full hand assembly. R1-R4 and R7-R12 are 1206 parts on
+custom extended pads (1.6 mm x 2.0 mm per pad), leaving exposed copper beyond
+both ends for an iron tip. C4 and C5 are through-hole ceramics on 5.08 mm pitch
+with 2.4 mm pads. There are no small SMD capacitors to install. JLC/LCSC Basic
 versus Extended assembly classification is therefore not a selection
 constraint, although stock must still be rechecked before ordering.
 
-For easiest assembly, solder R1-R12 before installing the tall connectors and
-electrolytic capacitors. Tin one resistor pad, reflow that end while positioning
-the part with tweezers, then solder the other end. C4 and C5 are non-polarized;
-C1 and C3 are polarized and must follow the `+` marking. Install D1 with its
-cathode toward `VIN_PROTECTED`. The PCB spacing is intended to leave access to
-the resistor ends and to the underside of all through-hole pads.
+For easiest assembly, solder R1-R4 and R7-R12 before installing the tall
+connectors and electrolytic capacitors. Tin one resistor pad, reflow that end
+while positioning the part with tweezers, then solder the other end. C4 and C5
+are non-polarized; C1 and C3 are polarized and must follow the `+` marking.
+Install D1 with its cathode toward `VIN_PROTECTED`. The PCB spacing is intended
+to leave access to the resistor ends and to the underside of all through-hole
+pads.
+
+JESP1's body courtyard intentionally encloses R1-R4 and R7-R12: those low 1206
+parts sit below the socketed DevKit. This produces ten deliberate courtyard
+overlap errors in DRC. Solder and inspect the resistors first, and dry-fit the
+actual socket/module combination to confirm more than 2 mm vertical clearance
+above the finished resistor joints before accepting those ten errors.
+
+The compact placement rotates components in the plane of the PCB rather than
+standing axial parts on end. J10-J13 face the left edge, J20-J23 face the right
+edge, and the battery, converter, and L298N power terminals occupy the top edge.
+J30 and JPI1 occupy the bottom edge and act as a physical guard in front of the
+front-mounted ESP32 USB connector. Their XY courtyard overlap with the DevKit
+is intentional because the female sockets provide ample vertical separation,
+but USB is not intended to be connected while the DevKit is installed. Use the
+Raspberry Pi UART0 link for installed flashing and serial diagnostics. J40 and
+D1 sit near the lower-left corner. D1 remains flat against the PCB for vibration
+resistance; C1 and C3 use their normal upright radial mounting.
 
 ## Reference material versus selected parts
 
@@ -192,8 +223,8 @@ In PCB Editor:
    prototype, ratsnest lines are expected because copper routing is not yet
    present.
 3. Use **Inspect -> Net Inspector** to verify the pads belonging to a net.
-   For example, `M1_PWM_3V3` must contain ESP32 GPIO13 and motor connector J10
-   pad 3; `M1_ENC` must contain GPIO34, J10 pad 5, and R1 pad 1.
+   For example, `M1_PWM_3V3` must contain ESP32 GPIO23 and motor connector J10
+   pad 3; `M1_ENC` must contain GPIO36, J10 pad 5, and R1 pad 1.
 4. Run **Inspect -> Design Rules Checker**. Missing connections are expected
    now; shorts, clearance errors, and wrong-net connections are not acceptable.
 5. Use **View -> 3D Viewer** to inspect board orientation, sockets, connector
