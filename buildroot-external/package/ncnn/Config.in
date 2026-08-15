@@ -1,0 +1,7 @@
+config BR2_PACKAGE_NCNN
+	bool "ncnn"
+	depends on BR2_INSTALL_LIBSTDCPP
+	select BR2_PACKAGE_HOST_CMAKE
+	help
+	  CPU-only ncnn inference library for YOLO/CenterNet applications.
+	  Models and application-specific post-processing are supplied separately.

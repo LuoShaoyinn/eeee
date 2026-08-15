@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Pi4 minimal build <pi4-minimal@example.invalid>
+Date: Sat, 15 Aug 2026 23:05:00 +0800
+Subject: [PATCH] libcody: accept C++20 char8_t literals
+
+Newer host compilers type u8 string literals as char8_t arrays.  GCC's
+libcody helper only accepted char arrays, which prevents the host compiler
+from building GCC itself.
+
+---
+ libcody/cody.hh | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/libcody/cody.hh b/libcody/cody.hh
+index 11111111111..22222222222 100644
+--- a/libcody/cody.hh
++++ b/libcody/cody.hh
+@@ -50,6 +50,15 @@ constexpr char S2C (char const (&s)[I])
+   return s[0];
+ }
+
++#if defined(__cpp_char8_t)
++template<unsigned I>
++constexpr char S2C (char8_t const (&s)[I])
++{
++  static_assert (I == 2, "only single octet strings may be converted");
++  return static_cast<char> (s[0]);
++}
++#endif
++
+ /// Internal buffering class.  Used to concatenate outgoing messages
+ /// and Lex incoming ones.
+ class MessageBuffer
+--
+2.45.0

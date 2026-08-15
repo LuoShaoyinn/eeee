@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Pi4 minimal build <pi4-minimal@example.invalid>
+Date: Sat, 15 Aug 2026 23:12:00 +0800
+Subject: [PATCH] libcody: compile with narrow u8 literals on newer hosts
+
+Keep the compatibility flag local to libcody. Applying it globally breaks
+the GCC C++ frontend itself.
+
+---
+ libcody/Makefile.in | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/libcody/Makefile.in b/libcody/Makefile.in
+index 33333333333..44444444444 100644
+--- a/libcody/Makefile.in
++++ b/libcody/Makefile.in
+@@ -24,4 +24,5 @@ CXXINC := $(filter -I%,@CXX@)
+ CXXOPTS := $(CXXFLAGS) @PICFLAG@
++CXXOPTS += -fno-char8_t
+
+ ifneq (@EXCEPTIONS@,yes)
+ CXXOPTS += -fno-exceptions -fno-rtti
+--
+2.45.0

@@ -1,0 +1,5 @@
+menu "Pi 4B minimal packages"
+
+source "$BR2_EXTERNAL_PI4MINIMAL_PATH/package/ncnn/Config.in"
+
+endmenu

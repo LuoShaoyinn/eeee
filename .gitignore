@@ -1,9 +1,11 @@
-build/
-sdkconfig
-sdkconfig.old
-dependencies.lock
-managed_components/
+# Generated build trees and images
+/out/
+/src/
+/out-qemu/
+/src-qemu/
+/out-buildroot/
+/src-buildroot/
+
+# Local logs and editor state
+*.log
 .cache/
-*.kicad_prl
-.history
-*.lck

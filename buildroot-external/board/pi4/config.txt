@@ -1,0 +1,6 @@
+arm_64bit=1
+enable_uart=1
+dtoverlay=miniuart-bt
+disable_splash=1
+boot_delay=0
+kernel=Image

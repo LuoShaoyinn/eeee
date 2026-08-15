@@ -1,0 +1,15 @@
+#!/bin/sh
+
+case "$1" in
+start)
+    mkdir -p /run/wpa_supplicant
+    if [ -x /sbin/ifup ]; then
+        /sbin/ifup -a 2>/dev/null || true
+    elif [ -x /sbin/udhcpc ]; then
+        /sbin/udhcpc -b -i eth0 2>/dev/null || true
+    fi
+    ;;
+stop) ;;
+restart) "$0" stop; "$0" start ;;
+esac
+exit 0
