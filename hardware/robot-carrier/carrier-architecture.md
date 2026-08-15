@@ -32,10 +32,9 @@ protection. The current placement deliberately has no eFuse or reverse-polarity
 stage, so correct connector polarity and the battery's own over-current
 protection are assumptions, not functions supplied by this PCB.
 
-The supplied IMU is a WitMotion WT901/WT901S-style 9-axis module. This revision
-uses its 3.3 V UART interface rather than I2C. UART2 is remapped through the
-ESP32 GPIO matrix to GPIO5/GPIO33; verify the exact VCC/GND/TX/RX order printed
-on the purchased module before making the harness.
+The external IMU uses its 3.3 V I2C interface. The ESP32 GPIO matrix maps SCL
+to GPIO5 and SDA to GPIO33. Verify the exact VCC/GND/SCL/SDA order printed on
+the purchased module before making the harness.
 
 The sample assumes a 6S Li-ion battery marketed as 24 V / 9 Ah. The external
 24 V to 5 V converter is rated for 20 A maximum as redundant capacity, while
@@ -48,16 +47,13 @@ if constant speed or a guaranteed 24 V rail is required.
 
 ## ESP32-WROOM-32 DevKit pin map
 
-The board uses a socket for the 38-pin ESP32-WROOM-32 DevKitC-style Type-C
-board shown in the supplied photograph. It has a 25.40 mm header-row spacing
-and 45.72 mm pad-to-pad span for each 19-pin row. The DevKit is mounted on the
-front, component side up, with its antenna toward the top power terminals and
-its USB-C connector toward J30/JPI1. Relative to the header-field center, the
-carrier reserves an asymmetric 28.5 mm-wide clearance envelope extending
-24.5 mm toward the antenna and 31.0 mm toward USB. The extra USB-side length
-accounts for the connector rather than incorrectly centering the overall board
-length on the headers. The mapping below assumes the official DevKitC 38-pin
-header order in that orientation.
+The board uses a socket for the common 30-pin ESP32-WROOM-32 DevKit V1 Type-C
+module verified from its printed pin order and physical measurements. It has
+25.40 mm header-row spacing and a 35.56 mm first-to-last pad span for each
+15-pin row. The DevKit is mounted on the front, component side up, with its
+antenna toward the top power terminals and USB-C toward J30/JPI1. The footprint
+uses the measured 28.5 mm by 50.42 mm body outline. `VP` is GPIO36 and `VN` is
+GPIO39; the latter must not be confused with the nearby `VIN` power pin.
 
 | Function | ESP32 GPIO | Carrier signal |
 | --- | ---: | --- |
@@ -80,8 +76,8 @@ header order in that orientation.
 | L298N ENA / PWM | 16 | `GA25_ENA_PWM_3V3` |
 | L298N IN1 | 14 | `GA25_IN1_3V3` |
 | L298N IN2 | 12 | `GA25_IN2_3V3` |
-| IMU UART2 TX (ESP -> IMU) | 5 | `IMU_UART_TX_3V3` |
-| IMU UART2 RX (IMU -> ESP) | 33 | `IMU_UART_RX_3V3` |
+| IMU I2C SCL | 5 | `IMU_I2C_SCL_3V3` |
+| IMU I2C SDA | 33 | `IMU_I2C_SDA_3V3` |
 | Raspberry Pi UART0 TX (ESP -> Pi) | 1 | `PI_UART_TX_3V3` |
 | Raspberry Pi UART0 RX (Pi -> ESP) | 3 | `PI_UART_RX_3V3` |
 
@@ -91,7 +87,7 @@ automatic routing. Connector pin numbers and external harnesses do not change.
 
 GPIO34-39 are input-only and are reserved for encoder signals. GPIO6-11 are
 not used because they are connected to the ESP32 flash. GPIO5 is a strapping
-pin and is deliberately the ESP32's IMU TX output, so the IMU does not drive it
+pin and is deliberately used as I2C SCL, so an external module cannot drive it
 during reset. GPIO12 is used only for L298N `IN2` and has a 10 k pull-down
 because it is a boot-configuration pin.
 
@@ -181,19 +177,20 @@ J3 pin 1  +5V           <- provisional 10 A fuse <- buck OUT+
 J3 pin 2  GND           <- buck OUT-
 ```
 
-### WT901 IMU connector J30
+### External I2C IMU connector J30
 
 ```text
-1  +3V3    -> WT901 VCC
-2  GND     -> WT901 GND
-3  IMU_UART_TX_3V3 -> WT901 RX
-4  IMU_UART_RX_3V3 <- WT901 TX
+1  +3V3
+2  GND
+3  IMU_I2C_SCL_3V3
+4  IMU_I2C_SDA_3V3
 ```
 
-Signal names are from the ESP32's perspective, so TX and RX cross in the
-harness. R5 and R6 have been removed because UART is push-pull and does not use
-I2C pull-ups. Confirm the exact connector order and 3.3 V UART logic level of
-the purchased WT901 variant before connection.
+R5 and R6 are optional 4.7 k pull-up footprints from SDA and SCL to 3.3 V.
+Leave them unpopulated by default when the external modules provide their own
+bus pull-ups; fit them only when the assembled bus needs a pull-up pair. Power
+the modules from 3.3 V so their pull-ups cannot raise SDA or SCL to 5 V.
+Confirm the exact connector order before making the harness.
 
 ### GA25-370 / L298N interface
 
@@ -241,8 +238,8 @@ therefore has no unused safe GPIO pair for the GA25-370 quadrature outputs.
 ## Required next revision
 
 - Keep the KiCad schematic and PCB net assignments synchronized after routing changes.
-- Dry-fit the exact Type-C clone before soldering both 1x19 sockets; its header
-  geometry should match DevKitC, but body and USB-shell offsets can vary slightly.
+- Dry-fit the exact Type-C clone before soldering both 1x15 sockets; clone body
+  and USB-shell offsets can vary slightly despite matching header geometry.
 - Verify the implemented 60 mm x 73.5 mm connector orientation against the final
   cable exit directions and enclosure before routing.
 - Verify the purchased 5 V converter pinout and thermal derating.

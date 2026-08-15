@@ -823,7 +823,7 @@
 					(hide yes)
 				)
 			)
-			(property "Description" "Robot carrier generic 38-pin connector"
+			(property "Description" "Robot carrier 30-pin DevKit connector; legacy drawing pins 31-38 unused"
 				(at 0 0 0)
 					(effects
 					(font
@@ -3972,7 +3972,7 @@
 				)
 			)
 		)
-		(property "Value" "WT901 UART"
+		(property "Value" "IMU I2C"
 			(at 39.37 179.07 0)
 				(effects
 				(font
@@ -3998,7 +3998,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "WT901 UART"
+		(property "Description" "IMU I2C"
 			(at 39.37 175.26 0)
 				(effects
 				(font
@@ -4040,7 +4040,7 @@
 		)
 		(uuid "00000000-0000-4000-8000-00000000008f")
 	)
-	(label "IMU_UART_TX_3V3"
+	(label "IMU_I2C_SCL_3V3"
 		(at 34.29 180.34 180)
 			(effects
 			(font
@@ -4050,7 +4050,7 @@
 		)
 		(uuid "00000000-0000-4000-8000-000000000090")
 	)
-	(label "IMU_UART_RX_3V3"
+	(label "IMU_I2C_SDA_3V3"
 		(at 34.29 182.88 180)
 			(effects
 			(font
@@ -4274,7 +4274,7 @@
 				)
 			)
 		)
-		(property "Value" "ESP32 DEVKITC 38PIN"
+		(property "Value" "ESP32 DEVKIT V1 30PIN TYPE-C"
 			(at 219.71 34.29 0)
 				(effects
 				(font
@@ -4282,7 +4282,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Custom:ESP32_DEVKITC_38PIN_SOCKET"
+		(property "Footprint" "Custom:ESP32_DEVKIT_V1_30PIN_SOCKET"
 			(at 219.71 30.48 0)
 				(effects
 				(font
@@ -4300,7 +4300,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "ESP32 DEVKITC 38PIN"
+		(property "Description" "ESP32-WROOM-32 DevKit V1 30-pin Type-C; generic connector pins 31-38 unused"
 			(at 219.71 30.48 0)
 				(effects
 				(font
@@ -4357,7 +4357,7 @@
 		)
 	)
 	(label "+3V3"
-		(at 214.63 30.48 180)
+		(at 214.63 104.14 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4367,7 +4367,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000c7")
 	)
 	(label "M1_ENC"
-		(at 214.63 35.56 180)
+		(at 214.63 33.02 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4377,7 +4377,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000c8")
 	)
 	(label "M2_ENC"
-		(at 214.63 38.1 180)
+		(at 214.63 35.56 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4387,7 +4387,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000c9")
 	)
 	(label "M4_ENC"
-		(at 214.63 40.64 180)
+		(at 214.63 38.1 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4397,7 +4397,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000ca")
 	)
 	(label "M3_ENC"
-		(at 214.63 43.18 180)
+		(at 214.63 40.64 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4407,7 +4407,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000cb")
 	)
 	(label "M1_DIR_3V3"
-		(at 214.63 45.72 180)
+		(at 214.63 43.18 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4416,8 +4416,8 @@
 		)
 		(uuid "00000000-0000-4000-8000-0000000000cc")
 	)
-	(label "IMU_UART_RX_3V3"
-		(at 214.63 48.26 180)
+	(label "IMU_I2C_SDA_3V3"
+		(at 214.63 45.72 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4427,7 +4427,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000cd")
 	)
 	(label "M2_DIR_3V3"
-		(at 214.63 50.8 180)
+		(at 214.63 48.26 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4437,7 +4437,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000ce")
 	)
 	(label "M3_PWM_3V3"
-		(at 214.63 53.34 180)
+		(at 214.63 50.8 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4447,7 +4447,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000cf")
 	)
 	(label "M3_DIR_3V3"
-		(at 214.63 55.88 180)
+		(at 214.63 53.34 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4457,7 +4457,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d0")
 	)
 	(label "GA25_IN1_3V3"
-		(at 214.63 58.42 180)
+		(at 214.63 55.88 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4467,7 +4467,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d1")
 	)
 	(label "GA25_IN2_3V3"
-		(at 214.63 60.96 180)
+		(at 214.63 58.42 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4487,7 +4487,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d3")
 	)
 	(label "M4_DIR_3V3"
-		(at 214.63 66.04 180)
+		(at 214.63 60.96 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4497,7 +4497,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d4")
 	)
 	(label "+5V"
-		(at 214.63 76.2 180)
+		(at 214.63 66.04 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4507,7 +4507,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d5")
 	)
 	(label "GND"
-		(at 214.63 78.74 180)
+		(at 214.63 101.6 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4517,7 +4517,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d6")
 	)
 	(label "M1_PWM_3V3"
-		(at 214.63 81.28 180)
+		(at 214.63 68.58 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4527,7 +4527,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d7")
 	)
 	(label "S1_PWM"
-		(at 214.63 83.82 180)
+		(at 214.63 71.12 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4537,7 +4537,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d8")
 	)
 	(label "PI_UART_TX_3V3"
-		(at 214.63 86.36 180)
+		(at 214.63 73.66 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4547,7 +4547,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000d9")
 	)
 	(label "PI_UART_RX_3V3"
-		(at 214.63 88.9 180)
+		(at 214.63 76.2 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4557,7 +4557,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000da")
 	)
 	(label "M2_PWM_3V3"
-		(at 214.63 91.44 180)
+		(at 214.63 78.74 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4567,7 +4567,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000db")
 	)
 	(label "GND"
-		(at 214.63 93.98 180)
+		(at 214.63 63.5 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4577,7 +4577,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000dc")
 	)
 	(label "M4_PWM_3V3"
-		(at 214.63 96.52 180)
+		(at 214.63 81.28 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4587,7 +4587,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000dd")
 	)
 	(label "S2_PWM"
-		(at 214.63 99.06 180)
+		(at 214.63 83.82 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4596,8 +4596,8 @@
 		)
 		(uuid "00000000-0000-4000-8000-0000000000de")
 	)
-	(label "IMU_UART_TX_3V3"
-		(at 214.63 101.6 180)
+	(label "IMU_I2C_SCL_3V3"
+		(at 214.63 86.36 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4607,7 +4607,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000df")
 	)
 	(label "S3_PWM"
-		(at 214.63 104.14 180)
+		(at 214.63 88.9 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4617,7 +4617,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000e0")
 	)
 	(label "GA25_ENA_PWM_3V3"
-		(at 214.63 106.68 180)
+		(at 214.63 91.44 180)
 			(effects
 			(font
 				(size 1 1)
@@ -4627,7 +4627,7 @@
 		(uuid "00000000-0000-4000-8000-0000000000e1")
 	)
 	(label "S4_PWM"
-		(at 214.63 109.22 180)
+		(at 214.63 93.98 180)
 			(effects
 			(font
 				(size 1 1)
@@ -5003,6 +5003,114 @@
 			(justify left bottom)
 		)
 		(uuid "00000000-0000-4000-8000-0000000000f6")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 77.47 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp yes)
+		(uuid "00000000-0000-4000-8000-0000000000f7")
+		(property "Reference" "R5"
+			(at 299.72 73.66 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "4.7k DNP"
+			(at 299.72 81.28 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 77.47 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Datasheet" "~"
+			(at 299.72 77.47 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Description" "Optional I2C SDA pull-up"
+			(at 299.72 77.47 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "LCSC" "C17936"
+			(at 299.72 77.47 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000f8"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000f9"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R5")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "IMU_I2C_SDA_3V3"
+		(at 294.64 77.47 180)
+			(effects (font (size 1 1)) (justify right bottom))
+		(uuid "00000000-0000-4000-8000-0000000000fa")
+	)
+	(label "+3V3"
+		(at 304.8 77.47 0)
+			(effects (font (size 1 1)) (justify left bottom))
+		(uuid "00000000-0000-4000-8000-0000000000fb")
+	)
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 90.17 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp yes)
+		(uuid "00000000-0000-4000-8000-0000000000fc")
+		(property "Reference" "R6"
+			(at 299.72 86.36 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "4.7k DNP"
+			(at 299.72 93.98 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" "Custom:R_1206_HAND"
+			(at 299.72 90.17 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Datasheet" "~"
+			(at 299.72 90.17 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Description" "Optional I2C SCL pull-up"
+			(at 299.72 90.17 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "LCSC" "C17936"
+			(at 299.72 90.17 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "00000000-0000-4000-8000-0000000000fd"))
+		(pin "2" (uuid "00000000-0000-4000-8000-0000000000fe"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "R6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "IMU_I2C_SCL_3V3"
+		(at 294.64 90.17 180)
+			(effects (font (size 1 1)) (justify right bottom))
+		(uuid "00000000-0000-4000-8000-0000000000ff")
+	)
+	(label "+3V3"
+		(at 304.8 90.17 0)
+			(effects (font (size 1 1)) (justify left bottom))
+		(uuid "00000000-0000-4000-8000-000000000100")
 	)
 	(symbol
 		(lib_id "RobotCarrier:R")
@@ -5557,24 +5665,28 @@
 		(uuid "00000000-0000-4000-8000-00000000011e")
 	)
 	(no_connect
-		(at 214.63 33.02)
+		(at 214.63 30.48)
 		(uuid "00000000-0000-4000-8000-000000002328")
 	)
 	(no_connect
-		(at 214.63 68.58)
+		(at 214.63 96.52)
 		(uuid "00000000-0000-4000-8000-000000002329")
 	)
 	(no_connect
-		(at 214.63 71.12)
+		(at 214.63 99.06)
 		(uuid "00000000-0000-4000-8000-00000000232a")
 	)
 	(no_connect
-		(at 214.63 73.66)
+		(at 214.63 106.68)
 		(uuid "00000000-0000-4000-8000-00000000232b")
 	)
 	(no_connect
 		(at 214.63 111.76)
 		(uuid "00000000-0000-4000-8000-00000000232c")
+	)
+	(no_connect
+		(at 214.63 109.22)
+		(uuid "00000000-0000-4000-8000-000000002332")
 	)
 	(no_connect
 		(at 214.63 114.3)

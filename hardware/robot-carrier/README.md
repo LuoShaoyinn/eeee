@@ -19,21 +19,16 @@ must be reviewed before ordering a PCB.
 
 The board keeps the ESP32 DevKit on the carrier. The Raspberry Pi 4B is
 physically separate and connects through `JPI1` using a jumper harness for
-5 V, ground, and 3.3 V UART. The ESP32 socket is the common 38-pin DevKitC
-header order, not a bare WROOM module footprint. It is the 38-pin, Type-C
-DevKitC-style board shown by the supplied photograph, mounted on the front,
-component side up, using two 1x19 female Dupont headers. The antenna points
+5 V, ground, and 3.3 V UART. The ESP32 socket is for the common 30-pin DevKit
+V1 Type-C board, not a bare WROOM module footprint or the 38-pin DevKitC. It is
+mounted on the front, component side up, using two 1x15 female Dupont headers.
+The antenna points
 toward the top power terminals and USB-C points toward J30/JPI1. The header
-geometry is 25.40 mm between rows and 45.72 mm between the end pads. The
-mechanical envelope is intentionally asymmetric about those headers: 28.5 mm
-wide, extending 24.5 mm toward the antenna and 31.0 mm toward USB. This adds
-clearance beyond Espressif's nominal 27.94 mm width and approximately 54.3 mm
-overall length, but the exact clone should still be dry-fitted before soldering
-both socket strips.
-
-Reference: Espressif's
-[ESP32-DevKitC V4 pin layout](https://documentation.espressif.com/esp-dev-kits/en/latest/esp32/esp32-devkitc/user_guide.html)
-and [mechanical drawing](https://dl.espressif.com/dl/schematics/esp32_devkitc_v4_dimensions.pdf).
+geometry is 25.40 mm between rows and 35.56 mm between the first and last pads
+of each row. The measured board envelope is represented by a 28.5 mm by
+50.42 mm silkscreen outline, with extra courtyard clearance. Dry-fit the exact
+clone before soldering both socket strips because clone body and USB-shell
+offsets can vary slightly.
 
 The current JPI1 power pins may instead feed a short, 3 A-rated captive cable
 ending in a USB-C male plug, so the Pi receives power through its USB-C input
@@ -101,12 +96,12 @@ to the four JGA25-2430-CE motors. The only otherwise unused exposed GPIOs are
 GPIO0, GPIO2, and GPIO15, all of which are boot-strapping pins; there is no
 unused safe GPIO pair for the GA25-370 quadrature encoder.
 
-The supplied WitMotion WT901/WT901S-style IMU connects at `J30` using UART2
-remapped to GPIO5 (ESP32 TX) and GPIO33 (ESP32 RX). R5 and R6 have been removed
-because UART is push-pull and does not require I2C pull-ups. The module is
-powered from the ESP32 DevKit's 3.3 V output, not 5 V. Verify the exact
-VCC/GND/TX/RX order and 3.3 V UART level of the purchased module before making
-the harness; the carrier net names are from the ESP32's perspective.
+The external IMU connects at `J30` using I2C: GPIO5 is SCL and GPIO33 is SDA.
+R5 and R6 provide optional 4.7 k pull-up footprints and are DNP by default
+because the selected external modules provide their own I2C pull-ups. Fit them
+only if the assembled bus lacks adequate pull-ups. Power the modules from the
+ESP32 DevKit's 3.3 V output, not 5 V, so their pull-ups cannot expose the ESP32
+to 5 V. Verify the exact VCC/GND/SCL/SDA order before making the harness.
 
 The 5 V converter is specified for the battery input range. The motor rail is
 not regulated, so confirm the motor's full-charge voltage tolerance and use a

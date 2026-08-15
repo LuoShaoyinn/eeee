@@ -7,6 +7,7 @@ C1,1,470uF 63V battery rail bulk,PH471M063G200B000,C51953331,Radial D10 P5,Low E
 C3,1,1000uF 10V 5V bus bulk,EEUFR1A102L,C79119,Radial D8 P3.5,Low ESR; hand install
 C4-C5,2,100nF 50V shared high-frequency bypass,CT4-0805B104K500F3,C84772,Through-hole P5.08mm,C4 at J41 5V distribution and C5 at J10-J13 24V distribution; enlarged 2.4mm solder pads
 R1-R4,4,10k encoder pull-up to 3.3V,1206W4F1002T5E,C17902,1206,0.25W 1%; custom extended 1.6mm x 2.0mm hand-solder pads
+R5-R6,2,Optional 4.7k I2C pull-up to 3.3V,1206W4F4701T5E,C17936,1206,DNP by default; fit only if external modules do not provide adequate SDA/SCL pull-ups
 R7,1,10k GA25-370 IN2 boot pull-down,1206W4F1002T5E,C17902,1206,0.25W 1%; custom extended 1.6mm x 2.0mm hand-solder pads
 R8,1,10k GA25-370 ENA safe pull-down,1206W4F1002T5E,C17902,1206,0.25W 1%; custom extended 1.6mm x 2.0mm hand-solder pads
 R9-R12,4,10k JGA25 PWM safe-state pull-up to 3.3V,1206W4F1002T5E,C17902,1206,0.25W 1%; custom extended 1.6mm x 2.0mm hand-solder pads
@@ -15,4 +16,4 @@ J20-J23,4,Three-pin 5V servo connector,2.54mm header or locking connector,TBD,Th
 J40,1,External GA25-370 L298N logic interface,1x3 2.54mm male Dupont header,TBD,Through-hole,Female-female Dupont wires to ENA/IN1/IN2; remove channel-A ENA jumper
 J41,1,External GA25-370 L298N power screw terminal,DB128L-5.08-3P-BK-S,C430602,Through-hole,16A 300V; 5V motor / GND / 5V logic; remove 5V_EN jumper
 JPI1,1,Raspberry Pi 4B power-breakout/UART header,1x6 2.54mm male Dupont header,TBD,Through-hole,Pins 1-4 may feed a verified 3A USB-C male captive harness; pins 5-6 remain UART
-JESP1,2,ESP32-WROOM-32 DevKitC Type-C socket,1x19 2.54mm female Dupont header,TBD,Through-hole,Two female strips; hand install on front
+JESP1,2,ESP32-WROOM-32 DevKit V1 30-pin Type-C socket,1x15 2.54mm female Dupont header,TBD,Through-hole,Two female strips with 25.40mm row spacing; hand install on front
