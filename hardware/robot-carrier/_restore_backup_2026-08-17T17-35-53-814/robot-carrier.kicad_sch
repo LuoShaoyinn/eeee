@@ -2277,7 +2277,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C8404"
+		(property "LCSC" "C500021"
 			(at 76.2 25.4 0)
 				(effects
 				(font
@@ -2426,7 +2426,7 @@
 				)
 			)
 		)
-			(property "Value" "HRK 2200uF 63V CD288"
+		(property "Value" "470uF 63V"
 			(at 137.16 29.21 0)
 				(effects
 				(font
@@ -2434,7 +2434,7 @@
 				)
 			)
 		)
-			(property "Footprint" "Capacitor_THT:CP_Radial_D18.0mm_P7.50mm"
+		(property "Footprint" "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm"
 			(at 137.16 25.4 0)
 				(effects
 				(font
@@ -2452,7 +2452,7 @@
 				(hide yes)
 			)
 		)
-			(property "Description" "HRK 2200uF 63V CD288, D18xL32mm"
+		(property "Description" "470uF 63V"
 			(at 137.16 25.4 0)
 				(effects
 				(font
@@ -2461,7 +2461,7 @@
 				(hide yes)
 			)
 		)
-			(property "LCSC" "C2960335"
+		(property "LCSC" "C51953331"
 			(at 137.16 25.4 0)
 				(effects
 				(font
@@ -2553,7 +2553,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C8404"
+		(property "LCSC" "C500021"
 			(at 45.72 44.45 0)
 				(effects
 				(font
@@ -2728,7 +2728,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C8404"
+		(property "LCSC" "C500021"
 			(at 137.16 44.45 0)
 				(effects
 				(font
@@ -4112,15 +4112,6 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C52016391"
-			(at 100.33 180.34 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
 		(pin "1" (uuid "00000000-0000-4000-8000-000000000093"))
 		(pin "2" (uuid "00000000-0000-4000-8000-000000000094"))
 		(pin "3" (uuid "00000000-0000-4000-8000-000000000095"))
@@ -4697,7 +4688,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 30.48 0)
 				(effects
 				(font
@@ -4789,7 +4780,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 41.91 0)
 				(effects
 				(font
@@ -4881,7 +4872,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 54.61 0)
 				(effects
 				(font
@@ -4973,7 +4964,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 66.04 0)
 				(effects
 				(font
@@ -5173,7 +5164,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 101.6 0)
 				(effects
 				(font
@@ -5265,7 +5256,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 114.3 0)
 				(effects
 				(font
@@ -5357,7 +5348,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 125.73 0)
 				(effects
 				(font
@@ -5449,7 +5440,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 138.43 0)
 				(effects
 				(font
@@ -5541,7 +5532,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 149.86 0)
 				(effects
 				(font
@@ -5633,7 +5624,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C17414"
+		(property "LCSC" "C17902"
 			(at 299.72 162.56 0)
 				(effects
 				(font

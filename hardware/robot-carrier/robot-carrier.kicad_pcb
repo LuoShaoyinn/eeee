@@ -83,6 +83,7 @@
 		(property "Reference" "J41"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "672e7e4a-281c-4a3d-9187-327355ac0e90")
 			(effects
 				(font
@@ -176,7 +177,6 @@
 			(net "+5V")
 			(uuid "a0e4a444-64e4-4b7b-bbe2-26a0dcb99853")
 		)
-
 		(embedded_fonts no)
 	)
 	(footprint "Custom:MountingHole_M3"
@@ -247,6 +247,7 @@
 		(property "Reference" "J2"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "55c673e0-85a2-43a8-83ff-ad44b6ad6223")
 			(effects
 				(font
@@ -302,17 +303,6 @@
 			)
 		)
 		(duplicate_pad_numbers_are_jumpers no)
-		(fp_rect
-			(start -4 -2.5)
-			(end 4 2.5)
-			(stroke
-				(width 0.3)
-				(type default)
-			)
-			(fill no)
-			(layer "F.SilkS")
-			(uuid "a5266db3-331d-4de8-8566-ade2adfde3d8")
-		)
 		(pad "1" thru_hole rect
 			(at -2.54 0)
 			(size 3.4 3.4)
@@ -791,6 +781,7 @@
 		(property "Reference" "J3"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "ee839095-8941-4044-a8cb-59f83710e507")
 			(effects
 				(font
@@ -846,17 +837,6 @@
 			)
 		)
 		(duplicate_pad_numbers_are_jumpers no)
-		(fp_rect
-			(start -4 -2.5)
-			(end 4 2.5)
-			(stroke
-				(width 0.3)
-				(type default)
-			)
-			(fill no)
-			(layer "F.SilkS")
-			(uuid "4fc360a1-2803-4377-b8c1-1f1e2252af5e")
-		)
 		(pad "1" thru_hole rect
 			(at -2.54 0)
 			(size 3.4 3.4)
@@ -884,6 +864,7 @@
 		(property "Reference" "J23"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "c4d9726c-2c53-4cf9-9e52-6e3676286b26")
 			(effects
 				(font
@@ -1085,6 +1066,7 @@
 		(property "Reference" "J21"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "e15cc1f7-9c0b-45bd-9c75-8b7a894d27ec")
 			(effects
 				(font
@@ -1875,6 +1857,7 @@
 		(property "Reference" "J1"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "7a610bfe-5759-466a-9cb0-1e42e53432de")
 			(effects
 				(font
@@ -1930,17 +1913,6 @@
 			)
 		)
 		(duplicate_pad_numbers_are_jumpers no)
-		(fp_rect
-			(start -4 -2.5)
-			(end 4 2.5)
-			(stroke
-				(width 0.3)
-				(type default)
-			)
-			(fill no)
-			(layer "F.SilkS")
-			(uuid "7cae034d-2eb0-4098-a43f-54a39aedaf45")
-		)
 		(pad "1" thru_hole rect
 			(at -2.54 0)
 			(size 3.4 3.4)
@@ -2021,17 +1993,6 @@
 			(fill no)
 			(layer "F.SilkS")
 			(uuid "26b2b5a0-6e7e-4805-92c6-16ba52e082ac")
-		)
-		(fp_rect
-			(start -14.5 -22.21)
-			(end 14.5 28.71)
-			(stroke
-				(width 0.05)
-				(type default)
-			)
-			(fill no)
-			(layer "F.CrtYd")
-			(uuid "e5105faa-ed60-43de-ae2e-fed5f440cff8")
 		)
 		(fp_text user "USB-C / BOTTOM"
 			(at 0 26.4 0)
@@ -2442,6 +2403,7 @@
 		(property "Reference" "J22"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "2b0567d3-0863-4e4b-8d40-c71810614ed6")
 			(effects
 				(font
@@ -3050,7 +3012,7 @@
 			(uuid "f71da279-0a6d-4823-9862-114a0db25b24")
 		)
 		(fp_text user "+"
-			(at -1.2 -1.2 0)
+			(at -1.2 -2.7 0)
 			(layer "F.SilkS")
 			(uuid "3e4e7525-30cb-4d54-a574-5d9e735307c3")
 			(effects
@@ -3253,17 +3215,6 @@
 			)
 		)
 		(duplicate_pad_numbers_are_jumpers no)
-		(fp_rect
-			(start -7 -2)
-			(end 7 2)
-			(stroke
-				(width 0.3)
-				(type default)
-			)
-			(fill no)
-			(layer "F.SilkS")
-			(uuid "68ccf28b-d5a8-4f8d-99c3-be1ccdfd8b64")
-		)
 		(pad "1" thru_hole rect
 			(at -6.35 0 90)
 			(size 2.2 2.2)
@@ -3903,6 +3854,7 @@
 		(property "Reference" "J40"
 			(at 0 -3 90)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "2e7f8a8f-c4ee-44d8-9199-1aae4849e002")
 			(effects
 				(font
@@ -3993,6 +3945,7 @@
 		(property "Reference" "J20"
 			(at 0 -3 0)
 			(layer "F.SilkS")
+			(hide yes)
 			(uuid "df0a8d01-9e43-42b9-814c-d991bb657b1a")
 			(effects
 				(font
@@ -5828,14 +5781,6 @@
 		(layers "F.Cu" "B.Cu")
 		(net "M4_ENC")
 		(uuid "115425e6-b5f9-4e74-80ab-b4ee085bbacc")
-	)
-	(via
-		(at 55.2597 52.0597)
-		(size 0.6)
-		(drill 0.3)
-		(layers "F.Cu" "B.Cu")
-		(net "M4_ENC")
-		(uuid "4fecaa65-3514-4656-941a-455da46905a2")
 	)
 	(segment
 		(start 42.04 78.5)
