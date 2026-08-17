@@ -159,9 +159,9 @@ plane. The final current capacity still depends on measured motor/servo current,
 copper weight, neck-downs, ambient temperature, and permitted temperature rise;
 use 2 oz outer copper for the intended high-current prototype.
 
-This revision targets full hand assembly. R1-R4 and R7-R12 are 1206 parts on
-custom extended pads (1.6 mm x 2.0 mm per pad), leaving exposed copper beyond
-both ends for an iron tip. C4 and C5 are through-hole ceramics on 5.08 mm pitch
+This revision targets full hand assembly. R1-R4 and R7-R12 are supplied as 0805
+parts on custom hand-solder pads (1.2 mm x 1.4 mm per pad). C4 and C5 are
+through-hole ceramics on 5.08 mm pitch
 with 2.4 mm pads. There are no small SMD capacitors to install. JLC/LCSC Basic
 versus Extended assembly classification is therefore not a selection
 constraint, although stock must still be rechecked before ordering.
@@ -174,7 +174,7 @@ Install D1 with its cathode toward `VIN_PROTECTED`. The PCB spacing is intended
 to leave access to the resistor ends and to the underside of all through-hole
 pads.
 
-JESP1's body courtyard intentionally encloses R1-R4 and R7-R12: those low 1206
+JESP1's body courtyard intentionally encloses R1-R4 and R7-R12: those low 0805
 parts sit below the socketed DevKit. This produces ten deliberate courtyard
 overlap errors in DRC. Solder and inspect the resistors first, and dry-fit the
 actual socket/module combination to confirm more than 2 mm vertical clearance
