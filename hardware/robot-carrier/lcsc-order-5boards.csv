@@ -1,0 +1,10 @@
+LCSC Part Number,Quantity,Required Quantity,Designators per Board,Manufacturer Part Number,Description,Ordering Note
+C500021,15,15,"J1,J2,J3",DB128L-5.08-2P-GY-S,2-pin 5.08mm screw terminal,MOQ/multiple 5
+C18198472,5,5,D1,1.5KE33A,33V unidirectional TVS diode,MOQ/multiple 5
+C51953331,5,5,C1,PH471M063G200B000,470uF 63V radial polymer capacitor,Order 5
+C51934166,5,5,C3,PB16V1000M8X15,1000uF 16V radial polymer capacitor D8 P3.5,MOQ/multiple 5; in-stock replacement for C79119
+C84772,10,10,C4-C5,CT4-0805B104K500F3,100nF 50V through-hole ceramic capacitor,MOQ/multiple 10
+C17902,50,50,"R1-R4,R7-R12",1206W4F1002T5E,10k 1% 1206 resistor,MOQ/multiple 50
+C17936,50,10,R5-R6,1206W4F4701T5E,4.7k 1% 1206 resistor,MOQ/multiple 50; 40 spare; R5/R6 are optional DNP pull-ups
+C7434483,20,20,J10-J13,GPHA101-0502A001A1BA,1x5 2.54mm through-hole connector,Order 20
+C430602,5,5,J41,DB128L-5.08-3P-BK-S,3-pin 5.08mm screw terminal,MOQ/multiple 5

@@ -2785,7 +2785,7 @@
 				)
 			)
 		)
-		(property "Value" "1000uF 10V"
+		(property "Value" "1000uF 16V"
 			(at 167.64 48.26 0)
 				(effects
 				(font
@@ -2811,7 +2811,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "1000uF 10V"
+		(property "Description" "1000uF 16V low-ESR polymer, JIERR PB16V1000M8X15"
 			(at 167.64 44.45 0)
 				(effects
 				(font
@@ -2820,7 +2820,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C79119"
+		(property "LCSC" "C51934166"
 			(at 167.64 44.45 0)
 				(effects
 				(font

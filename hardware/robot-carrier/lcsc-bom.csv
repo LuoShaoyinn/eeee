@@ -4,7 +4,7 @@ J2,1,External buck input screw terminal 2-pin 5.08mm,DB128L-5.08-2P-GY-S,C500021
 J3,1,External buck output screw terminal 2-pin 5.08mm,DB128L-5.08-2P-GY-S,C500021,Through-hole,16A 300V; 5V and GND from external buck output
 D1,1,Battery-input unidirectional TVS,1.5KE33A,C18198472,DO-201AD axial P15.24mm,Hand install directly across VIN_PROTECTED and GND close to J1; cathode to battery positive
 C1,1,470uF 63V battery rail bulk,PH471M063G200B000,C51953331,Radial D10 P5,Low ESR polymer; hand install with polarity marked
-C3,1,1000uF 10V 5V bus bulk,EEUFR1A102L,C79119,Radial D8 P3.5,Low ESR; hand install
+C3,1,1000uF 16V 5V bus bulk,PB16V1000M8X15,C51934166,Radial D8 P3.5,Low ESR polymer; hand install; replaces unavailable C79119
 C4-C5,2,100nF 50V shared high-frequency bypass,CT4-0805B104K500F3,C84772,Through-hole P5.08mm,C4 at J41 5V distribution and C5 at J10-J13 24V distribution; enlarged 2.4mm solder pads
 R1-R4,4,10k encoder pull-up to 3.3V,1206W4F1002T5E,C17902,1206,0.25W 1%; custom extended 1.6mm x 2.0mm hand-solder pads
 R5-R6,2,Optional 4.7k I2C pull-up to 3.3V,1206W4F4701T5E,C17936,1206,DNP by default; fit only if external modules do not provide adequate SDA/SCL pull-ups

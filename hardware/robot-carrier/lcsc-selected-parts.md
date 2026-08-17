@@ -8,7 +8,7 @@ time.
 | --- | --- | --- | --- | --- |
 | D1 | C18198472 | DOWO 1.5KE33A | DO-201AD axial, 28.2 V reverse standoff, unidirectional | Through-hole, hand install beside J1 |
 | C1 | C51953331 | Econd PH471M063G200B000 | 470 uF, 63 V, polymer radial D10, 5 mm lead pitch | Through-hole, hand install |
-| C3 | C79119 | Panasonic EEUFR1A102L | 1000 uF, 10 V, radial D8, 3.5 mm lead pitch | Through-hole, hand install |
+| C3 | C51934166 | JIERR PB16V1000M8X15 | 1000 uF, 16 V, radial D8, 3.5 mm lead pitch | Through-hole, low-ESR polymer, hand install; replaces unavailable C79119 |
 | C4-C5 | C84772 | FH CT4-0805B104K500F3 | 100 nF, 50 V, X7R, 5.08 mm lead pitch | Through-hole, hand install |
 | R1-R4, R7-R12 | C17902 | UNI-ROYAL 1206W4F1002T5E | 10 kOhm, 1%, 0.25 W, 1206 | Hand solder |
 | J1-J3 | C500021 | DORABO DB128L-5.08-2P-GY-S | 2-position 5.08 mm screw terminal, 16 A | Through-hole, hand install |
@@ -52,6 +52,6 @@ Primary LCSC references: [1.5KE33A C18198472](https://www.lcsc.com/product-detai
 [10 kOhm 1206 C17902](https://www.lcsc.com/product-detail/C17902.html),
 [100 nF through-hole C84772](https://www.lcsc.com/product-detail/C84772.html),
 [C1 C51953331](https://www.lcsc.com/product-detail/C51953331.html),
-[C3 C79119](https://item.szlcsc.com/80256.html),
+[C3 C51934166](https://www.lcsc.com/product-detail/C51934166.html),
 [J1-J3 C500021](https://item.szlcsc.com/512133.html), and
 [J41 C430602](https://item.szlcsc.com/426247.html).
