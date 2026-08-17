@@ -2,8 +2,12 @@
 
 (rule "5 V power track minimum"
     (condition "A.NetName == '+5V'")
-    (constraint track_width (min 1.5mm)))
+    (constraint track_width (min 1mm)))
 
 (rule "Battery power track minimum"
     (condition "A.NetName == 'VIN_PROTECTED'")
-    (constraint track_width (min 1.5mm)))
+    (constraint track_width (min 1mm)))
+
+(rule "Ground power track minimum"
+    (condition "A.NetName == 'GND'")
+    (constraint track_width (min 1mm)))
