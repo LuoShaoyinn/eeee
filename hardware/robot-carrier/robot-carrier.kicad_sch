@@ -3829,7 +3829,7 @@
 		(uuid "00000000-0000-4000-8000-00000000007b")
 	)
 	(symbol
-		(lib_id "RobotCarrier:Conn_01x06")
+		(lib_id "RobotCarrier:Conn_01x03")
 		(at 100.33 154.94 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -3845,7 +3845,7 @@
 				)
 			)
 		)
-		(property "Value" "RPI4B POWER UART"
+		(property "Value" "RPI4B UART (GND / TX / RX)"
 			(at 100.33 158.75 0)
 				(effects
 				(font
@@ -3853,7 +3853,7 @@
 				)
 			)
 		)
-		(property "Footprint" "Custom:PI_REMOTE_1X06_MALE"
+		(property "Footprint" "Custom:DUPONT_MALE_1X03"
 			(at 100.33 154.94 0)
 				(effects
 				(font
@@ -3871,7 +3871,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "RPI4B POWER UART"
+		(property "Description" "RPI4B UART only; Raspberry Pi is powered separately"
 			(at 100.33 154.94 0)
 				(effects
 				(font
@@ -3883,9 +3883,6 @@
 		(pin "1" (uuid "00000000-0000-4000-8000-00000000007d"))
 		(pin "2" (uuid "00000000-0000-4000-8000-00000000007e"))
 		(pin "3" (uuid "00000000-0000-4000-8000-00000000007f"))
-		(pin "4" (uuid "00000000-0000-4000-8000-000000000080"))
-		(pin "5" (uuid "00000000-0000-4000-8000-000000000081"))
-		(pin "6" (uuid "00000000-0000-4000-8000-000000000082"))
 		(instances
 			(project "robot-carrier"
 				(path "/00000000-0000-4000-8000-000000000001"
@@ -3895,7 +3892,7 @@
 			)
 		)
 	)
-	(label "+5V"
+	(label "GND"
 		(at 95.25 154.94 180)
 			(effects
 			(font
@@ -3905,7 +3902,7 @@
 		)
 		(uuid "00000000-0000-4000-8000-000000000083")
 	)
-	(label "+5V"
+	(label "PI_UART_TX_3V3"
 		(at 95.25 157.48 180)
 			(effects
 			(font
@@ -3915,7 +3912,7 @@
 		)
 		(uuid "00000000-0000-4000-8000-000000000084")
 	)
-	(label "GND"
+	(label "PI_UART_RX_3V3"
 		(at 95.25 160.02 180)
 			(effects
 			(font
@@ -3924,36 +3921,6 @@
 			(justify right bottom)
 		)
 		(uuid "00000000-0000-4000-8000-000000000085")
-	)
-	(label "GND"
-		(at 95.25 162.56 180)
-			(effects
-			(font
-				(size 1 1)
-			)
-			(justify right bottom)
-		)
-		(uuid "00000000-0000-4000-8000-000000000086")
-	)
-	(label "PI_UART_TX_3V3"
-		(at 95.25 165.1 180)
-			(effects
-			(font
-				(size 1 1)
-			)
-			(justify right bottom)
-		)
-		(uuid "00000000-0000-4000-8000-000000000087")
-	)
-	(label "PI_UART_RX_3V3"
-		(at 95.25 167.64 180)
-			(effects
-			(font
-				(size 1 1)
-			)
-			(justify right bottom)
-		)
-		(uuid "00000000-0000-4000-8000-000000000088")
 	)
 	(symbol
 		(lib_id "RobotCarrier:Conn_01x04")
@@ -4505,7 +4472,7 @@
 		)
 		(uuid "00000000-0000-4000-8000-0000000000d4")
 	)
-	(label "+5V"
+	(label "+5V_ESP_PROTECTED"
 		(at 214.63 66.04 180)
 			(effects
 			(font
@@ -4513,7 +4480,115 @@
 			)
 			(justify right bottom)
 		)
-		(uuid "00000000-0000-4000-8000-0000000000d5")
+	(uuid "00000000-0000-4000-8000-0000000000d5")
+	)
+	(symbol
+		(lib_id "RobotCarrier:Fuse")
+		(at 160.02 66.04 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "73d97788-c23e-44f5-a2fb-b86055d3e1fd")
+		(property "Reference" "F102"
+			(at 160.02 62.23 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "PPTC 0.75A 6V"
+			(at 160.02 69.85 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" "Fuse:Fuse_1812_4532Metric"
+			(at 160.02 66.04 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Datasheet" "~"
+			(at 160.02 66.04 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Description" "Resettable fuse protecting the ESP32 5V input"
+			(at 160.02 66.04 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "LCSC" "TBD"
+			(at 160.02 66.04 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "79e4082e-2ba6-4e3b-9165-795dc35391a6"))
+		(pin "2" (uuid "33076857-a69c-4fe6-bbcb-0467ac909eb7"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "F102")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V"
+		(at 154.94 66.04 180)
+		(effects (font (size 1 1)) (justify right bottom))
+		(uuid "c929daca-41c5-44bc-92e4-d2e75300bbe2")
+	)
+	(label "+5V_ESP_PROTECTED"
+		(at 165.1 66.04 0)
+		(effects (font (size 1 1)) (justify left bottom))
+		(uuid "2ea7d642-7ca4-4bd2-ae41-703cdf7ebb76")
+	)
+	(symbol
+		(lib_id "RobotCarrier:D_TVS")
+		(at 160.02 76.2 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "dbc3d07a-842d-4a6b-b65f-709f172b34e2")
+		(property "Reference" "D2"
+			(at 160.02 72.39 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "SMAJ5.0A"
+			(at 160.02 80.01 0)
+				(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" "Diode_SMD:D_SMA"
+			(at 160.02 76.2 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Datasheet" "~"
+			(at 160.02 76.2 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "Description" "5V unidirectional TVS clamp at the ESP32 input"
+			(at 160.02 76.2 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(property "LCSC" "TBD"
+			(at 160.02 76.2 0)
+				(effects (font (size 1.27 1.27)) (hide yes))
+		)
+		(pin "1" (uuid "f3319c46-0530-4c04-b740-d07b40107386"))
+		(pin "2" (uuid "7cda8b0a-60ff-496e-ae7f-962938855dda"))
+		(instances
+			(project "robot-carrier"
+				(path "/00000000-0000-4000-8000-000000000001"
+					(reference "D2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(label "+5V_ESP_PROTECTED"
+		(at 154.94 76.2 180)
+		(effects (font (size 1 1)) (justify right bottom))
+		(uuid "a5cb21ce-4efd-4ce5-9b4c-3fd56f9d31b3")
+	)
+	(label "GND"
+		(at 165.1 76.2 0)
+		(effects (font (size 1 1)) (justify left bottom))
+		(uuid "ed72907c-5e74-4af4-ae49-1c41d430d95e")
 	)
 	(label "GND"
 		(at 214.63 101.6 180)
@@ -4545,7 +4620,7 @@
 		)
 		(uuid "00000000-0000-4000-8000-0000000000d8")
 	)
-	(label "PI_UART_TX_3V3"
+	(label "ESP_UART_RX_3V3"
 		(at 214.63 73.66 180)
 			(effects
 			(font
@@ -4555,7 +4630,7 @@
 		)
 		(uuid "00000000-0000-4000-8000-0000000000d9")
 	)
-	(label "PI_UART_RX_3V3"
+	(label "ESP_UART_TX_3V3"
 		(at 214.63 76.2 180)
 			(effects
 			(font
@@ -5884,6 +5959,48 @@
 	)
 	(label "VIN_PROTECTED" (at 40.64 182.88 180) (effects (font (size 1 1)) (justify right bottom)) (uuid "10000000-0000-4000-8000-000000000004"))
 	(label "GND" (at 50.8 182.88 0) (effects (font (size 1 1)) (justify left bottom)) (uuid "10000000-0000-4000-8000-000000000005"))
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 116.84 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "9b470000-0000-4000-8000-000000000001")
+		(property "Reference" "R13" (at 299.72 113.03 0) (effects (font (size 1.27 1.27))))
+		(property "Value" "470R" (at 299.72 120.65 0) (effects (font (size 1.27 1.27))))
+		(property "Footprint" "Custom:R_1206_HAND" (at 299.72 116.84 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "Datasheet" "~" (at 299.72 116.84 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "Description" "Pi TX to ESP32 RX UART series resistor" (at 299.72 116.84 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "LCSC" "TBD" (at 299.72 116.84 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(pin "1" (uuid "9b470000-0000-4000-8000-000000000002"))
+		(pin "2" (uuid "9b470000-0000-4000-8000-000000000003"))
+		(instances (project "robot-carrier" (path "/00000000-0000-4000-8000-000000000001" (reference "R13") (unit 1))))
+	)
+	(label "PI_UART_TX_3V3" (at 294.64 116.84 180) (effects (font (size 1 1)) (justify right bottom)) (uuid "9b470000-0000-4000-8000-000000000004"))
+	(label "ESP_UART_RX_3V3" (at 304.8 116.84 0) (effects (font (size 1 1)) (justify left bottom)) (uuid "9b470000-0000-4000-8000-000000000005"))
+	(symbol
+		(lib_id "RobotCarrier:R")
+		(at 299.72 127 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "9b470000-0000-4000-8000-000000000006")
+		(property "Reference" "R14" (at 299.72 123.19 0) (effects (font (size 1.27 1.27))))
+		(property "Value" "470R" (at 299.72 130.81 0) (effects (font (size 1.27 1.27))))
+		(property "Footprint" "Custom:R_1206_HAND" (at 299.72 127 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "Datasheet" "~" (at 299.72 127 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "Description" "ESP32 TX to Pi RX UART series resistor" (at 299.72 127 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(property "LCSC" "TBD" (at 299.72 127 0) (effects (font (size 1.27 1.27)) (hide yes)))
+		(pin "1" (uuid "9b470000-0000-4000-8000-000000000007"))
+		(pin "2" (uuid "9b470000-0000-4000-8000-000000000008"))
+		(instances (project "robot-carrier" (path "/00000000-0000-4000-8000-000000000001" (reference "R14") (unit 1))))
+	)
+	(label "ESP_UART_TX_3V3" (at 294.64 127 180) (effects (font (size 1 1)) (justify right bottom)) (uuid "9b470000-0000-4000-8000-000000000009"))
+	(label "PI_UART_RX_3V3" (at 304.8 127 0) (effects (font (size 1 1)) (justify left bottom)) (uuid "9b470000-0000-4000-8000-00000000000a"))
 	(sheet_instances
 		(path "/"
 			(page "1")
