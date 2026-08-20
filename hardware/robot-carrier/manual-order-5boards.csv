@@ -1,5 +1,0 @@
-Quantity,Required Quantity,Designators per Board,Part Description,Selection Note
-20,20,J20-J23,1x3 2.54mm through-hole servo connector,Choose connector compatible with servo plug and expected current
-5,5,J40,1x3 2.54mm male through-hole header,For L298N logic interface
-5,5,JPI1,1x6 2.54mm male through-hole header,Pi power breakout and UART; use suitable contacts/cable for 3A branch
-10,10,JESP1,1x15 2.54mm female through-hole socket strip,Two strips per ESP32; 25.40mm row spacing
