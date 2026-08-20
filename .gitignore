@@ -7,4 +7,4 @@ managed_components/
 *.kicad_prl
 .history
 *.lck
-artifacts
+artifacts/
