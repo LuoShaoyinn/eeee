@@ -93,10 +93,18 @@ and PID. `M` is connector 1 through 4 and `DUTY` is -100 through 100. Refresh
 the command within 500 ms while it should run; otherwise the firmware stops it.
 
 The separate 6 V GA25-370 driving motor is controlled through the external
-L298N, not `raw M DUTY`. Keep the L298N `ENA` jumper fitted, then connect only
-GPIO14 to `IN1` and GPIO12 to `IN2`; the firmware applies PWM to the active
-direction input. Use `ga25 DUTY` for its signed open-loop PWM command. Its
-encoder is intentionally unused. Run `python3 tools/keyboard_drive.py --ga25 --host
+L298N, not `raw M DUTY`. Keep the L298N `ENA` jumper fitted. On the carrier's
+`J40` header, GPIO12 (physical pin 3, 10 kOhm pulldown) drives L298N `IN1` and
+GPIO16 (physical pin 1, 10 kOhm pulldown) drives L298N `IN2`. GPIO14 (physical
+pin 2, no pulldown) is the single-channel GA25 encoder input. The PCB's old
+`ENA`/`IN1`/`IN2` silkscreen labels therefore describe the physical traces, not
+the new external L298N connection order. Never connect J40 pin 1 to L298N
+`ENA`, and do not remove the L298N `ENA` jumper. The encoder must be a 3.3 V
+safe signal before it reaches GPIO14.
+
+Use `ga25 DUTY` for signed open-loop PWM. `ga25` reports the latest hardware
+counter sample and cumulative encoder edges; no GA25 encoder PID is enabled
+until its pulses-per-output-revolution is measured. Run `python3 tools/keyboard_drive.py --ga25 --host
 192.168.19.137` for an interactive test; A/D change PWM by 5%, and Space/Esc
 ramps to a stop.
 

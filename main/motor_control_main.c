@@ -13,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/i2c.h"
+#include "driver/pulse_cnt.h"
 #include "driver/uart.h"
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
@@ -37,8 +38,9 @@
 #define S3_MAX_ANGLE_DEG 120
 #define S3_SLOW_STEP_DEG 1
 #define S3_SLOW_STEP_MS 50
-#define GA25_IN1_GPIO GPIO_NUM_14
-#define GA25_IN2_GPIO GPIO_NUM_12
+#define GA25_IN1_GPIO GPIO_NUM_12
+#define GA25_IN2_GPIO GPIO_NUM_16
+#define GA25_ENCODER_GPIO GPIO_NUM_14
 #define GA25_PWM_FREQUENCY_HZ 20000
 #define GA25_PWM_DUTY_RESOLUTION LEDC_TIMER_10_BIT
 #define GA25_PWM_TIMER LEDC_TIMER_1
@@ -46,6 +48,7 @@
 #define GA25_IN2_PWM_CHANNEL LEDC_CHANNEL_2
 #define GA25_COMMAND_TIMEOUT_MS 500
 #define GA25_RAMP_PERCENT_PER_TICK 2
+#define GA25_ENCODER_GLITCH_FILTER_NS 10000
 #define OTA_MAX_IMAGE_SIZE 0x1e0000U
 #define OTA_RECEIVE_TIMEOUT_MS 5000
 static const char *TAG = "robot_control";
@@ -74,6 +77,9 @@ static portMUX_TYPE s_ga25_lock = portMUX_INITIALIZER_UNLOCKED;
 static int s_ga25_target_duty;
 static int s_ga25_current_duty;
 static int64_t s_ga25_last_command_us;
+static pcnt_unit_handle_t s_ga25_encoder;
+static uint32_t s_ga25_encoder_edges;
+static uint64_t s_ga25_encoder_total_edges;
 
 static void cubie_ota_update(const char *command);
 
@@ -137,9 +143,20 @@ static esp_err_t ga25_request_duty(int duty_percent) {
     return ESP_OK;
 }
 
+static void ga25_read_encoder(void) {
+    int count = 0;
+    ESP_ERROR_CHECK(pcnt_unit_get_count(s_ga25_encoder, &count));
+    ESP_ERROR_CHECK(pcnt_unit_clear_count(s_ga25_encoder));
+    portENTER_CRITICAL(&s_ga25_lock);
+    s_ga25_encoder_edges = abs(count);
+    s_ga25_encoder_total_edges += s_ga25_encoder_edges;
+    portEXIT_CRITICAL(&s_ga25_lock);
+}
+
 static void ga25_task(void *unused) {
     (void)unused;
     while (true) {
+        ga25_read_encoder();
         int target;
         portENTER_CRITICAL(&s_ga25_lock);
         target = s_ga25_target_duty;
@@ -249,9 +266,17 @@ static const char *process_command(const char *command, char *reply, size_t repl
     }
     if (!strcmp(command, "ga25")) {
         int target, current;
-        portENTER_CRITICAL(&s_ga25_lock); target = s_ga25_target_duty; portEXIT_CRITICAL(&s_ga25_lock);
+        uint32_t encoder_edges;
+        uint64_t encoder_total;
+        portENTER_CRITICAL(&s_ga25_lock);
+        target = s_ga25_target_duty;
+        encoder_edges = s_ga25_encoder_edges;
+        encoder_total = s_ga25_encoder_total_edges;
+        portEXIT_CRITICAL(&s_ga25_lock);
         current = s_ga25_current_duty;
-        snprintf(reply, reply_size, "ga25 target %d%% current %d%%; ga25 DUTY [-100..100], refresh within 500ms\n", target, current);
+        snprintf(reply, reply_size,
+                 "ga25 target %d%% current %d%%; encoder %u edges/20ms total %llu; ga25 DUTY [-100..100], refresh within 500ms\n",
+                 target, current, (unsigned)encoder_edges, (unsigned long long)encoder_total);
         return reply;
     }
     int ga25_duty; char ga25_extra;
@@ -434,6 +459,25 @@ void app_main(void) {
     ESP_ERROR_CHECK(ledc_timer_config(&ga25_timer));
     ESP_ERROR_CHECK(ledc_channel_config(&ga25_in1_channel));
     ESP_ERROR_CHECK(ledc_channel_config(&ga25_in2_channel));
+    const pcnt_unit_config_t ga25_encoder_unit = {
+        .low_limit = -32768, .high_limit = 32767, .flags.accum_count = true,
+    };
+    pcnt_channel_handle_t ga25_encoder_channel;
+    ESP_ERROR_CHECK(pcnt_new_unit(&ga25_encoder_unit, &s_ga25_encoder));
+    const pcnt_chan_config_t ga25_encoder_config = {
+        .edge_gpio_num = GA25_ENCODER_GPIO, .level_gpio_num = -1,
+    };
+    ESP_ERROR_CHECK(pcnt_new_channel(s_ga25_encoder, &ga25_encoder_config, &ga25_encoder_channel));
+    ESP_ERROR_CHECK(pcnt_channel_set_edge_action(ga25_encoder_channel,
+                                                 PCNT_CHANNEL_EDGE_ACTION_INCREASE,
+                                                 PCNT_CHANNEL_EDGE_ACTION_HOLD));
+    const pcnt_glitch_filter_config_t ga25_encoder_filter = {
+        .max_glitch_ns = GA25_ENCODER_GLITCH_FILTER_NS,
+    };
+    ESP_ERROR_CHECK(pcnt_unit_set_glitch_filter(s_ga25_encoder, &ga25_encoder_filter));
+    ESP_ERROR_CHECK(pcnt_unit_enable(s_ga25_encoder));
+    ESP_ERROR_CHECK(pcnt_unit_clear_count(s_ga25_encoder));
+    ESP_ERROR_CHECK(pcnt_unit_start(s_ga25_encoder));
     ga25_apply_duty(0);
     start_wifi();
     xTaskCreate(imu_task,"imu",3072,NULL,4,NULL);
