@@ -108,6 +108,29 @@ until its pulses-per-output-revolution is measured. Run `python3 tools/keyboard_
 192.168.19.137` for an interactive test; A/D change PWM by 5%, and Space/Esc
 ramps to a stop.
 
+### GA25 bench result
+
+The external L298N and GA25-370 were verified with the above reassigned wiring.
+Positive `ga25` duty produces a 20 kHz PWM waveform at the L298N motor output;
+the motor-side average voltage is duty-scaled and includes the L298N bridge
+drop, so it is lower than the 5 V supply. At 25% duty the measured average was
+about 0.6 V, which was insufficient to reliably overcome static friction. The
+motor started consistently at 80% duty.
+
+The encoder on GPIO14 was counted by ESP32 PCNT hardware with a 10 us glitch
+filter. With the mechanism free, five-second count windows measured:
+
+| Command duty | Encoder edges | Window | Edge rate |
+|---:|---:|---:|---:|
+| 60% | 1,545 | 5.37 s | 288 edges/s |
+| 80% | 2,633 | 5.34 s | 493 edges/s |
+
+This confirms the encoder signal and the count rate scale with motor command.
+It does not establish output RPM: measure encoder pulses per output revolution
+before converting these counts into speed or enabling closed-loop GA25 control.
+Always issue `ga25 0` or `stop` after a bench run; the command watchdog also
+ramps GA25 to zero after 500 ms without refreshes.
+
 ## UART application updates
 
 `partitions.csv` reserves two 1.875 MiB application slots. This enables updates
