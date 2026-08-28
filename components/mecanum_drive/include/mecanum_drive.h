@@ -49,6 +49,9 @@ esp_err_t mecanum_drive_init(const mecanum_drive_config_t *config);
 esp_err_t mecanum_drive_set_twist(float forward, float strafe, float turn);
 // Diagnostic control for one logical wheel. Clears all other wheel targets.
 esp_err_t mecanum_drive_set_wheel(mecanum_wheel_t wheel, float speed);
+// Open-loop diagnostic control for one wheel. Bypasses PCNT and PID; the
+// command timeout and direction-change protection remain active.
+esp_err_t mecanum_drive_set_wheel_open_loop(mecanum_wheel_t wheel, int duty_percent);
 esp_err_t mecanum_drive_stop(void);
 esp_err_t mecanum_drive_get_telemetry(mecanum_drive_telemetry_t *telemetry);
 esp_err_t mecanum_drive_set_pid_gains(float proportional_gain, float integral_gain);

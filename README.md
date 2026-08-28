@@ -45,6 +45,82 @@ The connected device was detected as:
 
 The USB-UART bridge is a WCH CH340 (`1a86:7523`).
 
+## Remote IMU debug
+
+The carrier board's `J30` IMU header uses I2C. Connect JY61P `VCC` to `3V3`,
+`GND` to `GND`, `SCL` to ESP32 `GPIO5`, and `SDA` to ESP32 `GPIO33`.
+The firmware reads the module's default I2C address `0x50` at 100 kHz. Do not
+also connect the JY61P UART pins for this integration.
+
+From any device on the ESP32 Wi-Fi network, send UDP `imu` to port `3333`.
+The reply reports the latest acceleration, angular rate, roll/pitch/yaw, frame
+count, transaction-error count, and data age. A reply of `waiting for JY61P
+I2C addr 0x50` indicates a wiring, supply, pull-up, or address/mode problem.
+
+## S3 remote debug
+
+S3 is a standard positional MG995 on GPIO17. At boot it commands 0 degrees
+(1000 us); after `stop`, PWM is disabled so it does not hold a blocked linkage.
+`s3 ANGLE` commands a slow one-degree-per-50-ms move over 0-120 degrees;
+`s3 center` commands 60 degrees. `s3 release` stops PWM and releases holding
+torque immediately. The MG995 has no angle readback: remove or align the horn
+with the linkage at the intended center while unpowered before the first
+installed test.
+
+Run `python3 tools/keyboard_drive.py --s3` on the host for a guarded manual
+test: `A`/`D` adjust in 5-degree steps, `0` commands 0 degrees, `C` commands
+60 degrees, and Space or Escape releases the servo.
+
+Watch IMU telemetry over Wi-Fi with `python3 tools/keyboard_drive.py --imu`;
+it keeps retrying until stopped with Ctrl-C, so it can be started before the
+ESP32 powers on.
+
+## Cubie UART debug and control
+
+The carrier `JPI1` UART is ESP32 UART0 at 115200 baud, 8N1, with the 470 ohm
+series resistors already fitted. Its connection is crossed: carrier
+`PI_UART_TX_3V3` goes to Cubie RXD; carrier `PI_UART_RX_3V3` goes to Cubie TXD;
+grounds join. Do not connect either 5 V or 3.3 V supply between boards.
+
+Send one ASCII command per newline. UART accepts the same commands as UDP:
+`imu`, `telemetry`, `drive F S T`, `wheel M SPEED`, `raw M DUTY`, `pid [KP KI]`, `s3 ANGLE`,
+`s3 center`, `s3 release`, and `stop`. Each command reply starts with `@ `.
+For example, send `imu\n` to read the latest IMU data, or `s3 60\n` to move
+S3 slowly to center. `s3 release\n` and `stop\n` release S3 immediately.
+
+`raw M DUTY` is a single-JGA25 wheel wiring test which bypasses PCNT/encoder feedback
+and PID. `M` is connector 1 through 4 and `DUTY` is -100 through 100. Refresh
+the command within 500 ms while it should run; otherwise the firmware stops it.
+
+The separate 6 V GA25-370 driving motor is controlled through the external
+L298N, not `raw M DUTY`. Keep the L298N `ENA` jumper fitted, then connect only
+GPIO14 to `IN1` and GPIO12 to `IN2`; the firmware applies PWM to the active
+direction input. Use `ga25 DUTY` for its signed open-loop PWM command. Its
+encoder is intentionally unused. Run `python3 tools/keyboard_drive.py --ga25 --host
+192.168.19.137` for an interactive test; A/D change PWM by 5%, and Space/Esc
+ramps to a stop.
+
+## UART application updates
+
+`partitions.csv` reserves two 1.875 MiB application slots. This enables updates
+over the existing Cubie UART link after a one-time manual migration. The ESP32
+ROM downloader cannot be entered from application code on this DevKit because
+GPIO0 is only sampled during reset.
+
+For the one-time migration, put the ESP32 in download mode with the physical
+BOOT/EN buttons and flash the bootloader, partition table, and application in
+one operation. Subsequent updates need no button press:
+
+```sh
+python3 tools/uart_ota_update.py build/esp32_hello_world.bin --port /dev/ttyAS2
+```
+
+The updater sends `ota SIZE CRC32` over UART0, writes the inactive slot, checks
+the transferred image CRC32, marks that slot for the next boot, and reboots.
+It stops the chassis, releases S3, and stops GA25 before accepting an image.
+CRC32 protects against accidental serial corruption; it is not a signed or
+authenticated update format, so only run the updater from the trusted Cubie.
+
 ## Environment
 
 This project was built with ESP-IDF v6.0.2 on Arch Linux. Load the ESP-IDF toolchain before using `idf.py`:
