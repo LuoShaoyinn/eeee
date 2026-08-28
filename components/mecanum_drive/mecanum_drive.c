@@ -41,7 +41,7 @@ typedef struct {
     int sign, requested_sign;
     int64_t state_started_us, speed_sample_started_us;
     wheel_state_t state;
-    bool invert_direction;
+    bool invert_direction, open_loop;
     bool has_speed_sample;
 } wheel_t;
 
@@ -95,7 +95,8 @@ static bool read_encoder(wheel_t *wheel, int64_t now_us) {
     return false;
 }
 static void update_wheel(wheel_t *wheel, bool fresh, int64_t now_us) {
-    const bool speed_updated = read_encoder(wheel, now_us);
+    // Raw diagnostics do not read PCNT or participate in the PID loop.
+    const bool speed_updated = wheel->open_loop ? false : read_encoder(wheel, now_us);
     if (!fresh) {
         // A lost controller link is an immediate, coasting safety stop.
         wheel->integral = 0; wheel->controller_target = 0; wheel->wanted_duty = 0;
@@ -114,9 +115,14 @@ static void update_wheel(wheel_t *wheel, bool fresh, int64_t now_us) {
             if (!wheel->requested_sign) {
                 wheel->sign = 0; wheel->state = WHEEL_RUNNING; return;
             }
-            wheel->quiet_windows = wheel->edges ? 0 : wheel->quiet_windows + 1;
-            if (wheel->quiet_windows >= REVERSE_SETTLE_WINDOWS &&
-                (now_us - wheel->state_started_us) / 1000 >= REVERSE_SETTLE_MS) {
+            if (!wheel->open_loop) {
+                wheel->quiet_windows = wheel->edges ? 0 : wheel->quiet_windows + 1;
+            }
+            const bool settled = wheel->open_loop ?
+                (now_us - wheel->state_started_us) / 1000 >= REVERSE_SETTLE_MS :
+                wheel->quiet_windows >= REVERSE_SETTLE_WINDOWS &&
+                (now_us - wheel->state_started_us) / 1000 >= REVERSE_SETTLE_MS;
+            if (settled) {
                 ESP_ERROR_CHECK(set_direction(wheel, wheel->requested_sign));
                 wheel->sign = wheel->requested_sign;
                 wheel->state = WHEEL_SETTLING;
@@ -141,6 +147,13 @@ static void update_wheel(wheel_t *wheel, bool fresh, int64_t now_us) {
         wheel->state = WHEEL_RUNNING;
     }
     if (wheel->sign != target_sign) { ESP_ERROR_CHECK(set_direction(wheel, target_sign)); wheel->sign = target_sign; wheel->integral = 0; }
+    if (wheel->open_loop) {
+        wheel->integral = 0;
+        wheel->wanted_duty = fabsf(wheel->target) * s_max_duty;
+        apply_duty(wheel, ramp_duty(wheel->duty, wheel->wanted_duty,
+                                    DUTY_ACCEL_PER_TICK, DUTY_DECEL_PER_TICK));
+        return;
+    }
     const float target_rpm = fabsf(wheel->target) * s_no_load_rpm;
     const float feedforward = fabsf(wheel->target) * s_max_duty;
     if (fabsf(wheel->target - wheel->controller_target) > .001f) {
@@ -213,7 +226,10 @@ esp_err_t mecanum_drive_set_twist(float forward, float strafe, float turn) {
     float raw[] = {forward-strafe-turn, forward+strafe+turn, forward+strafe-turn, forward-strafe+turn}; float scale=1;
     for (size_t i=0;i<MECANUM_DRIVE_WHEEL_COUNT;i++) scale=fmaxf(scale,fabsf(raw[i]));
     xSemaphoreTake(s_lock,portMAX_DELAY);
-    for(size_t i=0;i<MECANUM_DRIVE_WHEEL_COUNT;i++) s_wheels[i].target=clamp(raw[i]/scale);
+    for(size_t i=0;i<MECANUM_DRIVE_WHEEL_COUNT;i++) {
+        s_wheels[i].target=clamp(raw[i]/scale);
+        s_wheels[i].open_loop=false;
+    }
     s_soft_stop_requested = forward == 0 && strafe == 0 && turn == 0;
     s_last_command_us=esp_timer_get_time();
     xSemaphoreGive(s_lock); return ESP_OK;
@@ -221,9 +237,27 @@ esp_err_t mecanum_drive_set_twist(float forward, float strafe, float turn) {
 esp_err_t mecanum_drive_set_wheel(mecanum_wheel_t wheel, float speed) {
     if (!s_initialized || wheel >= MECANUM_DRIVE_WHEEL_COUNT || speed < -1 || speed > 1) return ESP_ERR_INVALID_ARG;
     xSemaphoreTake(s_lock, portMAX_DELAY);
-    for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) s_wheels[i].target = 0;
+    for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) {
+        s_wheels[i].target = 0;
+        s_wheels[i].open_loop = false;
+    }
     s_wheels[wheel].target = speed;
     s_soft_stop_requested = speed == 0;
+    s_last_command_us = esp_timer_get_time();
+    xSemaphoreGive(s_lock);
+    return ESP_OK;
+}
+esp_err_t mecanum_drive_set_wheel_open_loop(mecanum_wheel_t wheel, int duty_percent) {
+    if (!s_initialized || wheel >= MECANUM_DRIVE_WHEEL_COUNT ||
+        duty_percent < -100 || duty_percent > 100) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) {
+        s_wheels[i].target = 0;
+        s_wheels[i].open_loop = false;
+    }
+    s_wheels[wheel].target = duty_percent / 100.0f;
+    s_wheels[wheel].open_loop = duty_percent != 0;
+    s_soft_stop_requested = duty_percent == 0;
     s_last_command_us = esp_timer_get_time();
     xSemaphoreGive(s_lock);
     return ESP_OK;

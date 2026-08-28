@@ -5,17 +5,44 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/i2c.h"
+#include "driver/uart.h"
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
 #include "mecanum_drive.h"
 #include "nvs_flash.h"
+#include "standard_servo.h"
 #include "wifi_credentials.h"
 
 #define UDP_PORT 3333
 #define COMMAND_BUFFER_SIZE 96
+#define CUBIE_UART_NUM UART_NUM_0
+#define CUBIE_UART_BAUD_RATE 115200
+#define IMU_I2C_PORT I2C_NUM_0
+#define IMU_I2C_SCL_GPIO GPIO_NUM_5
+#define IMU_I2C_SDA_GPIO GPIO_NUM_33
+#define IMU_I2C_ADDRESS 0x50
+#define IMU_I2C_CLOCK_HZ 100000
+#define IMU_I2C_TIMEOUT_MS 100
+#define S3_SERVO_GPIO GPIO_NUM_17
+#define S3_MIN_ANGLE_DEG 0
+#define S3_CENTER_ANGLE_DEG 60
+#define S3_MAX_ANGLE_DEG 120
+#define S3_SLOW_STEP_DEG 1
+#define S3_SLOW_STEP_MS 50
+#define GA25_ENA_PWM_GPIO GPIO_NUM_16
+#define GA25_IN1_GPIO GPIO_NUM_14
+#define GA25_IN2_GPIO GPIO_NUM_12
+#define GA25_PWM_FREQUENCY_HZ 20000
+#define GA25_PWM_DUTY_RESOLUTION LEDC_TIMER_10_BIT
+#define GA25_PWM_TIMER LEDC_TIMER_1
+#define GA25_PWM_CHANNEL LEDC_CHANNEL_1
+#define GA25_COMMAND_TIMEOUT_MS 500
+#define GA25_RAMP_PERCENT_PER_TICK 2
 static const char *TAG = "robot_control";
 static const mecanum_wheel_t s_physical_motor_map[] = {
     MECANUM_WHEEL_REAR_RIGHT,  // M1
@@ -23,6 +50,167 @@ static const mecanum_wheel_t s_physical_motor_map[] = {
     MECANUM_WHEEL_FRONT_LEFT,  // M3
     MECANUM_WHEEL_FRONT_RIGHT, // M4
 };
+typedef struct {
+    bool accel_valid, gyro_valid, angle_valid;
+    float accel_g[3], gyro_dps[3], angle_deg[3];
+    uint32_t last_frame_ms;
+    uint32_t frames;
+    uint32_t i2c_transactions, i2c_errors;
+} imu_telemetry_t;
+static imu_telemetry_t s_imu;
+static portMUX_TYPE s_imu_lock = portMUX_INITIALIZER_UNLOCKED;
+static standard_servo_handle_t s3_servo;
+static portMUX_TYPE s3_lock = portMUX_INITIALIZER_UNLOCKED;
+static int s3_current_angle = S3_MIN_ANGLE_DEG;
+static int s3_target_angle = S3_MIN_ANGLE_DEG;
+static bool s3_enabled;
+static bool s3_slow_move;
+static portMUX_TYPE s_ga25_lock = portMUX_INITIALIZER_UNLOCKED;
+static int s_ga25_target_duty;
+static int s_ga25_current_duty;
+static int64_t s_ga25_last_command_us;
+
+static esp_err_t s3_set_angle(int angle_deg) {
+    if (s3_servo == NULL) return ESP_ERR_INVALID_STATE;
+    if (angle_deg < S3_MIN_ANGLE_DEG || angle_deg > S3_MAX_ANGLE_DEG) return ESP_ERR_INVALID_ARG;
+    const uint32_t pulse_us = 1000U + ((uint32_t)angle_deg * 1000U) / S3_MAX_ANGLE_DEG;
+    esp_err_t err = standard_servo_set_pulse_us(s3_servo, pulse_us);
+    if (err == ESP_OK) { s3_current_angle = angle_deg; s3_enabled = true; }
+    return err;
+}
+
+static esp_err_t s3_release(void) {
+    if (s3_servo == NULL) return ESP_ERR_INVALID_STATE;
+    portENTER_CRITICAL(&s3_lock); s3_slow_move = false; s3_enabled = false; portEXIT_CRITICAL(&s3_lock);
+    return standard_servo_disable(s3_servo);
+}
+
+static esp_err_t s3_request_angle(int angle_deg) {
+    if (angle_deg < S3_MIN_ANGLE_DEG || angle_deg > S3_MAX_ANGLE_DEG) return ESP_ERR_INVALID_ARG;
+    portENTER_CRITICAL(&s3_lock); s3_target_angle = angle_deg; s3_slow_move = true; portEXIT_CRITICAL(&s3_lock);
+    return ESP_OK;
+}
+
+static void s3_task(void *unused) {
+    (void)unused;
+    while (true) {
+        int next = -1;
+        portENTER_CRITICAL(&s3_lock);
+        if (s3_slow_move) {
+            if (s3_current_angle < s3_target_angle) next = s3_current_angle + S3_SLOW_STEP_DEG;
+            else if (s3_current_angle > s3_target_angle) next = s3_current_angle - S3_SLOW_STEP_DEG;
+            else s3_slow_move = false;
+        }
+        portEXIT_CRITICAL(&s3_lock);
+        if (next >= 0) {
+            if (s3_set_angle(next) != ESP_OK) ESP_LOGE(TAG, "S3 angle update failed");
+        }
+        vTaskDelay(pdMS_TO_TICKS(S3_SLOW_STEP_MS));
+    }
+}
+
+static void ga25_apply_duty(int duty_percent) {
+    const int magnitude = duty_percent < 0 ? -duty_percent : duty_percent;
+    if (magnitude == 0) {
+        gpio_set_level(GA25_IN1_GPIO, 0);
+        gpio_set_level(GA25_IN2_GPIO, 0);
+    } else if (duty_percent > 0) {
+        gpio_set_level(GA25_IN1_GPIO, 1);
+        gpio_set_level(GA25_IN2_GPIO, 0);
+    } else {
+        gpio_set_level(GA25_IN1_GPIO, 0);
+        gpio_set_level(GA25_IN2_GPIO, 1);
+    }
+    const uint32_t max_duty = (1U << GA25_PWM_DUTY_RESOLUTION) - 1U;
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_HIGH_SPEED_MODE, GA25_PWM_CHANNEL,
+                                  (max_duty * (uint32_t)magnitude) / 100U));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_HIGH_SPEED_MODE, GA25_PWM_CHANNEL));
+}
+
+static esp_err_t ga25_request_duty(int duty_percent) {
+    if (duty_percent < -100 || duty_percent > 100) return ESP_ERR_INVALID_ARG;
+    portENTER_CRITICAL(&s_ga25_lock);
+    s_ga25_target_duty = duty_percent;
+    s_ga25_last_command_us = esp_timer_get_time();
+    portEXIT_CRITICAL(&s_ga25_lock);
+    return ESP_OK;
+}
+
+static void ga25_task(void *unused) {
+    (void)unused;
+    while (true) {
+        int target;
+        portENTER_CRITICAL(&s_ga25_lock);
+        target = s_ga25_target_duty;
+        if (esp_timer_get_time() - s_ga25_last_command_us > (int64_t)GA25_COMMAND_TIMEOUT_MS * 1000) {
+            target = s_ga25_target_duty = 0;
+        }
+        portEXIT_CRITICAL(&s_ga25_lock);
+
+        // Decelerate to zero before reversing the L298N bridge direction.
+        if ((s_ga25_current_duty > 0 && target < 0) ||
+            (s_ga25_current_duty < 0 && target > 0)) target = 0;
+        if (s_ga25_current_duty < target) {
+            s_ga25_current_duty += GA25_RAMP_PERCENT_PER_TICK;
+            if (s_ga25_current_duty > target) s_ga25_current_duty = target;
+        } else if (s_ga25_current_duty > target) {
+            s_ga25_current_duty -= GA25_RAMP_PERCENT_PER_TICK;
+            if (s_ga25_current_duty < target) s_ga25_current_duty = target;
+        }
+        ga25_apply_duty(s_ga25_current_duty);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+static int16_t imu_le_i16(const uint8_t *data) {
+    return (int16_t)((uint16_t)data[0] | ((uint16_t)data[1] << 8));
+}
+
+static esp_err_t imu_read_registers(uint8_t reg, uint8_t *data, size_t length) {
+    return i2c_master_write_read_device(IMU_I2C_PORT, IMU_I2C_ADDRESS, &reg, 1,
+                                        data, length,
+                                        pdMS_TO_TICKS(IMU_I2C_TIMEOUT_MS));
+}
+
+static void imu_task(void *unused) {
+    (void)unused;
+    const i2c_config_t config = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = IMU_I2C_SDA_GPIO,
+        .scl_io_num = IMU_I2C_SCL_GPIO,
+        .sda_pullup_en = GPIO_PULLUP_DISABLE,
+        .scl_pullup_en = GPIO_PULLUP_DISABLE,
+        .master.clk_speed = IMU_I2C_CLOCK_HZ,
+    };
+    ESP_ERROR_CHECK(i2c_param_config(IMU_I2C_PORT, &config));
+    ESP_ERROR_CHECK(i2c_driver_install(IMU_I2C_PORT, config.mode, 0, 0, 0));
+    ESP_LOGI(TAG, "IMU I2C listening: JY61P addr 0x%02X, SCL GPIO%d, SDA GPIO%d",
+             IMU_I2C_ADDRESS, IMU_I2C_SCL_GPIO, IMU_I2C_SDA_GPIO);
+    while (true) {
+        uint8_t accel[6], gyro[6], angle[6];
+        const esp_err_t accel_err = imu_read_registers(0x34, accel, sizeof(accel));
+        const esp_err_t gyro_err = accel_err == ESP_OK ? imu_read_registers(0x37, gyro, sizeof(gyro)) : accel_err;
+        const esp_err_t angle_err = gyro_err == ESP_OK ? imu_read_registers(0x3D, angle, sizeof(angle)) : gyro_err;
+        portENTER_CRITICAL(&s_imu_lock);
+        ++s_imu.i2c_transactions;
+        if (angle_err != ESP_OK) {
+            ++s_imu.i2c_errors;
+            portEXIT_CRITICAL(&s_imu_lock);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+        for (size_t axis = 0; axis < 3; ++axis) {
+            s_imu.accel_g[axis] = imu_le_i16(&accel[axis * 2]) * 16.0f / 32768.0f;
+            s_imu.gyro_dps[axis] = imu_le_i16(&gyro[axis * 2]) * 2000.0f / 32768.0f;
+            s_imu.angle_deg[axis] = imu_le_i16(&angle[axis * 2]) * 180.0f / 32768.0f;
+        }
+        s_imu.accel_valid = s_imu.gyro_valid = s_imu.angle_valid = true;
+        s_imu.last_frame_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+        ++s_imu.frames;
+        portEXIT_CRITICAL(&s_imu_lock);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
 
 static void wifi_events(void *arg, esp_event_base_t base, int32_t event_id, void *data) {
     (void)arg;
@@ -42,6 +230,51 @@ static void start_wifi(void) {
     ESP_LOGI(TAG, "AP ready at 192.168.4.1, UDP/%d", UDP_PORT);
 }
 static const char *process_command(const char *command, char *reply, size_t reply_size) {
+    if (!strcmp(command, "s3 stop") || !strcmp(command, "s3 release"))
+        return s3_release() == ESP_OK ? "s3 released\n" : "error: s3\n";
+    if (!strcmp(command, "s3 center"))
+        return s3_request_angle(S3_CENTER_ANGLE_DEG) == ESP_OK ? "s3 moving to center\n" : "error: s3\n";
+    int s3_angle; char s3_extra;
+    if (sscanf(command, "s3 %d %c", &s3_angle, &s3_extra) == 1)
+        return s3_request_angle(s3_angle) == ESP_OK ? "s3 moving slowly\n" : "error: S3 angle must be 0..120\n";
+    if (!strcmp(command, "s3")) {
+        portENTER_CRITICAL(&s3_lock);
+        const int current_angle = s3_current_angle, target_angle = s3_target_angle;
+        const bool enabled = s3_enabled, moving = s3_slow_move;
+        portEXIT_CRITICAL(&s3_lock);
+        snprintf(reply, reply_size, "s3 %s current %ddeg target %ddeg moving %u; commands: s3 ANGLE [0..120], s3 center, s3 release\n",
+                 enabled ? "holding" : "released", current_angle, target_angle, moving);
+        return reply;
+    }
+    if (!strcmp(command, "ga25")) {
+        int target, current;
+        portENTER_CRITICAL(&s_ga25_lock); target = s_ga25_target_duty; portEXIT_CRITICAL(&s_ga25_lock);
+        current = s_ga25_current_duty;
+        snprintf(reply, reply_size, "ga25 target %d%% current %d%%; ga25 DUTY [-100..100], refresh within 500ms\n", target, current);
+        return reply;
+    }
+    int ga25_duty; char ga25_extra;
+    if (sscanf(command, "ga25 %d %c", &ga25_duty, &ga25_extra) == 1)
+        return ga25_request_duty(ga25_duty) == ESP_OK ? "ok: ga25 L298N open-loop PWM\n" : "error: GA25 duty must be -100..100\n";
+    if (!strcmp(command, "imu")) {
+        imu_telemetry_t imu;
+        portENTER_CRITICAL(&s_imu_lock); imu = s_imu; portEXIT_CRITICAL(&s_imu_lock);
+        const uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+        if (!imu.accel_valid && !imu.gyro_valid && !imu.angle_valid) {
+            snprintf(reply, reply_size,
+                     "imu waiting for JY61P I2C addr 0x50; transactions %lu errors %lu\n",
+                     (unsigned long)imu.i2c_transactions, (unsigned long)imu.i2c_errors);
+            return reply;
+        }
+        snprintf(reply, reply_size,
+                 "imu age %lums frames %lu; i2c transactions %lu errors %lu; accel %.3f %.3f %.3f g; gyro %.1f %.1f %.1f dps; angle %.2f %.2f %.2f deg\n",
+                 (unsigned long)(now_ms - imu.last_frame_ms), (unsigned long)imu.frames,
+                 (unsigned long)imu.i2c_transactions, (unsigned long)imu.i2c_errors,
+                 imu.accel_g[0], imu.accel_g[1], imu.accel_g[2],
+                 imu.gyro_dps[0], imu.gyro_dps[1], imu.gyro_dps[2],
+                 imu.angle_deg[0], imu.angle_deg[1], imu.angle_deg[2]);
+        return reply;
+    }
     if (!strcmp(command, "telemetry")) {
         mecanum_drive_telemetry_t telemetry;
         if (mecanum_drive_get_telemetry(&telemetry) != ESP_OK) return "error: telemetry unavailable\n";
@@ -60,7 +293,12 @@ static const char *process_command(const char *command, char *reply, size_t repl
                  telemetry.reversing[0], telemetry.reversing[1], telemetry.reversing[2], telemetry.reversing[3]);
         return reply;
     }
-    if (!strcmp(command,"stop")) return mecanum_drive_stop()==ESP_OK ? "ok\n" : "error: stop failed\n";
+    if (!strcmp(command,"stop")) {
+        const esp_err_t motors = mecanum_drive_stop();
+        const esp_err_t servo = s3_release();
+        const esp_err_t ga25 = ga25_request_duty(0);
+        return motors == ESP_OK && servo == ESP_OK && ga25 == ESP_OK ? "ok\n" : "error: stop failed\n";
+    }
     if (!strcmp(command,"pid")) {
         float kp, ki;
         return mecanum_drive_get_pid_gains(&kp, &ki)==ESP_OK ?
@@ -70,18 +308,50 @@ static const char *process_command(const char *command, char *reply, size_t repl
     if (sscanf(command,"pid %f %f %c",&kp,&ki,&pid_extra)==2)
         return mecanum_drive_set_pid_gains(kp,ki)==ESP_OK ?
             (snprintf(reply, reply_size, "pid kp %.4f ki %.4f\n", kp, ki), reply) : "error: invalid pid gains\n";
+    unsigned raw_motor; int raw_duty; char raw_extra;
+    if (sscanf(command,"raw %u %d %c",&raw_motor,&raw_duty,&raw_extra)==2 && raw_motor>=1 && raw_motor<=4 && raw_duty>=-100 && raw_duty<=100)
+        return mecanum_drive_set_wheel_open_loop(s_physical_motor_map[raw_motor-1],raw_duty)==ESP_OK ? "ok: raw open-loop PWM; refresh within 500ms or it stops\n" : "error: raw failed\n";
     unsigned motor; float wheel_speed; char wheel_extra;
     if (sscanf(command,"wheel %u %f %c",&motor,&wheel_speed,&wheel_extra)==2 && motor>=1 && motor<=4 && wheel_speed>=-1 && wheel_speed<=1)
         return mecanum_drive_set_wheel(s_physical_motor_map[motor-1],wheel_speed)==ESP_OK ? "ok\n" : "error: wheel failed\n";
     float f,s,t; char extra;
     if (sscanf(command,"drive %f %f %f %c",&f,&s,&t,&extra)==3 && f>=-1&&f<=1&&s>=-1&&s<=1&&t>=-1&&t<=1) return mecanum_drive_set_twist(f,s,t)==ESP_OK ? "ok\n" : "error: drive failed\n";
-    return "error: pid [KP KI], wheel M SPEED, drive F S T, telemetry, or stop\n";
+    return "error: imu, s3 ANGLE [0..120]|center|release, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, telemetry, or stop\n";
 }
 static void udp_task(void *unused) {
     (void)unused; int fd=socket(AF_INET,SOCK_DGRAM,IPPROTO_IP); if(fd<0){ESP_LOGE(TAG,"socket errno %d",errno);vTaskDelete(NULL);return;}
     struct sockaddr_in address={.sin_family=AF_INET,.sin_port=htons(UDP_PORT),.sin_addr.s_addr=htonl(INADDR_ANY)};
     if(bind(fd,(struct sockaddr *)&address,sizeof(address))<0){ESP_LOGE(TAG,"bind errno %d",errno);vTaskDelete(NULL);return;}
     while(true){ char buffer[COMMAND_BUFFER_SIZE], reply[256]; struct sockaddr_in sender; socklen_t len=sizeof(sender); int received=recvfrom(fd,buffer,sizeof(buffer)-1,0,(struct sockaddr *)&sender,&len); if(received<0)continue; buffer[received]='\0'; const char *response=process_command(buffer,reply,sizeof(reply)); sendto(fd,response,strlen(response),0,(struct sockaddr *)&sender,len); }
+}
+static void cubie_uart_task(void *unused) {
+    (void)unused;
+    const esp_err_t install = uart_driver_install(CUBIE_UART_NUM, 512, 0, 0, NULL, 0);
+    if (install != ESP_OK && install != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(TAG, "Cubie UART driver failed: %s", esp_err_to_name(install));
+        vTaskDelete(NULL);
+        return;
+    }
+    char command[COMMAND_BUFFER_SIZE];
+    size_t used = 0;
+    ESP_LOGI(TAG, "Cubie UART0 command channel ready at %d baud", CUBIE_UART_BAUD_RATE);
+    while (true) {
+        uint8_t byte;
+        if (uart_read_bytes(CUBIE_UART_NUM, &byte, 1, portMAX_DELAY) != 1) continue;
+        if (byte == '\r') continue;
+        if (byte == '\n') {
+            if (used == 0) continue;
+            command[used] = '\0';
+            char reply[256];
+            const char *response = process_command(command, reply, sizeof(reply));
+            uart_write_bytes(CUBIE_UART_NUM, "@ ", 2);
+            uart_write_bytes(CUBIE_UART_NUM, response, strlen(response));
+            used = 0;
+            continue;
+        }
+        if (used < sizeof(command) - 1) command[used++] = (char)byte;
+        else used = 0;
+    }
 }
 static void telemetry_task(void *unused) {
     (void)unused; while(true) { mecanum_drive_telemetry_t t; if(mecanum_drive_get_telemetry(&t)==ESP_OK) ESP_LOGI(TAG,"rpm %.0f %.0f %.0f %.0f; duty %u %u %u %u; FG %u %u %u %u",t.measured_rpm[0],t.measured_rpm[1],t.measured_rpm[2],t.measured_rpm[3],(unsigned)t.duty_percent[0],(unsigned)t.duty_percent[1],(unsigned)t.duty_percent[2],(unsigned)t.duty_percent[3],(unsigned)t.encoder_edges[0],(unsigned)t.encoder_edges[1],(unsigned)t.encoder_edges[2],(unsigned)t.encoder_edges[3]); vTaskDelay(pdMS_TO_TICKS(1000)); }
@@ -97,7 +367,33 @@ void app_main(void) {
     },
         .encoder_pulses_per_output_rev=86.4f,.no_load_output_rpm=620,.rated_output_rpm=450,
         .control_period_ms=20,.command_timeout_ms=500,.max_duty_percent=100};
-    ESP_ERROR_CHECK(mecanum_drive_init(&config)); start_wifi();
+    ESP_ERROR_CHECK(mecanum_drive_init(&config));
+    const standard_servo_config_t s3_config = {
+        .signal_gpio = S3_SERVO_GPIO, .speed_mode = LEDC_LOW_SPEED_MODE,
+        .timer_num = LEDC_TIMER_0, .channel = LEDC_CHANNEL_0,
+        .frequency_hz = 50, .duty_resolution = LEDC_TIMER_16_BIT,
+        .min_pulse_us = 1000, .max_pulse_us = 2000,
+    };
+    ESP_ERROR_CHECK(standard_servo_init(&s3_config, &s3_servo));
+    ESP_ERROR_CHECK(s3_set_angle(S3_MIN_ANGLE_DEG));
+    const ledc_timer_config_t ga25_timer = {
+        .speed_mode = LEDC_HIGH_SPEED_MODE, .duty_resolution = GA25_PWM_DUTY_RESOLUTION,
+        .timer_num = GA25_PWM_TIMER, .freq_hz = GA25_PWM_FREQUENCY_HZ, .clk_cfg = LEDC_AUTO_CLK,
+    };
+    const ledc_channel_config_t ga25_channel = {
+        .gpio_num = GA25_ENA_PWM_GPIO, .speed_mode = LEDC_HIGH_SPEED_MODE,
+        .channel = GA25_PWM_CHANNEL, .timer_sel = GA25_PWM_TIMER, .duty = 0, .hpoint = 0,
+    };
+    ESP_ERROR_CHECK(gpio_set_direction(GA25_IN1_GPIO, GPIO_MODE_OUTPUT));
+    ESP_ERROR_CHECK(gpio_set_direction(GA25_IN2_GPIO, GPIO_MODE_OUTPUT));
+    ESP_ERROR_CHECK(ledc_timer_config(&ga25_timer));
+    ESP_ERROR_CHECK(ledc_channel_config(&ga25_channel));
+    ga25_apply_duty(0);
+    start_wifi();
+    xTaskCreate(imu_task,"imu",3072,NULL,4,NULL);
+    xTaskCreate(s3_task,"s3",2048,NULL,3,NULL);
+    xTaskCreate(ga25_task,"ga25",2048,NULL,3,NULL);
+    xTaskCreate(cubie_uart_task,"cubie_uart",4096,NULL,4,NULL);
     xTaskCreate(udp_task,"udp_control",4096,NULL,5,NULL); xTaskCreate(telemetry_task,"telemetry",3072,NULL,3,NULL);
     ESP_LOGI(TAG,"chassis: 190 mm wheel-center square, 23 mm wheel radius");
 }
