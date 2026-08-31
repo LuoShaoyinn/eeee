@@ -35,7 +35,7 @@ def main():
         parser.error("all control increments and period must be positive")
 
     print("W/S forward/back, A/D left/right, Q/E yaw, Space stop, Esc quit")
-    print("[ / ] S3 pulse (800..2400 us), R releases S3, , / . GA25 duty, G stops GA25, T state")
+    print("[ / ] S3 pulse (800..2125 us), R releases S3, , / . GA25 duty, G stops GA25, T state")
     vx = vy = wz = 0.0
     servo_pulse_us = 1500
     ga25_duty = 0
@@ -107,7 +107,7 @@ def main():
                     issue(f"s3 pulse {servo_pulse_us}", show=False)
                     show_s3_status()
                 elif key == "]":
-                    servo_pulse_us = min(2400, servo_pulse_us + args.servo_pulse_step)
+                    servo_pulse_us = min(2125, servo_pulse_us + args.servo_pulse_step)
                     issue(f"s3 pulse {servo_pulse_us}", show=False)
                     show_s3_status()
                 elif key == "r":
