@@ -28,15 +28,16 @@ def main():
                         help="yaw-rate increment in rad/s")
     parser.add_argument("--period", type=float, default=.08,
                         help="twist refresh period in seconds")
-    parser.add_argument("--servo-step", type=int, default=5)
+    parser.add_argument("--servo-pulse-step", type=int, default=25,
+                        help="S3 raw-pulse increment in microseconds")
     args = parser.parse_args()
-    if args.linear <= 0 or args.yaw <= 0 or args.period <= 0 or args.servo_step <= 0:
+    if args.linear <= 0 or args.yaw <= 0 or args.period <= 0 or args.servo_pulse_step <= 0:
         parser.error("all control increments and period must be positive")
 
     print("W/S forward/back, A/D left/right, Q/E yaw, Space stop, Esc quit")
-    print("[ / ] S3 angle (0..180 deg), R releases S3, , / . GA25 duty, G stops GA25, T state")
+    print("[ / ] S3 pulse (800..2400 us), R releases S3, , / . GA25 duty, G stops GA25, T state")
     vx = vy = wz = 0.0
-    servo_angle = 0
+    servo_pulse_us = 1500
     ga25_duty = 0
     old_settings = termios.tcgetattr(sys.stdin)
 
@@ -51,24 +52,31 @@ def main():
             return None
 
     def show_s3_status():
-        nonlocal servo_angle
+        nonlocal servo_pulse_us
         reply = issue("s3", show=False)
         if reply is None:
             return
         mode_match = re.search(r"^s3 (\w+)", reply)
+        raw_pulse_match = re.search(r"raw (\d+)us", reply)
         current_match = re.search(r"current (\d+)deg", reply)
         target_match = re.search(r"target (\d+)deg", reply)
+        current_pulse_match = re.search(r"current \d+deg (\d+)us", reply)
         duty_match = re.search(r"(\d+\.\d+)%", reply)
         moving_match = re.search(r"moving (\d+)", reply)
-        if target_match is None:
+        pulse_match = raw_pulse_match or current_pulse_match
+        if pulse_match is None:
             print(reply)
             return
-        servo_angle = int(target_match.group(1))
+        servo_pulse_us = int(pulse_match.group(1))
         mode = mode_match.group(1) if mode_match else "unknown"
-        current = current_match.group(1) if current_match else "?"
         duty = f", {duty_match.group(1)}%" if duty_match else ""
         moving = " moving" if moving_match and moving_match.group(1) == "1" else ""
-        print(f"S3 {mode}: {current}deg -> {servo_angle}deg{duty}{moving}")
+        if raw_pulse_match:
+            print(f"S3 {mode}: {servo_pulse_us}us{duty}")
+        else:
+            current = current_match.group(1) if current_match else "?"
+            target = target_match.group(1) if target_match else "?"
+            print(f"S3 {mode}: {current}deg -> {target}deg, {servo_pulse_us}us{duty}{moving}")
 
     try:
         show_s3_status()
@@ -95,12 +103,12 @@ def main():
                 elif key == "z": vy = 0.0
                 elif key == "c": wz = 0.0
                 elif key == "[":
-                    servo_angle = max(0, servo_angle - args.servo_step)
-                    issue(f"s3 {servo_angle}", show=False)
+                    servo_pulse_us = max(800, servo_pulse_us - args.servo_pulse_step)
+                    issue(f"s3 pulse {servo_pulse_us}", show=False)
                     show_s3_status()
                 elif key == "]":
-                    servo_angle = min(180, servo_angle + args.servo_step)
-                    issue(f"s3 {servo_angle}", show=False)
+                    servo_pulse_us = min(2400, servo_pulse_us + args.servo_pulse_step)
+                    issue(f"s3 pulse {servo_pulse_us}", show=False)
                     show_s3_status()
                 elif key == "r":
                     issue("s3 release", show=False)
