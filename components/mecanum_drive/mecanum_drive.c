@@ -23,8 +23,8 @@
 #define REVERSE_SETTLE_WINDOWS 5
 #define REVERSE_SETTLE_MS 500
 #define DIRECTION_SETTLE_MS 100
-#define SPEED_MEASUREMENT_PERIOD_MS 300
-#define SPEED_FILTER_ALPHA .35f
+#define SPEED_MEASUREMENT_PERIOD_MS 60
+#define SPEED_FILTER_ALPHA .45f
 #define DUTY_ACCEL_PER_TICK 0.5f
 #define DUTY_DECEL_PER_TICK 0.75f
 #define MIN_RUNNING_DUTY_PERCENT 10.0f
@@ -132,6 +132,10 @@ static void update_wheel(wheel_t *wheel, bool fresh, int64_t now_us) {
         }
     }
     if (!target_sign) {
+        // A completed coast-to-stop must remain idle. Without this guard an
+        // already stopped wheel repeatedly re-entered WHEEL_BRAKING on every
+        // 20 ms tick, making telemetry report a false reversal state.
+        if (wheel->sign == 0 && wheel->duty <= .5f && wheel->state == WHEEL_RUNNING) return;
         wheel->state = WHEEL_BRAKING; wheel->requested_sign = 0;
         wheel->state_started_us = now_us; wheel->quiet_windows = 0;
         return;

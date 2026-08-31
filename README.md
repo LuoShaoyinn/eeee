@@ -9,7 +9,7 @@ Four-wheel JGA25-2430-CE production controller for the carrier board. It uses ac
 | M3/rear-left | GPIO26 | GPIO27 | GPIO35 |
 | M4/rear-right | GPIO19 | GPIO13 | GPIO34 |
 
-The carrier supplies the required 3.3 V pull-ups for FG. FG is single-channel speed magnitude, not quadrature: it cannot prove direction. The firmware uses it for PI speed feedback and zero-speed confirmation before reversal; commanded DIR supplies the sign. Parameters are 18 FG pulses/output revolution, 620 RPM no-load, and 450 RPM rated-load. Normalized commands use 620 RPM as their full-scale target; 450 RPM is the expected sustained loaded maximum. The controller starts stopped, limits duty to 50%, ramps duty, and stops after 300 ms without a valid command.
+The carrier supplies the required 3.3 V pull-ups for FG. FG is single-channel speed magnitude, not quadrature: it cannot prove direction. The firmware uses it for PI speed feedback and zero-speed confirmation before reversal; commanded DIR supplies the sign. Parameters are 18 FG pulses/output revolution, 620 RPM no-load, and 450 RPM rated-load. The wheel controller runs every 20 ms and updates its PCNT-derived RPM/PID feedback every 60 ms. The controller starts stopped, ramps duty, and stops after 500 ms without a valid command.
 
 Chassis values: 190 mm wheel-center square and 23 mm wheel radius. The mirrored right-side mounts use inverted electrical direction by default (M2 and M4). Validate each wheel one at a time and correct `invert_direction` in `main/motor_control_main.c` for the actual Mecanum roller handedness/wiring. The FG source emits 9 pulses per motor-shaft revolution and the 9.6:1 gearbox yields 86.4 FG edges per output-shaft revolution. `encoder_pulses_per_output_rev` accepts fractional values for this reason.
 
@@ -88,10 +88,23 @@ series resistors already fitted. Its connection is crossed: carrier
 grounds join. Do not connect either 5 V or 3.3 V supply between boards.
 
 Send one ASCII command per newline. UART accepts all production controls:
-`imu`, `telemetry`, `drive F S T`, `wheel M SPEED`, `raw M DUTY`, `pid [KP KI]`, `s3 ANGLE`,
-`s3 center`, `s3 release`, and `stop`. Each command reply starts with `@ `.
+`state`, `imu`, `telemetry`, `drive F S T`, `twist VX_MPS VY_MPS WZ_RADPS`,
+`wheel M SPEED`, `raw M DUTY`, `pid [KP KI]`, `s3 ANGLE`, `s3 center`,
+`s3 release`, `ga25 DUTY`, and `stop`. Each command reply starts with `@ `.
 For example, send `imu\n` to read the latest IMU data, or `s3 60\n` to move
 S3 slowly to center. `s3 release\n` and `stop\n` release S3 immediately.
+
+`state` is the compact control-loop snapshot: timestamp, IMU age/gyro/angle,
+four wheel RPM/FG samples, and GA25 state. `twist` is the Cubie physical-unit
+body command. It is conservatively limited to `+/-0.40 m/s` forward/strafe and
+`+/-2.00 rad/s` yaw pending chassis calibration. The legacy normalized `drive`
+command remains for bench tests.
+
+The [Cubie C++ transport](cubie-robot/README.md) owns `/dev/ttyAS2` through
+the enabled `robotd.service`. Its `robotctl` client communicates through a
+local Unix socket rather than opening the serial port directly. `robotd`
+refreshes active twists at 25 Hz, stops after 250 ms without client refreshes,
+and relies on the ESP32's independent 500 ms watchdog as the second stop layer.
 
 `raw M DUTY` is a single-JGA25 wheel wiring test which bypasses PCNT/encoder feedback
 and PID. `M` is connector 1 through 4 and `DUTY` is -100 through 100. Refresh

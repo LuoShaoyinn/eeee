@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -27,6 +28,7 @@
 // Keep the radio off for Cubie UART integration. Set to 1 to restore the
 // existing AP+station and UDP control path without changing command handling.
 #define ROBOT_ENABLE_WIFI 0
+#define ROBOT_ENABLE_PERIODIC_UART_LOGS 0
 #define CUBIE_UART_NUM UART_NUM_0
 #define CUBIE_UART_BAUD_RATE 115200
 #define IMU_I2C_PORT I2C_NUM_0
@@ -54,6 +56,12 @@
 #define GA25_ENCODER_GLITCH_FILTER_NS 10000
 #define OTA_MAX_IMAGE_SIZE 0x1e0000U
 #define OTA_RECEIVE_TIMEOUT_MS 5000
+#define MECANUM_WHEEL_RADIUS_M 0.023f
+#define MECANUM_HALF_WHEELBASE_M 0.095f
+#define MECANUM_NO_LOAD_RPM 620.0f
+#define TWO_PI_F 6.28318530718f
+#define CUBIE_MAX_LINEAR_MPS 0.40f
+#define CUBIE_MAX_YAW_RADPS 2.00f
 static const char *TAG = "robot_control";
 static const mecanum_wheel_t s_physical_motor_map[] = {
     MECANUM_WHEEL_REAR_RIGHT,  // M1
@@ -85,6 +93,10 @@ static uint32_t s_ga25_encoder_edges;
 static uint64_t s_ga25_encoder_total_edges;
 
 static void cubie_ota_update(const char *command);
+
+static float mecanum_wheel_max_mps(void) {
+    return TWO_PI_F * MECANUM_WHEEL_RADIUS_M * MECANUM_NO_LOAD_RPM / 60.0f;
+}
 
 static esp_err_t s3_set_angle(int angle_deg) {
     if (s3_servo == NULL) return ESP_ERR_INVALID_STATE;
@@ -306,6 +318,35 @@ static const char *process_command(const char *command, char *reply, size_t repl
                  imu.angle_deg[0], imu.angle_deg[1], imu.angle_deg[2]);
         return reply;
     }
+    if (!strcmp(command, "state")) {
+        mecanum_drive_telemetry_t telemetry;
+        imu_telemetry_t imu;
+        int ga25_target, ga25_current;
+        uint32_t ga25_edges;
+        uint64_t ga25_total;
+        const uint32_t now_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+        if (mecanum_drive_get_telemetry(&telemetry) != ESP_OK) return "error: state unavailable\n";
+        portENTER_CRITICAL(&s_imu_lock); imu = s_imu; portEXIT_CRITICAL(&s_imu_lock);
+        portENTER_CRITICAL(&s_ga25_lock);
+        ga25_target = s_ga25_target_duty;
+        ga25_edges = s_ga25_encoder_edges;
+        ga25_total = s_ga25_encoder_total_edges;
+        portEXIT_CRITICAL(&s_ga25_lock);
+        ga25_current = s_ga25_current_duty;
+        snprintf(reply, reply_size,
+                 "state ms %lu imu_age %lu gyro %.1f %.1f %.1f angle %.1f %.1f %.1f rpm %.0f %.0f %.0f %.0f fg %u %u %u %u ga25 %d %d %u %llu\n",
+                 (unsigned long)now_ms,
+                 (unsigned long)(imu.accel_valid ? now_ms - imu.last_frame_ms : UINT32_MAX),
+                 imu.gyro_dps[0], imu.gyro_dps[1], imu.gyro_dps[2],
+                 imu.angle_deg[0], imu.angle_deg[1], imu.angle_deg[2],
+                 telemetry.measured_rpm[0], telemetry.measured_rpm[1],
+                 telemetry.measured_rpm[2], telemetry.measured_rpm[3],
+                 (unsigned)telemetry.encoder_edges[0], (unsigned)telemetry.encoder_edges[1],
+                 (unsigned)telemetry.encoder_edges[2], (unsigned)telemetry.encoder_edges[3],
+                 ga25_target, ga25_current, (unsigned)ga25_edges,
+                 (unsigned long long)ga25_total);
+        return reply;
+    }
     if (!strcmp(command, "telemetry")) {
         mecanum_drive_telemetry_t telemetry;
         if (mecanum_drive_get_telemetry(&telemetry) != ESP_OK) return "error: telemetry unavailable\n";
@@ -347,7 +388,19 @@ static const char *process_command(const char *command, char *reply, size_t repl
         return mecanum_drive_set_wheel(s_physical_motor_map[motor-1],wheel_speed)==ESP_OK ? "ok\n" : "error: wheel failed\n";
     float f,s,t; char extra;
     if (sscanf(command,"drive %f %f %f %c",&f,&s,&t,&extra)==3 && f>=-1&&f<=1&&s>=-1&&s<=1&&t>=-1&&t<=1) return mecanum_drive_set_twist(f,s,t)==ESP_OK ? "ok\n" : "error: drive failed\n";
-    return "error: imu, s3 ANGLE [0..120]|center|release, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, telemetry, or stop\n";
+    float vx, vy, wz;
+    if (sscanf(command, "twist %f %f %f %c", &vx, &vy, &wz, &extra) == 3) {
+        if (fabsf(vx) > CUBIE_MAX_LINEAR_MPS || fabsf(vy) > CUBIE_MAX_LINEAR_MPS ||
+            fabsf(wz) > CUBIE_MAX_YAW_RADPS) {
+            return "error: twist exceeds calibrated safety limit\n";
+        }
+        const float wheel_max_mps = mecanum_wheel_max_mps();
+        const float forward = vx / wheel_max_mps;
+        const float strafe = vy / wheel_max_mps;
+        const float turn = (2.0f * MECANUM_HALF_WHEELBASE_M * wz) / wheel_max_mps;
+        return mecanum_drive_set_twist(forward, strafe, turn) == ESP_OK ? "ok\n" : "error: twist failed\n";
+    }
+    return "error: state, imu, s3 ANGLE [0..120]|center|release, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, twist VX_MPS VY_MPS WZ_RADPS, telemetry, or stop\n";
 }
 #if ROBOT_ENABLE_WIFI
 static void udp_task(void *unused) {
@@ -391,9 +444,11 @@ static void cubie_uart_task(void *unused) {
         else used = 0;
     }
 }
+#if ROBOT_ENABLE_PERIODIC_UART_LOGS
 static void telemetry_task(void *unused) {
     (void)unused; while(true) { mecanum_drive_telemetry_t t; if(mecanum_drive_get_telemetry(&t)==ESP_OK) ESP_LOGI(TAG,"rpm %.0f %.0f %.0f %.0f; duty %u %u %u %u; FG %u %u %u %u",t.measured_rpm[0],t.measured_rpm[1],t.measured_rpm[2],t.measured_rpm[3],(unsigned)t.duty_percent[0],(unsigned)t.duty_percent[1],(unsigned)t.duty_percent[2],(unsigned)t.duty_percent[3],(unsigned)t.encoder_edges[0],(unsigned)t.encoder_edges[1],(unsigned)t.encoder_edges[2],(unsigned)t.encoder_edges[3]); vTaskDelay(pdMS_TO_TICKS(1000)); }
 }
+#endif
 
 static void cubie_ota_update(const char *command) {
     unsigned image_size;
@@ -498,6 +553,8 @@ void app_main(void) {
 #if ROBOT_ENABLE_WIFI
     xTaskCreate(udp_task,"udp_control",4096,NULL,5,NULL);
 #endif
+#if ROBOT_ENABLE_PERIODIC_UART_LOGS
     xTaskCreate(telemetry_task,"telemetry",3072,NULL,3,NULL);
+#endif
     ESP_LOGI(TAG,"chassis: 190 mm wheel-center square, 23 mm wheel radius");
 }
