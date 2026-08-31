@@ -36,7 +36,7 @@ python3 tools/keyboard_control.py
 
 Each `W/S` press adds/subtracts forward speed, each `A/D` press adds/subtracts
 lateral speed, and each `Q/E` press adds/subtracts yaw rate. The defaults cap
-linear speed at 0.40 m/s and yaw at 2.00 rad/s; adjust the increments or limits
+linear speed at 0.60 m/s and yaw at 2.00 rad/s; adjust the increments or limits
 with `--linear`, `--yaw`, `--max-linear`, and `--max-yaw`. `Space` stops all
 ESP32-controlled motion. `X`, `Z`, and `C` clear forward, lateral, and yaw
 components independently. `[`/`]` adjust S3, `R` releases S3, `,`/`.` adjust
@@ -61,7 +61,7 @@ the command exits:
 ```
 
 The physical `twist` limits are conservative pending chassis calibration:
-`|vx|, |vy| <= 0.40 m/s` and `|yaw_rate| <= 2.00 rad/s`.
+`|vx|, |vy| <= 0.60 m/s` and `|yaw_rate| <= 2.00 rad/s`.
 
 For automatic startup, install `systemd/robotd.service` as
 `/etc/systemd/system/robotd.service`, run `systemctl daemon-reload`, then

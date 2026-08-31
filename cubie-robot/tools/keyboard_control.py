@@ -26,7 +26,7 @@ def main():
                         help="linear velocity increment per key press in m/s")
     parser.add_argument("--yaw", type=float, default=.50,
                         help="yaw-rate increment per key press in rad/s")
-    parser.add_argument("--max-linear", type=float, default=.40,
+    parser.add_argument("--max-linear", type=float, default=.60,
                         help="maximum absolute linear velocity in m/s")
     parser.add_argument("--max-yaw", type=float, default=2.00,
                         help="maximum absolute yaw rate in rad/s")
