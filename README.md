@@ -78,6 +78,11 @@ the most recently applied angle, target angle, 1,000-2,000 us pulse width,
 release`, the reported output duty is zero even though the last commanded angle
 is retained for reference.
 
+For unloaded endpoint calibration only, `s3 pulse PULSE_US` bypasses the angle
+map and applies an immediate 800-2400 us pulse at 50 Hz. Increase it in small
+steps above 2000 us, and issue `s3 release` immediately if the servo buzzes,
+heats, or reaches a hard stop. This command does not imply an angle.
+
 Run `python3 tools/keyboard_drive.py --s3` on the host for a guarded manual
 test: `A`/`D` adjust in 5-degree steps, `0` commands 0 degrees, `C` commands
 60 degrees, and Space or Escape releases the servo.
