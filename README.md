@@ -107,7 +107,7 @@ S3 slowly to center. `s3 release\n` and `stop\n` release S3 immediately.
 
 `state` is the compact control-loop snapshot: timestamp, IMU age/gyro/angle,
 four wheel RPM/FG samples, and GA25 state. `twist` is the Cubie physical-unit
-body command. It is conservatively limited to `+/-0.40 m/s` forward/strafe and
+body command. It is conservatively limited to `+/-0.60 m/s` forward/strafe and
 `+/-2.00 rad/s` yaw pending chassis calibration. The legacy normalized `drive`
 command remains for bench tests.
 

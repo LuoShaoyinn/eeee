@@ -65,7 +65,7 @@
 #define MECANUM_HALF_WHEELBASE_M 0.095f
 #define MECANUM_NO_LOAD_RPM 620.0f
 #define TWO_PI_F 6.28318530718f
-#define CUBIE_MAX_LINEAR_MPS 0.40f
+#define CUBIE_MAX_LINEAR_MPS 0.60f
 #define CUBIE_MAX_YAW_RADPS 2.00f
 static const char *TAG = "robot_control";
 static const mecanum_wheel_t s_physical_motor_map[] = {
