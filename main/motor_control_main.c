@@ -24,6 +24,9 @@
 
 #define UDP_PORT 3333
 #define COMMAND_BUFFER_SIZE 96
+// Keep the radio off for Cubie UART integration. Set to 1 to restore the
+// existing AP+station and UDP control path without changing command handling.
+#define ROBOT_ENABLE_WIFI 0
 #define CUBIE_UART_NUM UART_NUM_0
 #define CUBIE_UART_BAUD_RATE 115200
 #define IMU_I2C_PORT I2C_NUM_0
@@ -230,6 +233,7 @@ static void imu_task(void *unused) {
     }
 }
 
+#if ROBOT_ENABLE_WIFI
 static void wifi_events(void *arg, esp_event_base_t base, int32_t event_id, void *data) {
     (void)arg;
     if (base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) esp_wifi_connect();
@@ -247,6 +251,7 @@ static void start_wifi(void) {
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA)); ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP,&ap)); ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA,&sta)); ESP_ERROR_CHECK(esp_wifi_start());
     ESP_LOGI(TAG, "AP ready at 192.168.4.1, UDP/%d", UDP_PORT);
 }
+#endif
 static const char *process_command(const char *command, char *reply, size_t reply_size) {
     if (!strcmp(command, "s3 stop") || !strcmp(command, "s3 release"))
         return s3_release() == ESP_OK ? "s3 released\n" : "error: s3\n";
@@ -344,12 +349,14 @@ static const char *process_command(const char *command, char *reply, size_t repl
     if (sscanf(command,"drive %f %f %f %c",&f,&s,&t,&extra)==3 && f>=-1&&f<=1&&s>=-1&&s<=1&&t>=-1&&t<=1) return mecanum_drive_set_twist(f,s,t)==ESP_OK ? "ok\n" : "error: drive failed\n";
     return "error: imu, s3 ANGLE [0..120]|center|release, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, telemetry, or stop\n";
 }
+#if ROBOT_ENABLE_WIFI
 static void udp_task(void *unused) {
     (void)unused; int fd=socket(AF_INET,SOCK_DGRAM,IPPROTO_IP); if(fd<0){ESP_LOGE(TAG,"socket errno %d",errno);vTaskDelete(NULL);return;}
     struct sockaddr_in address={.sin_family=AF_INET,.sin_port=htons(UDP_PORT),.sin_addr.s_addr=htonl(INADDR_ANY)};
     if(bind(fd,(struct sockaddr *)&address,sizeof(address))<0){ESP_LOGE(TAG,"bind errno %d",errno);vTaskDelete(NULL);return;}
     while(true){ char buffer[COMMAND_BUFFER_SIZE], reply[256]; struct sockaddr_in sender; socklen_t len=sizeof(sender); int received=recvfrom(fd,buffer,sizeof(buffer)-1,0,(struct sockaddr *)&sender,&len); if(received<0)continue; buffer[received]='\0'; const char *response=process_command(buffer,reply,sizeof(reply)); sendto(fd,response,strlen(response),0,(struct sockaddr *)&sender,len); }
 }
+#endif
 static void cubie_uart_task(void *unused) {
     (void)unused;
     const esp_err_t install = uart_driver_install(CUBIE_UART_NUM, 512, 0, 0, NULL, 0);
@@ -479,11 +486,18 @@ void app_main(void) {
     ESP_ERROR_CHECK(pcnt_unit_clear_count(s_ga25_encoder));
     ESP_ERROR_CHECK(pcnt_unit_start(s_ga25_encoder));
     ga25_apply_duty(0);
+#if ROBOT_ENABLE_WIFI
     start_wifi();
+#else
+    ESP_LOGI(TAG, "Wi-Fi and UDP disabled; Cubie UART0 is the control interface");
+#endif
     xTaskCreate(imu_task,"imu",3072,NULL,4,NULL);
     xTaskCreate(s3_task,"s3",2048,NULL,3,NULL);
     xTaskCreate(ga25_task,"ga25",2048,NULL,3,NULL);
     xTaskCreate(cubie_uart_task,"cubie_uart",4096,NULL,4,NULL);
-    xTaskCreate(udp_task,"udp_control",4096,NULL,5,NULL); xTaskCreate(telemetry_task,"telemetry",3072,NULL,3,NULL);
+#if ROBOT_ENABLE_WIFI
+    xTaskCreate(udp_task,"udp_control",4096,NULL,5,NULL);
+#endif
+    xTaskCreate(telemetry_task,"telemetry",3072,NULL,3,NULL);
     ESP_LOGI(TAG,"chassis: 190 mm wheel-center square, 23 mm wheel radius");
 }

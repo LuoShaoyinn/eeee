@@ -13,7 +13,12 @@ The carrier supplies the required 3.3 V pull-ups for FG. FG is single-channel sp
 
 Chassis values: 190 mm wheel-center square and 23 mm wheel radius. The mirrored right-side mounts use inverted electrical direction by default (M2 and M4). Validate each wheel one at a time and correct `invert_direction` in `main/motor_control_main.c` for the actual Mecanum roller handedness/wiring. The FG source emits 9 pulses per motor-shaft revolution and the 9.6:1 gearbox yields 86.4 FG edges per output-shaft revolution. `encoder_pulses_per_output_rev` accepts fractional values for this reason.
 
-Copy `main/wifi_credentials.h.example` to ignored local `main/wifi_credentials.h`. The ESP32 starts a 2.4 GHz station and fallback AP `robot-esp32` at `192.168.4.1`. An ESP32-WROOM-32 cannot join a 5 GHz-only network.
+`ROBOT_ENABLE_WIFI` in `main/motor_control_main.c` is `0` by default, so the
+robot starts with its Wi-Fi radio and UDP listener disabled. The Cubie UART0
+link is therefore the sole runtime control interface. Set the switch to `1`
+to restore the retained AP/station and UDP control path; then copy
+`main/wifi_credentials.h.example` to ignored local `main/wifi_credentials.h`.
+An ESP32-WROOM-32 supports 2.4 GHz Wi-Fi only.
 
 ```sh
 source /opt/esp-idf/export.sh
@@ -82,7 +87,7 @@ series resistors already fitted. Its connection is crossed: carrier
 `PI_UART_TX_3V3` goes to Cubie RXD; carrier `PI_UART_RX_3V3` goes to Cubie TXD;
 grounds join. Do not connect either 5 V or 3.3 V supply between boards.
 
-Send one ASCII command per newline. UART accepts the same commands as UDP:
+Send one ASCII command per newline. UART accepts all production controls:
 `imu`, `telemetry`, `drive F S T`, `wheel M SPEED`, `raw M DUTY`, `pid [KP KI]`, `s3 ANGLE`,
 `s3 center`, `s3 release`, and `stop`. Each command reply starts with `@ `.
 For example, send `imu\n` to read the latest IMU data, or `s3 60\n` to move
