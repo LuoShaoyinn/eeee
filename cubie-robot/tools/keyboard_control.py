@@ -52,12 +52,23 @@ def main():
 
     def show_s3_status():
         nonlocal servo_angle
-        reply = issue("s3")
+        reply = issue("s3", show=False)
         if reply is None:
             return
+        mode_match = re.search(r"^s3 (\w+)", reply)
+        current_match = re.search(r"current (\d+)deg", reply)
         target_match = re.search(r"target (\d+)deg", reply)
-        if target_match:
-            servo_angle = int(target_match.group(1))
+        duty_match = re.search(r"(\d+\.\d+)%", reply)
+        moving_match = re.search(r"moving (\d+)", reply)
+        if target_match is None:
+            print(reply)
+            return
+        servo_angle = int(target_match.group(1))
+        mode = mode_match.group(1) if mode_match else "unknown"
+        current = current_match.group(1) if current_match else "?"
+        duty = f", {duty_match.group(1)}%" if duty_match else ""
+        moving = " moving" if moving_match and moving_match.group(1) == "1" else ""
+        print(f"S3 {mode}: {current}deg -> {servo_angle}deg{duty}{moving}")
 
     try:
         show_s3_status()
@@ -101,7 +112,6 @@ def main():
                     issue("state")
                     show_s3_status()
                 else: continue
-                print(f"twist {vx:+.2f} {vy:+.2f} {wz:+.2f}; ga25 {ga25_duty:+d}%")
 
             now = time.monotonic()
             if now >= next_refresh:
