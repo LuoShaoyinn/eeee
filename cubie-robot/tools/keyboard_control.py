@@ -34,7 +34,7 @@ def main():
         parser.error("all control increments and period must be positive")
 
     print("W/S forward/back, A/D left/right, Q/E yaw, Space stop, Esc quit")
-    print("[ / ] S3 angle (0..180 deg), R releases S3, , / . GA25 duty, G stops GA25, T state")
+    print("[ / ] S3 angle (0..150 deg), R releases S3, , / . GA25 duty, G stops GA25, T state")
     vx = vy = wz = 0.0
     servo_angle = 0
     ga25_duty = 0
@@ -99,7 +99,7 @@ def main():
                     issue(f"s3 {servo_angle}", show=False)
                     show_s3_status()
                 elif key == "]":
-                    servo_angle = min(180, servo_angle + args.servo_step)
+                    servo_angle = min(150, servo_angle + args.servo_step)
                     issue(f"s3 {servo_angle}", show=False)
                     show_s3_status()
                 elif key == "r":
