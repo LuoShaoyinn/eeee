@@ -40,8 +40,9 @@ linear speed at 0.40 m/s and yaw at 2.00 rad/s; adjust the increments or limits
 with `--linear`, `--yaw`, `--max-linear`, and `--max-yaw`. `Space` stops all
 ESP32-controlled motion. `X`, `Z`, and `C` clear forward, lateral, and yaw
 components independently. `[`/`]` adjust S3, `R` releases S3, `,`/`.` adjust
-GA25 duty, `G` stops GA25, and `T` prints a state snapshot. Escape issues
-`stop` before exiting.
+GA25 speed, `F`/`B` select GA25 forward/reverse direction, `G` stops GA25,
+and `T` prints a state snapshot. Direction selection at zero GA25 speed does
+not start the motor. Escape issues `stop` before exiting.
 
 To capture a headless VGA sample on the Cubie, with no preview, decode, or
 network transfer, use the local V4L2 wrapper. It writes native MJPEG frames to

@@ -42,10 +42,12 @@ def main():
     print("W/S forward/back, A/D left/right, Q/E yaw: each press adds speed")
     print(f"limits: linear +-{args.max_linear:.2f} m/s, yaw +-{args.max_yaw:.2f} rad/s")
     print("Space stop, Esc quit")
-    print("[ / ] S3 pulse (800..2125 us), R releases S3, , / . GA25 duty, G stops GA25, T state")
+    print("[ / ] S3 pulse (800..2125 us), R releases S3")
+    print("F/B GA25 forward/reverse, ,/. GA25 speed down/up, G stops GA25, T state")
     vx = vy = wz = 0.0
     servo_pulse_us = 1500
-    ga25_duty = 0
+    ga25_speed = 0
+    ga25_direction = 1
     old_settings = termios.tcgetattr(sys.stdin)
 
     def issue(command, show=True):
@@ -90,6 +92,10 @@ def main():
 
     def show_twist():
         print(f"motion: vx={vx:+.2f} m/s vy={vy:+.2f} m/s wz={wz:+.2f} rad/s")
+
+    def show_ga25():
+        direction = "forward" if ga25_direction > 0 else "reverse"
+        print(f"GA25: {direction}, {ga25_speed}%")
 
     try:
         show_s3_status()
@@ -144,9 +150,22 @@ def main():
                 elif key == "r":
                     issue("s3 release", show=False)
                     show_s3_status()
-                elif key == ",": ga25_duty = max(-100, ga25_duty - 5)
-                elif key == ".": ga25_duty = min(100, ga25_duty + 5)
-                elif key == "g": ga25_duty = 0
+                elif key == "f":
+                    ga25_direction = 1
+                    show_ga25()
+                elif key == "b":
+                    ga25_direction = -1
+                    show_ga25()
+                elif key == ",":
+                    ga25_speed = max(0, ga25_speed - 5)
+                    show_ga25()
+                elif key == ".":
+                    ga25_speed = min(100, ga25_speed + 5)
+                    show_ga25()
+                elif key == "g":
+                    ga25_speed = 0
+                    issue("ga25 0", show=False)
+                    show_ga25()
                 elif key == "t":
                     issue("state")
                     show_s3_status()
@@ -155,8 +174,8 @@ def main():
             now = time.monotonic()
             if now >= next_refresh:
                 issue(f"twist {vx:.3f} {vy:.3f} {wz:.3f}", show=False)
-                if ga25_duty:
-                    issue(f"ga25 {ga25_duty}", show=False)
+                if ga25_speed:
+                    issue(f"ga25 {ga25_direction * ga25_speed}", show=False)
                 next_refresh = now + args.period
     finally:
         issue("stop", show=False)
