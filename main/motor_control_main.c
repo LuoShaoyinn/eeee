@@ -568,7 +568,9 @@ void app_main(void) {
         .min_pulse_us = S3_CALIBRATION_MIN_PULSE_US, .max_pulse_us = S3_CALIBRATION_MAX_PULSE_US,
     };
     ESP_ERROR_CHECK(standard_servo_init(&s3_config, &s3_servo));
-    ESP_ERROR_CHECK(s3_set_angle(S3_MIN_ANGLE_DEG));
+    // A reset/OTA reboot must not move a possibly loaded servo. LEDC starts at
+    // zero duty; disable it explicitly until an S3 command is received.
+    ESP_ERROR_CHECK(standard_servo_disable(s3_servo));
     const ledc_timer_config_t ga25_timer = {
         .speed_mode = LEDC_HIGH_SPEED_MODE, .duty_resolution = GA25_PWM_DUTY_RESOLUTION,
         .timer_num = GA25_PWM_TIMER, .freq_hz = GA25_PWM_FREQUENCY_HZ, .clk_cfg = LEDC_AUTO_CLK,
