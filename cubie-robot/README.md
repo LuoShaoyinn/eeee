@@ -44,22 +44,20 @@ GA25 speed, `F`/`B` select GA25 forward/reverse direction, `G` stops GA25,
 and `T` prints a state snapshot. Direction selection at zero GA25 speed does
 not start the motor. Escape issues `stop` before exiting.
 
-To capture a headless VGA sample on the Cubie, with no preview, decode, or
-network transfer, use the local V4L2 wrapper. It writes native MJPEG frames to
-`~/videos` and captures 30 seconds by default:
+To capture calibrated 1280x720 video on the Cubie, with no preview or network
+transfer, use the local wrapper. It records consecutive 30-second segments
+until `Ctrl-C`:
 
 ```sh
 python3 tools/capture_video.py
 ```
 
-The Camera1 fisheye calibration is included under `calibration/`. To save a
-rectified local video, use its calibrated 1280x720 mode. The command compiles
-the C++ OpenCV recorder locally on the Cubie when needed; it has no display or
-network output:
+Files are named `capture-<time>-0001.avi`, `capture-<time>-0002.avi`, and so on.
+Use `--duration` to change the length of each segment.
 
-```sh
-python3 tools/capture_video.py --rectify
-```
+The Camera1 fisheye calibration is included under `calibration/`; the C++
+OpenCV recorder is compiled locally on the Cubie when needed. For the faster
+native 640x480 MJPEG recorder, use `--raw`.
 
 For a suspended-car test, use a bounded heartbeat. It stops automatically when
 the command exits:

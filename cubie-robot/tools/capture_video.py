@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture a fixed-duration MJPEG sample locally through V4L2."""
+"""Capture consecutive locally stored MJPEG segments through V4L2."""
 
 import argparse
 import shutil
@@ -11,7 +11,7 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Headless V4L2 capture to a local MJPEG file without decoding.")
+        description="Headless continuous video capture to locally stored segments.")
     parser.add_argument("--device", default="/dev/video0")
     parser.add_argument("--width", type=int,
                         help="capture width (640 raw default, 1280 rectified default)")
@@ -19,11 +19,14 @@ def main():
                         help="capture height (480 raw default, 720 rectified default)")
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--duration", type=float, default=30,
-                        help="sample length in seconds (default: 30)")
+                        help="length of each saved segment in seconds (default: 30)")
     parser.add_argument("--output", type=Path,
-                        help="destination .mjpg file (default: ~/videos/capture-<time>.mjpg)")
-    parser.add_argument("--rectify", action="store_true",
-                        help="apply the Camera1 1280x720 fisheye calibration before saving")
+                        help="output filename prefix (segments receive -0001, -0002, ...)")
+    capture_mode = parser.add_mutually_exclusive_group()
+    capture_mode.add_argument("--rectify", dest="rectify", action="store_true", default=True,
+                              help="apply the Camera1 1280x720 fisheye calibration (default)")
+    capture_mode.add_argument("--raw", dest="rectify", action="store_false",
+                              help="save native 640x480 MJPEG frames without calibration")
     parser.add_argument("--calibration", type=Path,
                         default=Path(__file__).resolve().parents[1] / "calibration" /
                                 "camera1_fisheye_1280x720_rectilinear_f400.yaml")
@@ -37,10 +40,14 @@ def main():
         parser.error("v4l2-ctl is required; install the v4l-utils package")
 
     extension = ".avi" if args.rectify else ".mjpg"
-    output = args.output or (Path.home() / "videos" /
-                             f"capture-{datetime.now():%Y%m%d-%H%M%S}{extension}")
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output_prefix = args.output or (Path.home() / "videos" /
+                                    f"capture-{datetime.now():%Y%m%d-%H%M%S}{extension}")
+    output_prefix.parent.mkdir(parents=True, exist_ok=True)
     frame_count = round(args.duration * args.fps)
+
+    def segment_path(index: int) -> Path:
+        return output_prefix.with_name(
+            f"{output_prefix.stem}-{index:04d}{output_prefix.suffix}")
 
     if args.rectify:
         if not args.calibration.is_file():
@@ -56,38 +63,51 @@ def main():
             except (OSError, subprocess.CalledProcessError) as error:
                 print(f"cannot build calibrated recorder: {error}", file=sys.stderr)
                 return 1
-        capture = [str(recorder), "--device", args.device, "--output", str(output),
-                   "--calibration", str(args.calibration), "--width", str(width),
-                   "--height", str(height), "--fps", str(args.fps), "--frames", str(frame_count)]
+        segment_index = 1
         try:
-            subprocess.run(capture, check=True)
+            while True:
+                output = segment_path(segment_index)
+                capture = [str(recorder), "--device", args.device, "--output", str(output),
+                           "--calibration", str(args.calibration), "--width", str(width),
+                           "--height", str(height), "--fps", str(args.fps), "--frames", str(frame_count)]
+                print(f"capturing segment {segment_index}: {frame_count} frames at "
+                      f"{width}x{height} {args.fps} FPS")
+                subprocess.run(capture, check=True)
+                print(f"saved rectified {output} ({output.stat().st_size} bytes)")
+                segment_index += 1
+        except KeyboardInterrupt:
+            print("capture stopped")
+            return 0
         except subprocess.CalledProcessError as error:
             print(f"capture failed: {error}", file=sys.stderr)
             return 1
-        print(f"saved rectified {output} ({output.stat().st_size} bytes)")
-        return 0
 
     configure = [
         "v4l2-ctl", "--device", args.device,
         f"--set-fmt-video=width={width},height={height},pixelformat=MJPG",
         f"--set-parm={args.fps}",
     ]
-    capture = [
-        "v4l2-ctl", "--device", args.device,
-        "--stream-mmap=3", f"--stream-count={frame_count}",
-        f"--stream-to={output}",
-    ]
-
     try:
         subprocess.run(configure, check=True)
-        print(f"capturing {frame_count} frames at {width}x{height} {args.fps} FPS")
-        subprocess.run(capture, check=True)
+        segment_index = 1
+        while True:
+            output = segment_path(segment_index)
+            capture = [
+                "v4l2-ctl", "--device", args.device,
+                "--stream-mmap=3", f"--stream-count={frame_count}",
+                f"--stream-to={output}",
+            ]
+            print(f"capturing segment {segment_index}: {frame_count} frames at "
+                  f"{width}x{height} {args.fps} FPS")
+            subprocess.run(capture, check=True)
+            print(f"saved {output} ({output.stat().st_size} bytes)")
+            segment_index += 1
+    except KeyboardInterrupt:
+        print("capture stopped")
+        return 0
     except subprocess.CalledProcessError as error:
         print(f"capture failed: {error}", file=sys.stderr)
         return 1
-
-    print(f"saved {output} ({output.stat().st_size} bytes)")
-    return 0
 
 
 if __name__ == "__main__":
