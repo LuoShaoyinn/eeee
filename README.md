@@ -111,6 +111,13 @@ body command. It is conservatively limited to `+/-0.40 m/s` forward/strafe and
 `+/-2.00 rad/s` yaw pending chassis calibration. The legacy normalized `drive`
 command remains for bench tests.
 
+Each chassis wheel has a hardware-PCNT speed PID loop. Startup ramps at 2.5%
+duty per 20 ms to overcome static friction without an abrupt full-duty step.
+When at least two wheels have valid encoder samples, a cross-wheel guard limits
+any wheel running more than 10% ahead of the slowest commanded wheel ratio; the
+lagging wheel retains its original PID target to recover. `telemetry` reports
+this as `sync ACTIVE REFERENCE_RPM`.
+
 The [Cubie C++ transport](cubie-robot/README.md) owns `/dev/ttyAS2` through
 the enabled `robotd.service`. Its `robotctl` client communicates through a
 local Unix socket rather than opening the serial port directly. `robotd`

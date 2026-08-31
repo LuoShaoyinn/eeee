@@ -43,6 +43,8 @@ typedef struct {
     uint64_t encoder_total_edges[MECANUM_DRIVE_WHEEL_COUNT];
     uint32_t duty_percent[MECANUM_DRIVE_WHEEL_COUNT];
     bool reversing[MECANUM_DRIVE_WHEEL_COUNT];
+    float sync_reference_rpm;
+    bool speed_sync_active;
 } mecanum_drive_telemetry_t;
 
 esp_err_t mecanum_drive_init(const mecanum_drive_config_t *config);

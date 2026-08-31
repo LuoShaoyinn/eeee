@@ -414,7 +414,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
         mecanum_drive_telemetry_t telemetry;
         if (mecanum_drive_get_telemetry(&telemetry) != ESP_OK) return "error: telemetry unavailable\n";
         snprintf(reply, reply_size,
-                 "target %.2f %.2f %.2f %.2f; rpm %.0f %.0f %.0f %.0f; fg %u %u %u %u; total %llu %llu %llu %llu; duty %u %u %u %u; reversing %u %u %u %u\n",
+                 "target %.2f %.2f %.2f %.2f; rpm %.0f %.0f %.0f %.0f; fg %u %u %u %u; total %llu %llu %llu %llu; duty %u %u %u %u; reversing %u %u %u %u; sync %u %.0f\n",
                  telemetry.commanded[0], telemetry.commanded[1], telemetry.commanded[2], telemetry.commanded[3],
                  telemetry.measured_rpm[0], telemetry.measured_rpm[1], telemetry.measured_rpm[2], telemetry.measured_rpm[3],
                  (unsigned)telemetry.encoder_edges[0], (unsigned)telemetry.encoder_edges[1],
@@ -425,7 +425,8 @@ static const char *process_command(const char *command, char *reply, size_t repl
                  (unsigned long long)telemetry.encoder_total_edges[3],
                  (unsigned)telemetry.duty_percent[0], (unsigned)telemetry.duty_percent[1],
                  (unsigned)telemetry.duty_percent[2], (unsigned)telemetry.duty_percent[3],
-                 telemetry.reversing[0], telemetry.reversing[1], telemetry.reversing[2], telemetry.reversing[3]);
+                 telemetry.reversing[0], telemetry.reversing[1], telemetry.reversing[2], telemetry.reversing[3],
+                 telemetry.speed_sync_active, telemetry.sync_reference_rpm);
         return reply;
     }
     if (!strcmp(command,"stop")) {

@@ -25,11 +25,15 @@
 #define DIRECTION_SETTLE_MS 100
 #define SPEED_MEASUREMENT_PERIOD_MS 60
 #define SPEED_FILTER_ALPHA .45f
-#define DUTY_ACCEL_PER_TICK 0.5f
-#define DUTY_DECEL_PER_TICK 0.75f
-#define MIN_RUNNING_DUTY_PERCENT 10.0f
-#define SPEED_KP 0.035f
-#define SPEED_KI 0.004f
+#define DUTY_ACCEL_PER_TICK 2.5f
+#define DUTY_DECEL_PER_TICK 4.0f
+#define MIN_RUNNING_DUTY_PERCENT 18.0f
+#define SPEED_KP 0.050f
+#define SPEED_KI 0.008f
+#define SPEED_SYNC_MIN_TARGET 0.15f
+#define SPEED_SYNC_MIN_RPM 50.0f
+#define SPEED_SYNC_LEAD_RATIO 1.10f
+#define SPEED_SYNC_FILTER_ALPHA 0.35f
 
 typedef enum { WHEEL_RUNNING, WHEEL_BRAKING, WHEEL_SETTLING } wheel_state_t;
 typedef struct {
@@ -50,9 +54,10 @@ static wheel_t s_wheels[MECANUM_DRIVE_WHEEL_COUNT];
 static uint32_t s_period_ms, s_timeout_ms, s_no_load_rpm, s_rated_rpm, s_max_duty;
 static float s_ppr;
 static float s_kp = SPEED_KP, s_ki = SPEED_KI;
+static float s_sync_reference_rpm;
 static int64_t s_last_command_us;
 static SemaphoreHandle_t s_lock;
-static bool s_initialized, s_soft_stop_requested;
+static bool s_initialized, s_soft_stop_requested, s_speed_sync_active;
 
 static float clamp(float v) { return v > 1 ? 1 : (v < -1 ? -1 : v); }
 static int sign_of(float v) { return (v > .001f) - (v < -.001f); }
@@ -94,9 +99,7 @@ static bool read_encoder(wheel_t *wheel, int64_t now_us) {
     }
     return false;
 }
-static void update_wheel(wheel_t *wheel, bool fresh, int64_t now_us) {
-    // Raw diagnostics do not read PCNT or participate in the PID loop.
-    const bool speed_updated = wheel->open_loop ? false : read_encoder(wheel, now_us);
+static void update_wheel(wheel_t *wheel, bool fresh, bool speed_updated, int64_t now_us) {
     if (!fresh) {
         // A lost controller link is an immediate, coasting safety stop.
         wheel->integral = 0; wheel->controller_target = 0; wheel->wanted_duty = 0;
@@ -158,7 +161,15 @@ static void update_wheel(wheel_t *wheel, bool fresh, int64_t now_us) {
                                     DUTY_ACCEL_PER_TICK, DUTY_DECEL_PER_TICK));
         return;
     }
-    const float target_rpm = fabsf(wheel->target) * s_no_load_rpm;
+    float target_rpm = fabsf(wheel->target) * s_no_load_rpm;
+    // Preserve the requested kinematic wheel ratios when traction, load, or a
+    // weak motor makes one wheel lag. The lagging wheel keeps its original
+    // target so its PID can catch up; only wheels that lead it are reduced.
+    const float normalized_rpm = wheel->rpm / fabsf(wheel->target);
+    if (s_speed_sync_active && fabsf(wheel->target) >= SPEED_SYNC_MIN_TARGET &&
+        normalized_rpm > s_sync_reference_rpm * SPEED_SYNC_LEAD_RATIO) {
+        target_rpm = fminf(target_rpm, s_sync_reference_rpm * fabsf(wheel->target));
+    }
     const float feedforward = fabsf(wheel->target) * s_max_duty;
     if (fabsf(wheel->target - wheel->controller_target) > .001f) {
         wheel->controller_target = wheel->target;
@@ -177,6 +188,29 @@ static void update_wheel(wheel_t *wheel, bool fresh, int64_t now_us) {
                                    DUTY_ACCEL_PER_TICK, DUTY_DECEL_PER_TICK);
     apply_duty(wheel, ramped);
 }
+static void update_speed_sync_reference(const bool speed_updated[MECANUM_DRIVE_WHEEL_COUNT]) {
+    bool sampled = false;
+    float slowest_normalized_rpm = INFINITY;
+    size_t eligible_wheels = 0;
+    for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) {
+        const wheel_t *wheel = &s_wheels[i];
+        if (speed_updated[i]) sampled = true;
+        if (!wheel->open_loop && wheel->has_speed_sample &&
+            fabsf(wheel->target) >= SPEED_SYNC_MIN_TARGET && wheel->state == WHEEL_RUNNING) {
+            slowest_normalized_rpm = fminf(slowest_normalized_rpm,
+                                           wheel->rpm / fabsf(wheel->target));
+            ++eligible_wheels;
+        }
+    }
+    if (eligible_wheels < 2 || !sampled || slowest_normalized_rpm < SPEED_SYNC_MIN_RPM) {
+        s_speed_sync_active = false;
+        return;
+    }
+    s_sync_reference_rpm = s_speed_sync_active ?
+        s_sync_reference_rpm + SPEED_SYNC_FILTER_ALPHA *
+            (slowest_normalized_rpm - s_sync_reference_rpm) : slowest_normalized_rpm;
+    s_speed_sync_active = true;
+}
 static void control_task(void *unused) {
     (void)unused;
     while (true) {
@@ -186,7 +220,12 @@ static void control_task(void *unused) {
         // UDP task is excluded so a torn read cannot falsely time out motion.
         bool fresh = s_soft_stop_requested ||
                      now_us - s_last_command_us <= (int64_t)s_timeout_ms * 1000;
-        for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) update_wheel(&s_wheels[i], fresh, now_us);
+        bool speed_updated[MECANUM_DRIVE_WHEEL_COUNT] = {false};
+        for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i)
+            speed_updated[i] = !s_wheels[i].open_loop && read_encoder(&s_wheels[i], now_us);
+        update_speed_sync_reference(speed_updated);
+        for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i)
+            update_wheel(&s_wheels[i], fresh, speed_updated[i], now_us);
         xSemaphoreGive(s_lock);
         vTaskDelay(pdMS_TO_TICKS(s_period_ms));
     }
@@ -230,10 +269,14 @@ esp_err_t mecanum_drive_set_twist(float forward, float strafe, float turn) {
     float raw[] = {forward-strafe-turn, forward+strafe+turn, forward+strafe-turn, forward-strafe+turn}; float scale=1;
     for (size_t i=0;i<MECANUM_DRIVE_WHEEL_COUNT;i++) scale=fmaxf(scale,fabsf(raw[i]));
     xSemaphoreTake(s_lock,portMAX_DELAY);
+    bool targets_changed = false;
     for(size_t i=0;i<MECANUM_DRIVE_WHEEL_COUNT;i++) {
-        s_wheels[i].target=clamp(raw[i]/scale);
+        const float target = clamp(raw[i]/scale);
+        targets_changed |= s_wheels[i].open_loop || fabsf(s_wheels[i].target - target) > .001f;
+        s_wheels[i].target=target;
         s_wheels[i].open_loop=false;
     }
+    if (targets_changed) s_speed_sync_active = false;
     s_soft_stop_requested = forward == 0 && strafe == 0 && turn == 0;
     s_last_command_us=esp_timer_get_time();
     xSemaphoreGive(s_lock); return ESP_OK;
@@ -246,6 +289,7 @@ esp_err_t mecanum_drive_set_wheel(mecanum_wheel_t wheel, float speed) {
         s_wheels[i].open_loop = false;
     }
     s_wheels[wheel].target = speed;
+    s_speed_sync_active = false;
     s_soft_stop_requested = speed == 0;
     s_last_command_us = esp_timer_get_time();
     xSemaphoreGive(s_lock);
@@ -261,6 +305,7 @@ esp_err_t mecanum_drive_set_wheel_open_loop(mecanum_wheel_t wheel, int duty_perc
     }
     s_wheels[wheel].target = duty_percent / 100.0f;
     s_wheels[wheel].open_loop = duty_percent != 0;
+    s_speed_sync_active = false;
     s_soft_stop_requested = duty_percent == 0;
     s_last_command_us = esp_timer_get_time();
     xSemaphoreGive(s_lock);
@@ -288,5 +333,7 @@ esp_err_t mecanum_drive_get_telemetry(mecanum_drive_telemetry_t *out) {
     if (!s_initialized || !out) return ESP_ERR_INVALID_ARG;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     for(size_t i=0;i<MECANUM_DRIVE_WHEEL_COUNT;i++) { out->commanded[i]=s_wheels[i].target; out->measured_rpm[i]=s_wheels[i].rpm; out->encoder_edges[i]=s_wheels[i].edges; out->encoder_total_edges[i]=s_wheels[i].total_edges; out->duty_percent[i]=lroundf(s_wheels[i].duty); out->reversing[i]=s_wheels[i].state!=WHEEL_RUNNING; }
+    out->sync_reference_rpm = s_sync_reference_rpm;
+    out->speed_sync_active = s_speed_sync_active;
     xSemaphoreGive(s_lock); return ESP_OK;
 }
