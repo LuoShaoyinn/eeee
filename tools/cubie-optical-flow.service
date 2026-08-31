@@ -1,0 +1,15 @@
+[Unit]
+Description=Cubie A7S optical-flow vision service
+After=multi-user.target
+
+[Service]
+Type=simple
+User=radxa
+Group=radxa
+WorkingDirectory=/home/radxa/optical_flow
+ExecStart=/home/radxa/optical_flow/cubie_optical_flow --device /dev/video0 --width 1280 --height 720 --auto-exposure --calibration /home/radxa/optical_flow/camera1_fisheye_1280x720_rectilinear_f400.yaml --output flow_visualization.avi --csv flow.csv --preview live_preview.jpg --raw-preview raw_preview.jpg
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
