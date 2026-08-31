@@ -72,6 +72,12 @@ torque immediately. The MG995 has no angle readback: remove or align the horn
 with the linkage at the intended center while unpowered before the first
 installed test.
 
+Send `s3` without an argument to inspect the commanded state. The reply shows
+the most recently applied angle, target angle, 1,000-2,000 us pulse width,
+50 Hz duty percentage, and the exact 16-bit LEDC duty count. After `s3
+release`, the reported output duty is zero even though the last commanded angle
+is retained for reference.
+
 Run `python3 tools/keyboard_drive.py --s3` on the host for a guarded manual
 test: `A`/`D` adjust in 5-degree steps, `0` commands 0 degrees, `C` commands
 60 degrees, and Space or Escape releases the servo.

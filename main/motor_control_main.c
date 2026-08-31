@@ -43,6 +43,9 @@
 #define S3_MAX_ANGLE_DEG 120
 #define S3_SLOW_STEP_DEG 1
 #define S3_SLOW_STEP_MS 50
+#define S3_PWM_FREQUENCY_HZ 50
+#define S3_PWM_DUTY_RESOLUTION LEDC_TIMER_16_BIT
+#define S3_PWM_PERIOD_US (1000000U / S3_PWM_FREQUENCY_HZ)
 #define GA25_IN1_GPIO GPIO_NUM_12
 #define GA25_IN2_GPIO GPIO_NUM_16
 #define GA25_ENCODER_GPIO GPIO_NUM_14
@@ -94,6 +97,15 @@ static uint64_t s_ga25_encoder_total_edges;
 
 static void cubie_ota_update(const char *command);
 
+static uint32_t s3_angle_to_pulse_us(int angle_deg) {
+    return 1000U + ((uint32_t)angle_deg * 1000U) / S3_MAX_ANGLE_DEG;
+}
+
+static uint32_t s3_pulse_to_duty_ticks(uint32_t pulse_us) {
+    const uint32_t max_duty = (1U << S3_PWM_DUTY_RESOLUTION) - 1U;
+    return (max_duty * pulse_us) / S3_PWM_PERIOD_US;
+}
+
 static float mecanum_wheel_max_mps(void) {
     return TWO_PI_F * MECANUM_WHEEL_RADIUS_M * MECANUM_NO_LOAD_RPM / 60.0f;
 }
@@ -101,7 +113,7 @@ static float mecanum_wheel_max_mps(void) {
 static esp_err_t s3_set_angle(int angle_deg) {
     if (s3_servo == NULL) return ESP_ERR_INVALID_STATE;
     if (angle_deg < S3_MIN_ANGLE_DEG || angle_deg > S3_MAX_ANGLE_DEG) return ESP_ERR_INVALID_ARG;
-    const uint32_t pulse_us = 1000U + ((uint32_t)angle_deg * 1000U) / S3_MAX_ANGLE_DEG;
+    const uint32_t pulse_us = s3_angle_to_pulse_us(angle_deg);
     esp_err_t err = standard_servo_set_pulse_us(s3_servo, pulse_us);
     if (err == ESP_OK) { s3_current_angle = angle_deg; s3_enabled = true; }
     return err;
@@ -277,8 +289,17 @@ static const char *process_command(const char *command, char *reply, size_t repl
         const int current_angle = s3_current_angle, target_angle = s3_target_angle;
         const bool enabled = s3_enabled, moving = s3_slow_move;
         portEXIT_CRITICAL(&s3_lock);
-        snprintf(reply, reply_size, "s3 %s current %ddeg target %ddeg moving %u; commands: s3 ANGLE [0..120], s3 center, s3 release\n",
-                 enabled ? "holding" : "released", current_angle, target_angle, moving);
+        const uint32_t current_pulse_us = s3_angle_to_pulse_us(current_angle);
+        const uint32_t target_pulse_us = s3_angle_to_pulse_us(target_angle);
+        const uint32_t current_duty_ticks = enabled ? s3_pulse_to_duty_ticks(current_pulse_us) : 0;
+        const float current_duty_percent = enabled ?
+            100.0f * (float)current_pulse_us / (float)S3_PWM_PERIOD_US : 0.0f;
+        snprintf(reply, reply_size,
+                 "s3 %s current %ddeg %luus %.2f%% (%lu/%u) target %ddeg %luus moving %u; commands: s3 ANGLE [0..120], s3 center, s3 release\n",
+                 enabled ? "holding" : "released", current_angle,
+                 (unsigned long)current_pulse_us, current_duty_percent,
+                 (unsigned long)current_duty_ticks, (unsigned)((1U << S3_PWM_DUTY_RESOLUTION) - 1U),
+                 target_angle, (unsigned long)target_pulse_us, moving);
         return reply;
     }
     if (!strcmp(command, "ga25")) {
@@ -501,7 +522,7 @@ void app_main(void) {
     const standard_servo_config_t s3_config = {
         .signal_gpio = S3_SERVO_GPIO, .speed_mode = LEDC_LOW_SPEED_MODE,
         .timer_num = LEDC_TIMER_0, .channel = LEDC_CHANNEL_0,
-        .frequency_hz = 50, .duty_resolution = LEDC_TIMER_16_BIT,
+        .frequency_hz = S3_PWM_FREQUENCY_HZ, .duty_resolution = S3_PWM_DUTY_RESOLUTION,
         .min_pulse_us = 1000, .max_pulse_us = 2000,
     };
     ESP_ERROR_CHECK(standard_servo_init(&s3_config, &s3_servo));
