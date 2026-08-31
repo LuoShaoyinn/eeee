@@ -23,18 +23,25 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--socket", default="/tmp/robotd.sock")
     parser.add_argument("--linear", type=float, default=.10,
-                        help="per-axis velocity increment in m/s")
+                        help="linear velocity increment per key press in m/s")
     parser.add_argument("--yaw", type=float, default=.50,
-                        help="yaw-rate increment in rad/s")
+                        help="yaw-rate increment per key press in rad/s")
+    parser.add_argument("--max-linear", type=float, default=.40,
+                        help="maximum absolute linear velocity in m/s")
+    parser.add_argument("--max-yaw", type=float, default=2.00,
+                        help="maximum absolute yaw rate in rad/s")
     parser.add_argument("--period", type=float, default=.08,
                         help="twist refresh period in seconds")
     parser.add_argument("--servo-pulse-step", type=int, default=25,
                         help="S3 raw-pulse increment in microseconds")
     args = parser.parse_args()
-    if args.linear <= 0 or args.yaw <= 0 or args.period <= 0 or args.servo_pulse_step <= 0:
+    if (args.linear <= 0 or args.yaw <= 0 or args.max_linear <= 0 or
+            args.max_yaw <= 0 or args.period <= 0 or args.servo_pulse_step <= 0):
         parser.error("all control increments and period must be positive")
 
-    print("W/S forward/back, A/D left/right, Q/E yaw, Space stop, Esc quit")
+    print("W/S forward/back, A/D left/right, Q/E yaw: each press adds speed")
+    print(f"limits: linear +-{args.max_linear:.2f} m/s, yaw +-{args.max_yaw:.2f} rad/s")
+    print("Space stop, Esc quit")
     print("[ / ] S3 pulse (800..2125 us), R releases S3, , / . GA25 duty, G stops GA25, T state")
     vx = vy = wz = 0.0
     servo_pulse_us = 1500
@@ -78,6 +85,12 @@ def main():
             target = target_match.group(1) if target_match else "?"
             print(f"S3 {mode}: {current}deg -> {target}deg, {servo_pulse_us}us{duty}{moving}")
 
+    def clamp(value, limit):
+        return max(-limit, min(limit, value))
+
+    def show_twist():
+        print(f"motion: vx={vx:+.2f} m/s vy={vy:+.2f} m/s wz={wz:+.2f} rad/s")
+
     try:
         show_s3_status()
         tty.setcbreak(sys.stdin.fileno())
@@ -93,15 +106,33 @@ def main():
                     vx = vy = wz = 0.0
                     issue("stop")
                     continue
-                if key == "w": vx = args.linear
-                elif key == "s": vx = -args.linear
-                elif key == "a": vy = args.linear
-                elif key == "d": vy = -args.linear
-                elif key == "q": wz = args.yaw
-                elif key == "e": wz = -args.yaw
-                elif key == "x": vx = 0.0
-                elif key == "z": vy = 0.0
-                elif key == "c": wz = 0.0
+                if key == "w":
+                    vx = clamp(vx + args.linear, args.max_linear)
+                    show_twist()
+                elif key == "s":
+                    vx = clamp(vx - args.linear, args.max_linear)
+                    show_twist()
+                elif key == "a":
+                    vy = clamp(vy + args.linear, args.max_linear)
+                    show_twist()
+                elif key == "d":
+                    vy = clamp(vy - args.linear, args.max_linear)
+                    show_twist()
+                elif key == "q":
+                    wz = clamp(wz + args.yaw, args.max_yaw)
+                    show_twist()
+                elif key == "e":
+                    wz = clamp(wz - args.yaw, args.max_yaw)
+                    show_twist()
+                elif key == "x":
+                    vx = 0.0
+                    show_twist()
+                elif key == "z":
+                    vy = 0.0
+                    show_twist()
+                elif key == "c":
+                    wz = 0.0
+                    show_twist()
                 elif key == "[":
                     servo_pulse_us = max(800, servo_pulse_us - args.servo_pulse_step)
                     issue(f"s3 pulse {servo_pulse_us}", show=False)

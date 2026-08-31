@@ -34,11 +34,22 @@ talks only to `robotd`'s Unix socket, so it never competes for the UART:
 python3 tools/keyboard_control.py
 ```
 
-`W/S` set forward/backward velocity, `A/D` set left/right velocity, `Q/E` set
-yaw rate, and `Space` stops all ESP32-controlled motion. `X`, `Z`, and `C`
-clear forward, lateral, and yaw components independently. `[`/`]` adjust S3,
-`R` releases S3, `,`/`.` adjust GA25 duty, `G` stops GA25, and `T` prints a
-state snapshot. Escape issues `stop` before exiting.
+Each `W/S` press adds/subtracts forward speed, each `A/D` press adds/subtracts
+lateral speed, and each `Q/E` press adds/subtracts yaw rate. The defaults cap
+linear speed at 0.40 m/s and yaw at 2.00 rad/s; adjust the increments or limits
+with `--linear`, `--yaw`, `--max-linear`, and `--max-yaw`. `Space` stops all
+ESP32-controlled motion. `X`, `Z`, and `C` clear forward, lateral, and yaw
+components independently. `[`/`]` adjust S3, `R` releases S3, `,`/`.` adjust
+GA25 duty, `G` stops GA25, and `T` prints a state snapshot. Escape issues
+`stop` before exiting.
+
+To capture a headless VGA sample on the Cubie, with no preview, decode, or
+network transfer, use the local V4L2 wrapper. It writes native MJPEG frames to
+`~/videos` and captures 30 seconds by default:
+
+```sh
+python3 tools/capture_video.py
+```
 
 For a suspended-car test, use a bounded heartbeat. It stops automatically when
 the command exits:
