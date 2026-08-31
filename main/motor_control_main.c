@@ -47,7 +47,7 @@
 #define S3_PWM_DUTY_RESOLUTION LEDC_TIMER_16_BIT
 #define S3_PWM_PERIOD_US (1000000U / S3_PWM_FREQUENCY_HZ)
 #define S3_CALIBRATION_MIN_PULSE_US 800
-#define S3_CALIBRATION_MAX_PULSE_US 2400
+#define S3_CALIBRATION_MAX_PULSE_US 2125
 #define GA25_IN1_GPIO GPIO_NUM_12
 #define GA25_IN2_GPIO GPIO_NUM_16
 #define GA25_ENCODER_GPIO GPIO_NUM_14
@@ -312,7 +312,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
         return s3_request_angle(S3_CENTER_ANGLE_DEG) == ESP_OK ? "s3 moving to center\n" : "error: s3\n";
     unsigned int s3_pulse_us; char s3_pulse_extra;
     if (sscanf(command, "s3 pulse %u %c", &s3_pulse_us, &s3_pulse_extra) == 1)
-        return s3_set_calibration_pulse_us(s3_pulse_us) == ESP_OK ? "s3 raw calibration pulse applied\n" : "error: S3 pulse must be 800..2400us\n";
+        return s3_set_calibration_pulse_us(s3_pulse_us) == ESP_OK ? "s3 raw calibration pulse applied\n" : "error: S3 pulse must be 800..2125us\n";
     int s3_angle; char s3_extra;
     if (sscanf(command, "s3 %d %c", &s3_angle, &s3_extra) == 1)
         return s3_request_angle(s3_angle) == ESP_OK ? "s3 moving slowly\n" : "error: S3 angle must be 0..180\n";
@@ -326,7 +326,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
             const uint32_t duty_ticks = enabled ? s3_pulse_to_duty_ticks(raw_pulse_us) : 0;
             const float duty_percent = enabled ? 100.0f * (float)raw_pulse_us / (float)S3_PWM_PERIOD_US : 0.0f;
             snprintf(reply, reply_size,
-                     "s3 %s raw %luus %.2f%% (%lu/%u); commands: s3 pulse 800..2400, s3 ANGLE [0..180], s3 release\n",
+                     "s3 %s raw %luus %.2f%% (%lu/%u); commands: s3 pulse 800..2125, s3 ANGLE [0..180], s3 release\n",
                      enabled ? "holding" : "released", (unsigned long)raw_pulse_us, duty_percent,
                      (unsigned long)duty_ticks, (unsigned)((1U << S3_PWM_DUTY_RESOLUTION) - 1U));
             return reply;
@@ -337,7 +337,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
         const float current_duty_percent = enabled ?
             100.0f * (float)current_pulse_us / (float)S3_PWM_PERIOD_US : 0.0f;
         snprintf(reply, reply_size,
-                 "s3 %s current %ddeg %luus %.2f%% (%lu/%u) target %ddeg %luus moving %u; commands: s3 pulse 800..2400, s3 ANGLE [0..180], s3 center, s3 release\n",
+                 "s3 %s current %ddeg %luus %.2f%% (%lu/%u) target %ddeg %luus moving %u; commands: s3 pulse 800..2125, s3 ANGLE [0..180], s3 center, s3 release\n",
                  enabled ? "holding" : "released", current_angle,
                  (unsigned long)current_pulse_us, current_duty_percent,
                  (unsigned long)current_duty_ticks, (unsigned)((1U << S3_PWM_DUTY_RESOLUTION) - 1U),

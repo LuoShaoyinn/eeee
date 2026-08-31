@@ -79,7 +79,7 @@ release`, the reported output duty is zero even though the last commanded angle
 is retained for reference.
 
 For unloaded endpoint calibration only, `s3 pulse PULSE_US` bypasses the angle
-map and applies an immediate 800-2400 us pulse at 50 Hz. Increase it in small
+map and applies an immediate 800-2125 us pulse at 50 Hz. Increase it in small
 steps above 2000 us, and issue `s3 release` immediately if the servo buzzes,
 heats, or reaches a hard stop. This command does not imply an angle.
 
