@@ -52,6 +52,15 @@ network transfer, use the local V4L2 wrapper. It writes native MJPEG frames to
 python3 tools/capture_video.py
 ```
 
+The Camera1 fisheye calibration is included under `calibration/`. To save a
+rectified local video, use its calibrated 1280x720 mode. The command compiles
+the C++ OpenCV recorder locally on the Cubie when needed; it has no display or
+network output:
+
+```sh
+python3 tools/capture_video.py --rectify
+```
+
 For a suspended-car test, use a bounded heartbeat. It stops automatically when
 the command exits:
 
