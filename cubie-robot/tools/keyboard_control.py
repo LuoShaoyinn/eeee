@@ -2,6 +2,7 @@
 """Keyboard teleoperation through the local robotd Unix socket."""
 
 import argparse
+import re
 import select
 import socket
 import sys
@@ -33,7 +34,7 @@ def main():
         parser.error("all control increments and period must be positive")
 
     print("W/S forward/back, A/D left/right, Q/E yaw, Space stop, Esc quit")
-    print("[ / ] S3 angle, R releases S3, , / . GA25 duty, G stops GA25, T state")
+    print("[ / ] S3 angle (0..180 deg), R releases S3, , / . GA25 duty, G stops GA25, T state")
     vx = vy = wz = 0.0
     servo_angle = 0
     ga25_duty = 0
@@ -44,10 +45,22 @@ def main():
             reply = request(args.socket, command)
             if show:
                 print(reply)
+            return reply
         except OSError as error:
             print(f"robotd error: {error}", file=sys.stderr)
+            return None
+
+    def show_s3_status():
+        nonlocal servo_angle
+        reply = issue("s3")
+        if reply is None:
+            return
+        target_match = re.search(r"target (\d+)deg", reply)
+        if target_match:
+            servo_angle = int(target_match.group(1))
 
     try:
+        show_s3_status()
         tty.setcbreak(sys.stdin.fileno())
         next_refresh = time.monotonic()
         while True:
@@ -72,15 +85,21 @@ def main():
                 elif key == "c": wz = 0.0
                 elif key == "[":
                     servo_angle = max(0, servo_angle - args.servo_step)
-                    issue(f"s3 {servo_angle}")
+                    issue(f"s3 {servo_angle}", show=False)
+                    show_s3_status()
                 elif key == "]":
-                    servo_angle = min(120, servo_angle + args.servo_step)
-                    issue(f"s3 {servo_angle}")
-                elif key == "r": issue("s3 release")
+                    servo_angle = min(180, servo_angle + args.servo_step)
+                    issue(f"s3 {servo_angle}", show=False)
+                    show_s3_status()
+                elif key == "r":
+                    issue("s3 release", show=False)
+                    show_s3_status()
                 elif key == ",": ga25_duty = max(-100, ga25_duty - 5)
                 elif key == ".": ga25_duty = min(100, ga25_duty + 5)
                 elif key == "g": ga25_duty = 0
-                elif key == "t": issue("state")
+                elif key == "t":
+                    issue("state")
+                    show_s3_status()
                 else: continue
                 print(f"twist {vx:+.2f} {vy:+.2f} {wz:+.2f}; ga25 {ga25_duty:+d}%")
 
