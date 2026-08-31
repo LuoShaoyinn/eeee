@@ -66,7 +66,7 @@ I2C addr 0x50` indicates a wiring, supply, pull-up, or address/mode problem.
 
 S3 is a standard positional MG995 on GPIO17. At boot it commands 0 degrees
 (1000 us); after `stop`, PWM is disabled so it does not hold a blocked linkage.
-`s3 ANGLE` commands a slow one-degree-per-50-ms move over 0-120 degrees;
+`s3 ANGLE` commands a slow one-degree-per-50-ms move over 0-180 degrees;
 `s3 center` commands 60 degrees. `s3 release` stops PWM and releases holding
 torque immediately. The MG995 has no angle readback: remove or align the horn
 with the linkage at the intended center while unpowered before the first

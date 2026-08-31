@@ -40,7 +40,7 @@
 #define S3_SERVO_GPIO GPIO_NUM_17
 #define S3_MIN_ANGLE_DEG 0
 #define S3_CENTER_ANGLE_DEG 60
-#define S3_MAX_ANGLE_DEG 120
+#define S3_MAX_ANGLE_DEG 180
 #define S3_SLOW_STEP_DEG 1
 #define S3_SLOW_STEP_MS 50
 #define S3_PWM_FREQUENCY_HZ 50
@@ -295,7 +295,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
         const float current_duty_percent = enabled ?
             100.0f * (float)current_pulse_us / (float)S3_PWM_PERIOD_US : 0.0f;
         snprintf(reply, reply_size,
-                 "s3 %s current %ddeg %luus %.2f%% (%lu/%u) target %ddeg %luus moving %u; commands: s3 ANGLE [0..120], s3 center, s3 release\n",
+                 "s3 %s current %ddeg %luus %.2f%% (%lu/%u) target %ddeg %luus moving %u; commands: s3 ANGLE [0..180], s3 center, s3 release\n",
                  enabled ? "holding" : "released", current_angle,
                  (unsigned long)current_pulse_us, current_duty_percent,
                  (unsigned long)current_duty_ticks, (unsigned)((1U << S3_PWM_DUTY_RESOLUTION) - 1U),
@@ -421,7 +421,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
         const float turn = (2.0f * MECANUM_HALF_WHEELBASE_M * wz) / wheel_max_mps;
         return mecanum_drive_set_twist(forward, strafe, turn) == ESP_OK ? "ok\n" : "error: twist failed\n";
     }
-    return "error: state, imu, s3 ANGLE [0..120]|center|release, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, twist VX_MPS VY_MPS WZ_RADPS, telemetry, or stop\n";
+    return "error: state, imu, s3 ANGLE [0..180]|center|release, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, twist VX_MPS VY_MPS WZ_RADPS, telemetry, or stop\n";
 }
 #if ROBOT_ENABLE_WIFI
 static void udp_task(void *unused) {
