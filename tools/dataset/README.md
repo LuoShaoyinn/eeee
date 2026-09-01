@@ -40,6 +40,36 @@ uv run python tools/dataset/fit_fence_edges.py --segments 3
 
 Pass `--kernel-output dataset/fence_kernel` to inspect the HSV contour measurements before fitting: green marks the upper contour and red marks the lower contour. This diagnostic is useful for finding blue robot details that connect to the fence mask.
 
+`estimate_fence_pose.py` is an offline geometry experiment for forward-facing
+frames where the far `x=3 m` wall and both adjacent corners are visible. It
+pairs each top and lower fitted-edge join as one 3D vertical fence corner, using
+the known `0.254 m` fence height. The camera height and pitch are held at their
+existing calibration values; only field `x`, field `y`, and yaw are optimized.
+The corner solution seeds a joint fit: cyan corner-pair residuals remain the
+dominant term, while the middle upper/lower Hough panel lines provide a soft
+alignment term. `--line-alignment-weight` tunes that term; `0.2` is a
+conservative default, while `0` reproduces the original corner-only pose.
+
+```sh
+uv run python tools/dataset/estimate_fence_pose.py \
+  dataset/images/capture-20260831-100146-0001_00004.jpg \
+  --output dataset/fence_pose/capture-20260831-100146-0001_00004.jpg
+```
+
+The output draws raw upper/lower contour support in dark green/orange, the
+initial Hough corner pairs in cyan, and the final rigid projection as green
+(upper), red (lower), and blue (vertical corners). Treat a high
+`joint_corner_rms_px` or `joint_line_rms_px` as a rejected visual measurement
+rather than updating the robot pose. The command also reports the perpendicular
+and forward-ray distance to the `B-D` wall; the forward ray must land within
+its `0..1.985 m` span.
+
+The same diagnostic runs a directed dark-seam kernel along each projected
+vertical `B`/`D` corner. It compares centre pixels with blue pixels on both
+sides and requires continuity along the corner. Magenta means the seam passed
+its confidence gate; yellow is a rejected candidate. Dark seams are diagnostic
+only until both corners are repeatably accepted across unobstructed frames.
+
 Reviewer controls: `0`/`1`/`2`/`3` choose semantic mask class; paint with left mouse and erase with right mouse. `r`, `y`, `o`, and `h` select red-cube, yellow-cylinder, other-robot, and home box classes; drag with the left mouse to add a box. Press `x` and click a box to delete it. `[`/`]` move between images and save; `s` saves; `q` saves and exits.
 
 For manual object annotation without changing semantic masks, use the focused box reviewer.
