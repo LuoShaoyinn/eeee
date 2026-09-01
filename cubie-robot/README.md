@@ -39,10 +39,15 @@ lateral speed, and each `Q/E` press adds/subtracts yaw rate. The defaults cap
 linear speed at 0.60 m/s and yaw at 2.00 rad/s; adjust the increments or limits
 with `--linear`, `--yaw`, `--max-linear`, and `--max-yaw`. `Space` stops all
 ESP32-controlled motion. `X`, `Z`, and `C` clear forward, lateral, and yaw
-components independently. `[`/`]` adjust S3, `R` releases S3, `,`/`.` adjust
+components independently. `[`/`]` adjust S3 within its default active
+calibration range of 1600--2000 us. `R` releases S3/no PWM signal. `,`/`.` adjust
 GA25 speed, `F`/`B` select GA25 forward/reverse direction, `G` stops GA25,
 and `T` prints a state snapshot. Direction selection at zero GA25 speed does
 not start the motor. Escape issues `stop` before exiting.
+
+Use `--servo-active-min-pulse`, `--servo-max-pulse`, and
+`--servo-pulse-step` to set the keyboard calibration range. Active values must
+remain within the ESP32 firmware's accepted S3 pulse range.
 
 To capture calibrated 1280x720 video on the Cubie, with no preview or network
 transfer, use the local wrapper. It records consecutive 30-second segments

@@ -34,18 +34,30 @@ def main():
                         help="twist refresh period in seconds")
     parser.add_argument("--servo-pulse-step", type=int, default=25,
                         help="S3 raw-pulse increment in microseconds")
+    parser.add_argument("--servo-min-pulse", type=int, default=0,
+                        help="S3 released endpoint in microseconds (must be zero)")
+    parser.add_argument("--servo-active-min-pulse", type=int, default=1600,
+                        help="lowest active S3 calibration pulse in microseconds")
+    parser.add_argument("--servo-max-pulse", type=int, default=2000,
+                        help="highest S3 calibration pulse in microseconds")
     args = parser.parse_args()
     if (args.linear <= 0 or args.yaw <= 0 or args.max_linear <= 0 or
-            args.max_yaw <= 0 or args.period <= 0 or args.servo_pulse_step <= 0):
+            args.max_yaw <= 0 or args.period <= 0 or args.servo_pulse_step <= 0 or
+            args.servo_active_min_pulse <= 0 or args.servo_max_pulse <= 0):
         parser.error("all control increments and period must be positive")
+    if args.servo_min_pulse != 0:
+        parser.error("--servo-min-pulse must be zero; it represents a released servo")
+    if args.servo_active_min_pulse > args.servo_max_pulse:
+        parser.error("--servo-active-min-pulse must not exceed --servo-max-pulse")
 
     print("W/S forward/back, A/D left/right, Q/E yaw: each press adds speed")
     print(f"limits: linear +-{args.max_linear:.2f} m/s, yaw +-{args.max_yaw:.2f} rad/s")
     print("Space stop, Esc quit")
-    print("[ / ] S3 pulse (800..2125 us), R releases S3")
+    print("[ / ] S3 active range "
+          f"{args.servo_active_min_pulse}..{args.servo_max_pulse} us; R releases")
     print("F/B GA25 forward/reverse, ,/. GA25 speed down/up, G stops GA25, T state")
     vx = vy = wz = 0.0
-    servo_pulse_us = 1500
+    servo_pulse_us = 0
     ga25_speed = 0
     ga25_direction = 1
     old_settings = termios.tcgetattr(sys.stdin)
@@ -76,16 +88,25 @@ def main():
         if pulse_match is None:
             print(reply)
             return
-        servo_pulse_us = int(pulse_match.group(1))
         mode = mode_match.group(1) if mode_match else "unknown"
         duty = f", {duty_match.group(1)}%" if duty_match else ""
         moving = " moving" if moving_match and moving_match.group(1) == "1" else ""
+        if mode == "released":
+            servo_pulse_us = 0
+            print("S3 released: 0us, 0.00%")
+            return
         if raw_pulse_match:
+            servo_pulse_us = int(raw_pulse_match.group(1))
             print(f"S3 {mode}: {servo_pulse_us}us{duty}")
         else:
             current = current_match.group(1) if current_match else "?"
             target = target_match.group(1) if target_match else "?"
-            print(f"S3 {mode}: {current}deg -> {target}deg, {servo_pulse_us}us{duty}{moving}")
+            reported_pulse_us = int(current_pulse_match.group(1))
+            if mode == "released":
+                servo_pulse_us = 0
+            else:
+                servo_pulse_us = reported_pulse_us
+            print(f"S3 {mode}: {current}deg -> {target}deg, {reported_pulse_us}us{duty}{moving}")
 
     def clamp(value, limit):
         return max(-limit, min(limit, value))
@@ -140,11 +161,16 @@ def main():
                     wz = 0.0
                     show_twist()
                 elif key == "[":
-                    servo_pulse_us = max(800, servo_pulse_us - args.servo_pulse_step)
+                    servo_pulse_us = max(args.servo_active_min_pulse,
+                                         servo_pulse_us - args.servo_pulse_step)
                     issue(f"s3 pulse {servo_pulse_us}", show=False)
                     show_s3_status()
                 elif key == "]":
-                    servo_pulse_us = min(2125, servo_pulse_us + args.servo_pulse_step)
+                    if servo_pulse_us == 0:
+                        servo_pulse_us = args.servo_active_min_pulse
+                    else:
+                        servo_pulse_us = min(args.servo_max_pulse,
+                                             servo_pulse_us + args.servo_pulse_step)
                     issue(f"s3 pulse {servo_pulse_us}", show=False)
                     show_s3_status()
                 elif key == "r":
