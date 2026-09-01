@@ -52,7 +52,7 @@ Everything on the board is contained in `/home/radxa/yolo-a733`.  Removal is
 therefore reversible and does not alter system libraries:
 
 ```sh
-ssh radxa@192.168.1.112 'rm -r /home/radxa/yolo-a733'
+ssh radxa@192.168.50.1 'rm -r /home/radxa/yolo-a733'
 ```
 
 Do not replace `libc`, the kernel driver, or files under `/usr/lib` with the
