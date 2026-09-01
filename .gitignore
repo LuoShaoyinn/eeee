@@ -12,4 +12,3 @@ main/wifi_credentials.h
 __pycache__/
 cubie-robot/tools/cubie_video_capture
 videos/
-/dataset/
