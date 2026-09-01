@@ -132,6 +132,24 @@ usually means the floor/board was not level, the vehicle moved, a fisheye
 image was supplied instead of a rectified image, or the board dimensions were
 entered incorrectly.
 
+## Rectified pixel to car-ground coordinates
+
+`tools/pixel_to_car_frame.py` projects a pixel from the rectified 1280x720
+camera image onto the level ground. The result is in metres, with the origin at
+the ground point directly below the camera optical centre: `+forward` points in
+front of the car and `+left` points to the car's left.
+
+~~~sh
+python3 tools/pixel_to_car_frame.py 640 500
+~~~
+
+It uses `camera1_mount.yaml`'s rectified intrinsics,  optical-centre height,
+and downward pitch. It deliberately rejects pixels on or above the ground
+horizon. This initial transform assumes the camera is mounted with zero roll
+and its optical axis aimed straight ahead in the vehicle yaw direction. Use the
+camera--IMU extrinsic calibration below, plus the IMU orientation, before using
+it while the car rolls, pitches, or yaws.
+
 ## Camera--IMU extrinsics from a checkerboard
 
 For already rectified 1280x720 images, use
