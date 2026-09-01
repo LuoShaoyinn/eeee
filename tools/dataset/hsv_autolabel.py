@@ -5,14 +5,11 @@ import argparse
 from pathlib import Path
 
 import cv2
-import numpy as np
 
-SEMANTIC = {"other": 0, "white_ground": 1, "blue_fence": 2}
-DETECTION = {"red_cube": 0, "yellow_cylinder": 1, "opponent_robot": 2}
+from hsv_thresholds import load_thresholds, make_mask
 
-
-def hsv_range(hsv: np.ndarray, lower: tuple[int, int, int], upper: tuple[int, int, int]) -> np.ndarray:
-    return cv2.inRange(hsv, np.array(lower, np.uint8), np.array(upper, np.uint8))
+SEMANTIC = {"other": 0, "blue_fence": 1, "white_ground": 2}
+DETECTION = {"opponent_robot": 0, "red_cube": 1, "yellow_cylinder": 2}
 
 
 def clean(mask: np.ndarray, kernel_size: int) -> np.ndarray:
@@ -38,6 +35,8 @@ def main() -> int:
     parser.add_argument("--masks", type=Path, default=Path("dataset/semantic_masks"))
     parser.add_argument("--labels", type=Path, default=Path("dataset/detection_labels"))
     parser.add_argument("--preview", type=Path, default=Path("dataset/previews"))
+    parser.add_argument("--thresholds", type=Path, default=Path("dataset/hsv_thresholds.json"),
+                        help="JSON threshold profile written by hsv_tune.py")
     parser.add_argument("--min-object-area", type=int, default=120)
     args = parser.parse_args()
     if args.min_object_area <= 0:
@@ -45,6 +44,7 @@ def main() -> int:
 
     for directory in (args.masks, args.labels, args.preview):
         directory.mkdir(parents=True, exist_ok=True)
+    thresholds = load_thresholds(args.thresholds)
 
     image_paths = sorted(path for path in args.images.iterdir()
                          if path.suffix.lower() in {".jpg", ".jpeg", ".png"})
@@ -56,15 +56,14 @@ def main() -> int:
         height, width = image.shape[:2]
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-        white = clean(hsv_range(hsv, (0, 0, 165), (180, 70, 255)), 5)
-        blue = clean(hsv_range(hsv, (92, 75, 45), (135, 255, 255)), 5)
-        red = clean(hsv_range(hsv, (0, 95, 55), (10, 255, 255)) |
-                    hsv_range(hsv, (170, 95, 55), (180, 255, 255)), 3)
-        yellow = clean(hsv_range(hsv, (18, 90, 70), (42, 255, 255)), 3)
+        white = clean(make_mask(hsv, thresholds["white_ground"]), 5)
+        blue = clean(make_mask(hsv, thresholds["blue_fence"]), 5)
+        red = clean(make_mask(hsv, thresholds["red_cube"]), 3)
+        yellow = clean(make_mask(hsv, thresholds["yellow_cylinder"]), 3)
 
         semantic = np.zeros((height, width), dtype=np.uint8)
-        semantic[white > 0] = SEMANTIC["white_ground"]
         semantic[blue > 0] = SEMANTIC["blue_fence"]
+        semantic[white > 0] = SEMANTIC["white_ground"]
         stem = image_path.stem
         cv2.imwrite(str(args.masks / f"{stem}.png"), semantic)
 

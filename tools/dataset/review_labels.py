@@ -8,10 +8,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-SEMANTIC = {"other": 0, "white_ground": 1, "blue_fence": 2}
-DETECTION = {"red_cube": 0, "yellow_cylinder": 1, "opponent_robot": 2}
-SEMANTIC_COLORS = {0: (0, 0, 0), 1: (255, 255, 255), 2: (255, 0, 0)}
-BOX_COLORS = {0: (0, 0, 255), 1: (0, 255, 255), 2: (0, 255, 0)}
+SEMANTIC = {"other": 0, "blue_fence": 1, "white_ground": 2}
+DETECTION = {"opponent_robot": 0, "red_cube": 1, "yellow_cylinder": 2}
+SEMANTIC_COLORS = {0: (0, 0, 0), 1: (255, 0, 0), 2: (255, 255, 255)}
+BOX_COLORS = {0: (0, 255, 0), 1: (0, 0, 255), 2: (0, 255, 255)}
 
 
 @dataclass
@@ -147,7 +147,7 @@ def main() -> int:
             reviewer.mode, reviewer.class_id = "mask", int(chr(key))
         elif key in (ord("r"), ord("y"), ord("o")):
             reviewer.mode = "box"
-            reviewer.class_id = {ord("r"): 0, ord("y"): 1, ord("o"): 2}[key]
+            reviewer.class_id = {ord("o"): 0, ord("r"): 1, ord("y"): 2}[key]
         elif key == ord("m"):
             reviewer.mode = "mask"
         elif key == ord("b"):
