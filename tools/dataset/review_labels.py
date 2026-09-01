@@ -23,16 +23,35 @@ class Box:
     h: int
 
 
+def read_manifest(path: Path | None, images: Path) -> set[str]:
+    if path is None or not path.exists():
+        return set()
+    stems = set()
+    for line in path.read_text().splitlines():
+        entry = line.strip()
+        if not entry or entry.startswith("#"):
+            continue
+        if any(character in entry for character in "*?["):
+            stems.update(candidate.stem for candidate in images.glob(entry))
+        else:
+            stems.add(Path(entry).stem)
+    return stems
+
+
 class Reviewer:
     def __init__(self, images: list[Path], masks: Path, labels: Path, brush: int,
-                 detection_only: bool):
+                 detection_only: bool, proposals: Path | None, reviewed_manifest: Path | None):
         self.images, self.masks, self.labels, self.brush = images, masks, labels, brush
         self.detection_only = detection_only
+        self.proposals = proposals
+        self.reviewed_manifest = reviewed_manifest
+        self.reviewed_stems = read_manifest(reviewed_manifest, images[0].parent)
         self.index, self.mode, self.class_id = 0, "box" if detection_only else "mask", 1
         self.image: np.ndarray | None = None
         self.mask: np.ndarray | None = None
         self.boxes: list[Box] = []
         self.drag_start: tuple[int, int] | None = None
+        self.loaded_proposal = False
         self.load()
 
     @property
@@ -48,6 +67,12 @@ class Reviewer:
             self.mask = np.zeros((height, width), dtype=np.uint8)
         self.boxes = []
         label_path = self.labels / f"{self.stem}.txt"
+        self.loaded_proposal = False
+        if self.stem not in self.reviewed_stems and self.proposals is not None:
+            candidate = self.proposals / f"{self.stem}.txt"
+            if candidate.exists():
+                label_path = candidate
+                self.loaded_proposal = True
         if label_path.exists():
             for line in label_path.read_text().splitlines():
                 values = line.split()
@@ -69,6 +94,10 @@ class Reviewer:
             cx, cy = (box.x + box.w / 2) / width, (box.y + box.h / 2) / height
             lines.append(f"{box.class_id} {cx:.6f} {cy:.6f} {box.w / width:.6f} {box.h / height:.6f}")
         (self.labels / f"{self.stem}.txt").write_text("\n".join(lines) + ("\n" if lines else ""))
+        if self.reviewed_manifest is not None and self.stem not in self.reviewed_stems:
+            with self.reviewed_manifest.open("a") as manifest:
+                manifest.write(f"{self.stem}\n")
+            self.reviewed_stems.add(self.stem)
 
     def display(self) -> np.ndarray:
         canvas = self.image.copy()
@@ -84,9 +113,11 @@ class Reviewer:
                         cv2.FONT_HERSHEY_SIMPLEX, .55, BOX_COLORS[box.class_id], 2)
         mode = (f"{self.mode}: {list(SEMANTIC)[self.class_id]}" if self.mode == "mask"
                 else f"{self.mode}: {list(DETECTION)[self.class_id]}")
-        cv2.putText(canvas, f"{self.index + 1}/{len(self.images)} {self.stem} | {mode}", (10, 24),
+        source = "proposal" if self.loaded_proposal else "verified"
+        title = f"{self.index + 1}/{len(self.images)} {self.stem} | {mode} | {source}"
+        cv2.putText(canvas, title, (10, 24),
                     cv2.FONT_HERSHEY_SIMPLEX, .65, (0, 0, 0), 3)
-        cv2.putText(canvas, f"{self.index + 1}/{len(self.images)} {self.stem} | {mode}", (10, 24),
+        cv2.putText(canvas, title, (10, 24),
                     cv2.FONT_HERSHEY_SIMPLEX, .65, (0, 255, 0), 1)
         return canvas
 
@@ -124,6 +155,10 @@ def main() -> int:
     parser.add_argument("--brush", type=int, default=18)
     parser.add_argument("--detection-only", action="store_true",
                         help="edit YOLO boxes only; never write semantic masks")
+    parser.add_argument("--proposals", type=Path,
+                        help="unverified YOLO boxes displayed for frames outside the reviewed manifest")
+    parser.add_argument("--reviewed-manifest", type=Path,
+                        help="verified frame manifest; saving appends the current frame")
     parser.add_argument("--include", default="*",
                         help="filename glob used to limit the image set, e.g. capture-20260901-*.jpg")
     args = parser.parse_args()
@@ -132,7 +167,8 @@ def main() -> int:
     if not images:
         parser.error(f"no images found in {args.images}")
 
-    reviewer = Reviewer(images, args.masks, args.labels, args.brush, args.detection_only)
+    reviewer = Reviewer(images, args.masks, args.labels, args.brush, args.detection_only,
+                        args.proposals, args.reviewed_manifest)
     window = "Dataset reviewer"
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
     cv2.setMouseCallback(window, reviewer.mouse)

@@ -50,3 +50,21 @@ a box under the cursor.
 ```sh
 uv run python tools/dataset/review_labels.py --detection-only --include 'capture-20260901-*.jpg'
 ```
+
+For model-assisted review, candidates live separately from verified labels. The
+reviewer always shows every image: it loads candidates only for stems outside the
+review manifest, then saves accepted labels and appends the stem to that manifest.
+
+```sh
+uv run python tools/dataset/review_labels.py --detection-only \
+  --proposals dataset/detection_candidates \
+  --reviewed-manifest dataset/reviewed_images.txt
+```
+
+Build a reproducible YOLO train/validation split from verified labels only. Empty
+reviewed label files are retained as negative examples; unreviewed frames are not
+treated as negatives.
+
+```sh
+uv run python tools/dataset/prepare_yolo_dataset.py --output dataset/yolo
+```
