@@ -4,6 +4,7 @@ sdkconfig.old
 dependencies.lock
 managed_components/
 .cache/
+.venv/
 *.kicad_prl
 .history
 *.lck
