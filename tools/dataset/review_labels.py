@@ -8,10 +8,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-SEMANTIC = {"other": 0, "blue_fence": 1, "white_ground": 2}
-DETECTION = {"opponent_robot": 0, "red_cube": 1, "yellow_cylinder": 2}
-SEMANTIC_COLORS = {0: (0, 0, 0), 1: (255, 0, 0), 2: (255, 255, 255)}
-BOX_COLORS = {0: (0, 255, 0), 1: (0, 0, 255), 2: (0, 255, 255)}
+SEMANTIC = {"other": 0, "blue_fence": 1, "white_ground": 2, "home_black": 3}
+DETECTION = {"other_robot": 0, "red_cube": 1, "yellow_cylinder": 2, "home": 3}
+SEMANTIC_COLORS = {0: (0, 0, 0), 1: (255, 0, 0), 2: (255, 255, 255), 3: (255, 0, 255)}
+BOX_COLORS = {0: (0, 255, 0), 1: (0, 0, 255), 2: (0, 255, 255), 3: (255, 0, 255)}
 
 
 @dataclass
@@ -24,9 +24,11 @@ class Box:
 
 
 class Reviewer:
-    def __init__(self, images: list[Path], masks: Path, labels: Path, brush: int):
+    def __init__(self, images: list[Path], masks: Path, labels: Path, brush: int,
+                 detection_only: bool):
         self.images, self.masks, self.labels, self.brush = images, masks, labels, brush
-        self.index, self.mode, self.class_id = 0, "mask", 1
+        self.detection_only = detection_only
+        self.index, self.mode, self.class_id = 0, "box" if detection_only else "mask", 1
         self.image: np.ndarray | None = None
         self.mask: np.ndarray | None = None
         self.boxes: list[Box] = []
@@ -57,9 +59,10 @@ class Reviewer:
                                       round(cy * height - h / 2), w, h))
 
     def save(self) -> None:
-        self.masks.mkdir(parents=True, exist_ok=True)
+        if not self.detection_only:
+            self.masks.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(self.masks / f"{self.stem}.png"), self.mask)
         self.labels.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(str(self.masks / f"{self.stem}.png"), self.mask)
         height, width = self.image.shape[:2]
         lines = []
         for box in self.boxes:
@@ -69,16 +72,18 @@ class Reviewer:
 
     def display(self) -> np.ndarray:
         canvas = self.image.copy()
-        colors = np.zeros_like(canvas)
-        for class_id, color in SEMANTIC_COLORS.items():
-            colors[self.mask == class_id] = color
-        canvas = cv2.addWeighted(canvas, .65, colors, .35, 0)
+        if not self.detection_only:
+            colors = np.zeros_like(canvas)
+            for class_id, color in SEMANTIC_COLORS.items():
+                colors[self.mask == class_id] = color
+            canvas = cv2.addWeighted(canvas, .65, colors, .35, 0)
         for box in self.boxes:
             cv2.rectangle(canvas, (box.x, box.y), (box.x + box.w, box.y + box.h),
                           BOX_COLORS[box.class_id], 2)
             cv2.putText(canvas, list(DETECTION)[box.class_id], (box.x, max(16, box.y - 5)),
                         cv2.FONT_HERSHEY_SIMPLEX, .55, BOX_COLORS[box.class_id], 2)
-        mode = f"{self.mode}: {list(SEMANTIC)[self.class_id] if self.mode == 'mask' else list(DETECTION)[self.class_id]}"
+        mode = (f"{self.mode}: {list(SEMANTIC)[self.class_id]}" if self.mode == "mask"
+                else f"{self.mode}: {list(DETECTION)[self.class_id]}")
         cv2.putText(canvas, f"{self.index + 1}/{len(self.images)} {self.stem} | {mode}", (10, 24),
                     cv2.FONT_HERSHEY_SIMPLEX, .65, (0, 0, 0), 3)
         cv2.putText(canvas, f"{self.index + 1}/{len(self.images)} {self.stem} | {mode}", (10, 24),
@@ -117,17 +122,21 @@ def main() -> int:
     parser.add_argument("--masks", type=Path, default=Path("dataset/semantic_masks"))
     parser.add_argument("--labels", type=Path, default=Path("dataset/detection_labels"))
     parser.add_argument("--brush", type=int, default=18)
+    parser.add_argument("--detection-only", action="store_true",
+                        help="edit YOLO boxes only; never write semantic masks")
+    parser.add_argument("--include", default="*",
+                        help="filename glob used to limit the image set, e.g. capture-20260901-*.jpg")
     args = parser.parse_args()
-    images = sorted(path for path in args.images.iterdir()
+    images = sorted(path for path in args.images.glob(args.include)
                     if path.suffix.lower() in {".jpg", ".jpeg", ".png"})
     if not images:
         parser.error(f"no images found in {args.images}")
 
-    reviewer = Reviewer(images, args.masks, args.labels, args.brush)
+    reviewer = Reviewer(images, args.masks, args.labels, args.brush, args.detection_only)
     window = "Dataset reviewer"
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
     cv2.setMouseCallback(window, reviewer.mouse)
-    print("keys: 0/1/2 semantic class, r/y/o box class, m mask mode, b box mode, "
+    print("keys: 0/1/2/3 semantic class, r/y/o/h box class, m mask mode, b box mode, "
           "x delete boxes, [/] previous/next, s save, q quit")
     while True:
         cv2.imshow(window, reviewer.display())
@@ -143,12 +152,12 @@ def main() -> int:
             reviewer.next(-1)
         elif key == ord("]"):
             reviewer.next(1)
-        elif key in (ord("0"), ord("1"), ord("2")):
+        elif not args.detection_only and key in (ord("0"), ord("1"), ord("2"), ord("3")):
             reviewer.mode, reviewer.class_id = "mask", int(chr(key))
-        elif key in (ord("r"), ord("y"), ord("o")):
+        elif key in (ord("r"), ord("y"), ord("o"), ord("h")):
             reviewer.mode = "box"
-            reviewer.class_id = {ord("o"): 0, ord("r"): 1, ord("y"): 2}[key]
-        elif key == ord("m"):
+            reviewer.class_id = {ord("o"): 0, ord("r"): 1, ord("y"): 2, ord("h"): 3}[key]
+        elif not args.detection_only and key == ord("m"):
             reviewer.mode = "mask"
         elif key == ord("b"):
             reviewer.mode = "box"

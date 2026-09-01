@@ -5,10 +5,11 @@ import argparse
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from hsv_thresholds import load_thresholds, make_mask
 
-SEMANTIC = {"other": 0, "blue_fence": 1, "white_ground": 2}
+SEMANTIC = {"other": 0, "blue_fence": 1, "white_ground": 2, "home_black": 3}
 DETECTION = {"opponent_robot": 0, "red_cube": 1, "yellow_cylinder": 2}
 
 
@@ -37,6 +38,10 @@ def main() -> int:
     parser.add_argument("--preview", type=Path, default=Path("dataset/previews"))
     parser.add_argument("--thresholds", type=Path, default=Path("dataset/hsv_thresholds.json"),
                         help="JSON threshold profile written by hsv_tune.py")
+    parser.add_argument("--classes", nargs="+", choices=("blue_fence", "white_ground", "home_black",
+                                                            "red_cube", "yellow_cylinder"),
+                        default=["blue_fence"],
+                        help="classes to auto-label (default: blue_fence only)")
     parser.add_argument("--min-object-area", type=int, default=120)
     args = parser.parse_args()
     if args.min_object_area <= 0:
@@ -45,6 +50,7 @@ def main() -> int:
     for directory in (args.masks, args.labels, args.preview):
         directory.mkdir(parents=True, exist_ok=True)
     thresholds = load_thresholds(args.thresholds)
+    enabled = set(args.classes)
 
     image_paths = sorted(path for path in args.images.iterdir()
                          if path.suffix.lower() in {".jpg", ".jpeg", ".png"})
@@ -56,14 +62,23 @@ def main() -> int:
         height, width = image.shape[:2]
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-        white = clean(make_mask(hsv, thresholds["white_ground"]), 5)
-        blue = clean(make_mask(hsv, thresholds["blue_fence"]), 5)
-        red = clean(make_mask(hsv, thresholds["red_cube"]), 3)
-        yellow = clean(make_mask(hsv, thresholds["yellow_cylinder"]), 3)
+        white = clean(make_mask(hsv, thresholds["white_ground"]), 5) \
+            if "white_ground" in enabled else np.zeros((height, width), np.uint8)
+        blue = clean(make_mask(hsv, thresholds["blue_fence"]), 5) \
+            if "blue_fence" in enabled else np.zeros((height, width), np.uint8)
+        home = clean(make_mask(hsv, thresholds["home_black"]), 3) \
+            if "home_black" in enabled else np.zeros((height, width), np.uint8)
+        # A home mark is dark floor below a blue fence, not every image shadow.
+        home[~np.maximum.accumulate(blue > 0, axis=0)] = 0
+        red = clean(make_mask(hsv, thresholds["red_cube"]), 3) \
+            if "red_cube" in enabled else np.zeros((height, width), np.uint8)
+        yellow = clean(make_mask(hsv, thresholds["yellow_cylinder"]), 3) \
+            if "yellow_cylinder" in enabled else np.zeros((height, width), np.uint8)
 
         semantic = np.zeros((height, width), dtype=np.uint8)
         semantic[blue > 0] = SEMANTIC["blue_fence"]
         semantic[white > 0] = SEMANTIC["white_ground"]
+        semantic[home > 0] = SEMANTIC["home_black"]
         stem = image_path.stem
         cv2.imwrite(str(args.masks / f"{stem}.png"), semantic)
 
@@ -75,7 +90,8 @@ def main() -> int:
 
         overlay = image.copy()
         overlay[semantic == SEMANTIC["white_ground"]] = (255, 255, 255)
-        overlay[semantic == SEMANTIC["blue_fence"]] = (255, 0, 0)
+        overlay[semantic == SEMANTIC["blue_fence"]] = (255, 0, 255)
+        overlay[semantic == SEMANTIC["home_black"]] = (30, 30, 30)
         cv2.imwrite(str(args.preview / f"{stem}.jpg"), cv2.addWeighted(image, .60, overlay, .40, 0))
 
     print(f"tagged {len(image_paths)} images")
