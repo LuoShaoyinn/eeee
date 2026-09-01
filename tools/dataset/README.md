@@ -15,7 +15,7 @@ uv sync
 Extract two frames per second from the calibrated AVI files:
 
 ```sh
-uv run python tools/dataset/extract_frames.py dataset/raw/*.avi --fps 2
+uv run python tools/dataset/extract_frames.py dataset/videos/*.avi --fps 2
 ```
 
 Generate HSV-based initial labels, then review them visually:
