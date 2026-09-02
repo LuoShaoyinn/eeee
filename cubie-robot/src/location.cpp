@@ -109,21 +109,34 @@ VisualMotion VisualOdometry::update(const cv::Mat& gray, const GroundProjector& 
     return output;
 }
 
-FenceParticleFilter::FenceParticleFilter(size_t count, std::uint32_t seed) : generator_(seed) {
-    std::uniform_real_distribution<double> x(0, kFieldLengthM), y(0, kFieldWidthM), yaw(-CV_PI, CV_PI);
+FenceParticleFilter::FenceParticleFilter(size_t count, double initial_x_m, double initial_y_m,
+                                         double initial_yaw_rad, bool global_initialize, std::uint32_t seed)
+    : generator_(seed) {
+    std::uniform_real_distribution<double> global_x(0, kFieldLengthM), global_y(0, kFieldWidthM), global_yaw(-CV_PI, CV_PI);
+    std::normal_distribution<double> local_x(initial_x_m, .06), local_y(initial_y_m, .06), local_yaw(initial_yaw_rad, 8.0 * CV_PI / 180.0);
     particles_.reserve(count);
-    for (size_t index = 0; index < count; ++index) particles_.push_back({x(generator_), y(generator_), yaw(generator_), 1.0 / count});
+    for (size_t index = 0; index < count; ++index) {
+        const double x = global_initialize ? global_x(generator_) : std::clamp(local_x(generator_), 0.0, kFieldLengthM);
+        const double y = global_initialize ? global_y(generator_) : std::clamp(local_y(generator_), 0.0, kFieldWidthM);
+        const double yaw = global_initialize ? global_yaw(generator_) : wrap_angle(local_yaw(generator_));
+        particles_.push_back({x, y, yaw, 1.0 / count});
+    }
 }
 
 void FenceParticleFilter::predict(const BodyVelocity& velocity, double dt_s) {
-    std::normal_distribution<double> translation_noise(0, .008 + .05 * dt_s);
-    std::normal_distribution<double> yaw_noise(0, .01 + .04 * dt_s);
+    const double forward_displacement = velocity.forward_mps * dt_s;
+    const double left_displacement = velocity.left_mps * dt_s;
+    const double yaw_displacement = velocity.yaw_radps * dt_s;
+    const double translation_sigma = .00015 + .035 * std::hypot(forward_displacement, left_displacement);
+    const double yaw_sigma = .0002 + .035 * std::abs(yaw_displacement);
+    std::normal_distribution<double> translation_noise(0, translation_sigma);
+    std::normal_distribution<double> yaw_noise(0, yaw_sigma);
     for (auto& particle : particles_) {
-        const double forward = velocity.forward_mps * dt_s + translation_noise(generator_);
-        const double left = velocity.left_mps * dt_s + translation_noise(generator_);
-        particle.x += std::cos(particle.yaw) * forward - std::sin(particle.yaw) * left;
-        particle.y += std::sin(particle.yaw) * forward + std::cos(particle.yaw) * left;
-        particle.yaw = wrap_angle(particle.yaw + velocity.yaw_radps * dt_s + yaw_noise(generator_));
+        const double forward = forward_displacement + translation_noise(generator_);
+        const double left = left_displacement + translation_noise(generator_);
+        particle.x = std::clamp(particle.x + std::cos(particle.yaw) * forward - std::sin(particle.yaw) * left, 0.0, kFieldLengthM);
+        particle.y = std::clamp(particle.y + std::sin(particle.yaw) * forward + std::cos(particle.yaw) * left, 0.0, kFieldWidthM);
+        particle.yaw = wrap_angle(particle.yaw + yaw_displacement + yaw_noise(generator_));
     }
 }
 

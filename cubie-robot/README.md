@@ -116,9 +116,11 @@ cmake --build build-location -j2
 ```
 
 It defaults to the current fitted rigid-mount values: 0.12910 m camera height,
-30.0296 degree downward pitch, and 0.2071 degree roll. Override them with
-`--height`, `--pitch`, and `--roll` after a new calibration. `--max-frames N`
-is useful for a bounded smoke test; `Ctrl-C` ends a normal logging run.
+30.0296 degree downward pitch, and 0.2071 degree roll. It also defaults to a
+known start near the home corner: `(x, y, yaw) = (0.10 m, 0.10 m, 0 deg)`.
+Override those with `--initial-x`, `--initial-y`, and `--initial-yaw`; use
+`--global-initialize` only when no start pose is known. `--max-frames N` is
+useful for a bounded smoke test; `Ctrl-C` ends a normal logging run.
 
 The current particle likelihood is intentionally conservative. It trims fence
 points that do not agree with the rectangular 3.0 m by 1.985 m field, but a

@@ -51,7 +51,9 @@ private:
 
 class FenceParticleFilter {
 public:
-    explicit FenceParticleFilter(size_t count, std::uint32_t seed = 1);
+    FenceParticleFilter(size_t count, double initial_x_m, double initial_y_m,
+                        double initial_yaw_rad, bool global_initialize = false,
+                        std::uint32_t seed = 1);
     void predict(const BodyVelocity& body_velocity, double dt_s);
     void update(const std::vector<cv::Point2d>& lower_fence_points);
     PoseEstimate estimate() const;

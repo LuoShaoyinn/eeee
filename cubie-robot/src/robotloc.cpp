@@ -43,6 +43,10 @@ struct Options {
     double height_m = .12910;
     double pitch_deg = 30.0296;
     double roll_deg = .2071;
+    double initial_x_m = .10;
+    double initial_y_m = .10;
+    double initial_yaw_deg = 0;
+    bool global_initialize = false;
 };
 
 struct EspState {
@@ -179,15 +183,23 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--height") options.height_m = std::stod(value("--height"));
         else if (argument == "--pitch") options.pitch_deg = std::stod(value("--pitch"));
         else if (argument == "--roll") options.roll_deg = std::stod(value("--roll"));
+        else if (argument == "--initial-x") options.initial_x_m = std::stod(value("--initial-x"));
+        else if (argument == "--initial-y") options.initial_y_m = std::stod(value("--initial-y"));
+        else if (argument == "--initial-yaw") options.initial_yaw_deg = std::stod(value("--initial-yaw"));
+        else if (argument == "--global-initialize") options.global_initialize = true;
         else if (argument == "--help") {
             std::cout << "robotloc [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
-                         "[--height M] [--pitch DEG] [--roll DEG]\n";
+                         "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
+                         "[--initial-yaw DEG] [--global-initialize]\n";
             std::exit(0);
         } else throw std::runtime_error("unknown option: " + argument);
     }
     if (options.visual_width <= 0 || options.visual_height <= 0 || options.particles < 20) {
         throw std::runtime_error("invalid image size or particle count");
+    }
+    if (options.initial_x_m < 0 || options.initial_x_m > 3.0 || options.initial_y_m < 0 || options.initial_y_m > 1.985) {
+        throw std::runtime_error("initial pose must lie inside the field");
     }
     if (options.log_path.empty()) options.log_path = default_log_path();
     return options;
@@ -201,6 +213,7 @@ void write_record(std::ofstream& log, std::uint64_t time_ns, const EspState& sta
         << ",\"esp_ms\":" << state.ms << ",\"imu_age_ms\":" << state.imu_age_ms
         << ",\"gyro_z_degps\":" << state.gyro_z_degps
         << ",\"rpm\":[" << state.rpm[0] << ',' << state.rpm[1] << ',' << state.rpm[2] << ',' << state.rpm[3] << ']'
+        << ",\"targets\":[" << state.targets[0] << ',' << state.targets[1] << ',' << state.targets[2] << ',' << state.targets[3] << ']'
         << ",\"wheel\":[" << wheel.forward_mps << ',' << wheel.left_mps << ',' << wheel.yaw_radps << ']'
         << ",\"visual\":{\"valid\":" << (visual.valid ? "true" : "false")
         << ",\"features\":" << visual.tracked_features << ",\"velocity\":[" << visual.velocity.forward_mps
@@ -241,7 +254,8 @@ int main(int argc, char** argv) {
         std::signal(SIGINT, handle_signal);
         std::signal(SIGTERM, handle_signal);
         robot::VisualOdometry visual_odometry;
-        robot::FenceParticleFilter filter(options.particles);
+        robot::FenceParticleFilter filter(options.particles, options.initial_x_m, options.initial_y_m,
+                                          options.initial_yaw_deg * kDegreesToRadians, options.global_initialize);
         auto previous_time = std::chrono::steady_clock::now();
         int frame_count = 0;
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
@@ -259,12 +273,15 @@ int main(int argc, char** argv) {
             const robot::BodyVelocity wheel = robot::wheel_body_velocity(state.rpm, state.targets);
             const robot::VisualMotion visual = visual_odometry.update(gray, projector, dt_s);
             robot::BodyVelocity fused = wheel;
-            if (visual.valid) {
+            const bool plausible_visual = visual.valid &&
+                                          std::hypot(visual.velocity.forward_mps, visual.velocity.left_mps) < .8 &&
+                                          std::abs(visual.velocity.yaw_radps) < 4.0;
+            if (plausible_visual) {
                 fused.forward_mps = .7 * wheel.forward_mps + .3 * visual.velocity.forward_mps;
                 fused.left_mps = .7 * wheel.left_mps + .3 * visual.velocity.left_mps;
             }
             const double imu_yaw = state.gyro_z_degps * kDegreesToRadians;
-            fused.yaw_radps = visual.valid ? .8 * imu_yaw + .2 * visual.velocity.yaw_radps : imu_yaw;
+            fused.yaw_radps = plausible_visual ? .8 * imu_yaw + .2 * visual.velocity.yaw_radps : imu_yaw;
             filter.predict(fused, std::min(dt_s, .2));
             const std::vector<cv::Point2d> fence = lower_fence_points(small, projector);
             filter.update(fence);
