@@ -36,6 +36,8 @@ struct Options {
     std::string socket = "/tmp/robotd.sock";
     std::string calibration = "calibration/camera1_fisheye_1280x720_rectilinear_f400.yaml";
     std::string log_path;
+    std::string video_path;
+    bool record_video = true;
     int visual_width = 320;
     int visual_height = 180;
     size_t particles = 600;
@@ -164,6 +166,12 @@ std::string default_log_path() {
     return name.str();
 }
 
+std::string default_video_path(const std::string& log_path) {
+    std::filesystem::path path(log_path);
+    path.replace_extension(".avi");
+    return path.string();
+}
+
 Options parse_options(int argc, char** argv) {
     Options options;
     for (int index = 1; index < argc; ++index) {
@@ -176,6 +184,8 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--socket") options.socket = value("--socket");
         else if (argument == "--calibration") options.calibration = value("--calibration");
         else if (argument == "--log") options.log_path = value("--log");
+        else if (argument == "--video") options.video_path = value("--video");
+        else if (argument == "--no-video") options.record_video = false;
         else if (argument == "--visual-width") options.visual_width = std::stoi(value("--visual-width"));
         else if (argument == "--visual-height") options.visual_height = std::stoi(value("--visual-height"));
         else if (argument == "--particles") options.particles = std::stoul(value("--particles"));
@@ -188,7 +198,7 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--initial-yaw") options.initial_yaw_deg = std::stod(value("--initial-yaw"));
         else if (argument == "--global-initialize") options.global_initialize = true;
         else if (argument == "--help") {
-            std::cout << "robotloc [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] "
+            std::cout << "robotloc [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--no-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
                          "[--initial-yaw DEG] [--global-initialize]\n";
@@ -202,14 +212,15 @@ Options parse_options(int argc, char** argv) {
         throw std::runtime_error("initial pose must lie inside the field");
     }
     if (options.log_path.empty()) options.log_path = default_log_path();
+    if (options.video_path.empty() && options.record_video) options.video_path = default_video_path(options.log_path);
     return options;
 }
 
-void write_record(std::ofstream& log, std::uint64_t time_ns, const EspState& state,
+void write_record(std::ofstream& log, int frame_index, std::uint64_t time_ns, const EspState& state,
                   const robot::BodyVelocity& wheel, const robot::VisualMotion& visual,
                   const robot::BodyVelocity& fused, const robot::PoseEstimate& pose, size_t fence_count) {
     log << std::fixed << std::setprecision(6)
-        << "{\"monotonic_ns\":" << time_ns
+        << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"esp_ms\":" << state.ms << ",\"imu_age_ms\":" << state.imu_age_ms
         << ",\"gyro_z_degps\":" << state.gyro_z_degps
         << ",\"rpm\":[" << state.rpm[0] << ',' << state.rpm[1] << ',' << state.rpm[2] << ',' << state.rpm[3] << ']'
@@ -249,8 +260,17 @@ int main(int argc, char** argv) {
         capture.set(cv::CAP_PROP_FPS, 30);
         std::ofstream log(options.log_path);
         if (!log) throw std::runtime_error("cannot write log: " + options.log_path);
+        cv::VideoWriter video;
+        if (options.record_video) {
+            const std::filesystem::path video_parent = std::filesystem::path(options.video_path).parent_path();
+            if (!video_parent.empty()) std::filesystem::create_directories(video_parent);
+            video.open(options.video_path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 10.0, cv::Size(1280, 720));
+            if (!video.isOpened()) throw std::runtime_error("cannot open video writer: " + options.video_path);
+        }
         std::cerr << "robotloc: passive capture=" << options.camera << " robotd=" << options.socket
-                  << " log=" << options.log_path << "\n";
+                  << " log=" << options.log_path;
+        if (options.record_video) std::cerr << " video=" << options.video_path;
+        std::cerr << '\n';
         std::signal(SIGINT, handle_signal);
         std::signal(SIGTERM, handle_signal);
         robot::VisualOdometry visual_odometry;
@@ -261,12 +281,13 @@ int main(int argc, char** argv) {
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
+            const auto capture_time = std::chrono::steady_clock::now();
             cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
+            if (options.record_video) video.write(rectified);
             cv::resize(rectified, small, cv::Size(options.visual_width, options.visual_height), 0, 0, cv::INTER_AREA);
             cv::cvtColor(small, gray, cv::COLOR_BGR2GRAY);
-            const auto now = std::chrono::steady_clock::now();
-            const double dt_s = std::chrono::duration<double>(now - previous_time).count();
-            previous_time = now;
+            const double dt_s = std::chrono::duration<double>(capture_time - previous_time).count();
+            previous_time = capture_time;
             EspState state;
             if (!parse_state(request_robotd(options.socket, "state"), state)) throw std::runtime_error("invalid ESP state reply");
             (void)parse_telemetry_targets(request_robotd(options.socket, "telemetry"), state.targets);
@@ -286,8 +307,8 @@ int main(int argc, char** argv) {
             const std::vector<cv::Point2d> fence = lower_fence_points(small, projector);
             filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
-            const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
-            write_record(log, time_ns, state, wheel, visual, fused, pose, fence.size());
+            const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
+            write_record(log, frame_count, time_ns, state, wheel, visual, fused, pose, fence.size());
             if ((frame_count++ % 30) == 0) {
                 std::cerr << "frame=" << frame_count << " fps_dt=" << dt_s << " wheel=" << wheel.forward_mps << ','
                           << wheel.left_mps << " visual=" << (visual.valid ? "ok" : "warmup")

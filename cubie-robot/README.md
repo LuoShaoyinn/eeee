@@ -105,7 +105,12 @@ Use `--duration` to change the length of each segment.
 commands. It rectifies the fisheye camera, estimates short-term ground motion
 from tracked floor features, converts signed ESP32 wheel RPM to mecanum body
 velocity, integrates IMU Z gyro rate, and weights a particle filter against
-the blue lower-fence observations. One JSON object is written per frame.
+the blue lower-fence observations. One JSON object is written per frame. It
+also writes an MJPEG AVI of the 1280x720 rectified frames; `frame_index` in the
+JSONL is the corresponding AVI frame and `monotonic_ns` preserves capture
+timing. By default the AVI has the same path as the JSONL with `.avi` instead
+of `.jsonl`; use `--video PATH` to override it or `--no-video` for telemetry
+only.
 
 Build it alongside the other Cubie programs, then run it locally on the Cubie:
 
