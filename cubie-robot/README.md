@@ -98,6 +98,34 @@ python3 tools/capture_video.py
 Files are named `capture-<time>-0001.avi`, `capture-<time>-0002.avi`, and so on.
 Use `--duration` to change the length of each segment.
 
+## Passive visual localization logger
+
+`robotloc` is a passive estimator: it reads `/dev/video0` and the existing
+`robotd` Unix socket, but never sends `twist`, `wheel`, `raw`, `ga25`, or servo
+commands. It rectifies the fisheye camera, estimates short-term ground motion
+from tracked floor features, converts signed ESP32 wheel RPM to mecanum body
+velocity, integrates IMU Z gyro rate, and weights a particle filter against
+the blue lower-fence observations. One JSON object is written per frame.
+
+Build it alongside the other Cubie programs, then run it locally on the Cubie:
+
+```sh
+cmake -S . -B build-location -DCMAKE_BUILD_TYPE=Release
+cmake --build build-location -j2
+./build-location/robotloc --log logs/location-$(date +%Y%m%d-%H%M%S).jsonl
+```
+
+It defaults to the current fitted rigid-mount values: 0.12910 m camera height,
+30.0296 degree downward pitch, and 0.2071 degree roll. Override them with
+`--height`, `--pitch`, and `--roll` after a new calibration. `--max-frames N`
+is useful for a bounded smoke test; `Ctrl-C` ends a normal logging run.
+
+The current particle likelihood is intentionally conservative. It trims fence
+points that do not agree with the rectangular 3.0 m by 1.985 m field, but a
+blue robot or incomplete wall view can still create ambiguous global poses.
+Treat this as a logged localization experiment until it has been evaluated
+against measured robot poses.
+
 The Camera1 fisheye calibration is included under `calibration/`; the C++
 OpenCV recorder is compiled locally on the Cubie when needed. For the faster
 native 640x480 MJPEG recorder, use `--raw`.
