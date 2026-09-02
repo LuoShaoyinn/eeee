@@ -98,3 +98,11 @@ treated as negatives.
 ```sh
 uv run python tools/dataset/prepare_yolo_dataset.py --output dataset/yolo
 ```
+
+`fence_ekf_sim.py` is a deterministic offline test of the intended localization
+architecture: noisy body-frame odometry/gyro prediction, then intermittent
+partial fence-wall updates. It writes an image to `/tmp/fence-ekf-simulation.png`.
+
+```sh
+uv run python tools/dataset/fence_ekf_sim.py
+```
