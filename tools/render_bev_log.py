@@ -131,11 +131,17 @@ def main():
     parser.add_argument("--pitch", type=float, default=30.0296)
     parser.add_argument("--roll", type=float, default=.2071)
     parser.add_argument("--fps", type=float, default=10)
+    parser.add_argument("--replay", type=Path,
+                        help="optional offline PF JSONL to overlay")
     args = parser.parse_args()
     telemetry_path = args.run_dir / "telemetry.jsonl"
     video_path = args.run_dir / "video.avi"
     output_path = args.output or args.run_dir / "bev-debug.avi"
     records = [json.loads(line) for line in telemetry_path.open()]
+    replay = ([json.loads(line) for line in args.replay.open()]
+              if args.replay else None)
+    if replay is not None and len(replay) != len(records):
+        raise RuntimeError("replay and telemetry frame counts differ")
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
         raise RuntimeError("cannot open {}".format(video_path))
@@ -149,6 +155,7 @@ def main():
     arena = ArenaCanvas()
     pf_trail = []
     odometry_trail = []
+    replay_trail = []
     count = 0
     try:
         for record in records:
@@ -178,6 +185,11 @@ def main():
                 cv2.circle(output, arena.point(pf_pose[:2]), sigma_px, (60, 60, 200), 1, cv2.LINE_AA)
             arena.draw_pose(output, pf_pose, (25, 120, 65), "PF")
             arena.draw_pose(output, odometry_pose, (200, 95, 30), "wheel+IMU", 6)
+            if replay is not None:
+                replay_pose = replay[count]["pose"]
+                replay_trail.append(replay_pose[:2])
+                arena.draw_trail(output, replay_trail, (190, 80, 190))
+                arena.draw_pose(output, replay_pose, (190, 80, 190), "offline PF", 7)
             for index, candidate in enumerate(candidates):
                 center = arena.point(candidate[:2])
                 colour = (175, 60 + index * 25, 160)
@@ -200,6 +212,10 @@ def main():
                 "targets  " + " ".join("{:+.2f}".format(value) for value in record["targets"]),
                 "purple cloud: lower fence projected using V1; orange cloud: using PF",
             ]
+            if replay is not None:
+                lines[-1] = "offline PF x={:.2f} y={:.2f} yaw={:.1f}deg visual={}".format(
+                    replay_pose[0], replay_pose[1], math.degrees(replay_pose[2]),
+                    "accepted" if replay[count]["visual_accepted"] else "prediction")
             for index, line in enumerate(lines):
                 cv2.putText(output, line, (20, 440 + index * 38), cv2.FONT_HERSHEY_SIMPLEX,
                             .55, (35, 35, 35), 1, cv2.LINE_AA)
