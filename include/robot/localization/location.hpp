@@ -28,6 +28,11 @@ struct PoseEstimate {
     double effective_particles = 0;
 };
 
+struct VisualPoseCandidate {
+    Pose2 pose;
+    double wall_residual_m = 0;
+};
+
 class GroundProjector {
 public:
     GroundProjector(cv::Mat camera_matrix, double camera_height_m, double pitch_down_deg,
@@ -67,5 +72,9 @@ private:
 
 BodyVelocity wheel_body_velocity(const std::array<double, 4>& rpm,
                                  const std::array<double, 4>& targets);
+
+std::vector<VisualPoseCandidate> match_fence_geometry(
+    const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
+    std::size_t maximum_candidates = 4);
 
 }  // namespace robot

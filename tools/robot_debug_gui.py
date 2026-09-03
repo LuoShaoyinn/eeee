@@ -242,6 +242,22 @@ class DebugGui:
         self.canvas.create_text(opx + 10, opy + 14,
                                 text="wheel+IMU ({:.2f}, {:.2f})".format(odom_x, odom_y),
                                 fill="#174a7d", anchor="w")
+        candidates = self.pose.get("visual_geometry_candidates", [])
+        colours = ("#8b2db3", "#b15bc7", "#ca8ed9", "#dfb9e8")
+        for index, candidate in enumerate(candidates):
+            if len(candidate) < 4:
+                continue
+            candidate_x, candidate_y, candidate_yaw, residual = candidate
+            cpx, cpy, _ = self.transform(candidate_x, candidate_y)
+            colour = colours[min(index, len(colours) - 1)]
+            size = 10 if index == 0 else 7
+            self.canvas.create_line(cpx - size, cpy, cpx + size, cpy, fill=colour, width=3)
+            self.canvas.create_line(cpx, cpy - size, cpx, cpy + size, fill=colour, width=3)
+            self.canvas.create_line(cpx, cpy, cpx + 22 * math.cos(candidate_yaw),
+                                    cpy - 22 * math.sin(candidate_yaw), fill=colour, width=2)
+            self.canvas.create_text(cpx + 9, cpy - 12,
+                                    text="V{} {:.3f}m".format(index + 1, residual),
+                                    fill=colour, anchor="w")
 
     def close(self):
         self.stopping.set()

@@ -369,7 +369,9 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   bool telemetry_valid, std::uint64_t telemetry_sequence, double telemetry_age_ms,
                   const robot::BodyVelocity& wheel, const robot::VisualMotion& visual,
                   const robot::BodyVelocity& fused, const robot::Pose2& odometry_pose,
-                  const robot::PoseEstimate& pose, size_t fence_count) {
+                  const robot::PoseEstimate& pose,
+                  const std::vector<robot::VisualPoseCandidate>& visual_candidates,
+                  size_t fence_count) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
@@ -390,6 +392,14 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"position_sigma_m\":" << pose.position_sigma_m
         << ",\"yaw_sigma_rad\":" << pose.yaw_sigma_rad
         << ",\"effective_particles\":" << pose.effective_particles
+        << ",\"visual_geometry_candidates\":[";
+    for (std::size_t index = 0; index < visual_candidates.size(); ++index) {
+        if (index != 0) log << ',';
+        const auto& candidate = visual_candidates[index];
+        log << '[' << candidate.pose.x_m << ',' << candidate.pose.y_m << ','
+            << candidate.pose.yaw_rad << ',' << candidate.wall_residual_m << ']';
+    }
+    log << "]"
         << ",\"lower_fence_points\":" << fence_count << "}\n";
 }
 }  // namespace
@@ -454,6 +464,7 @@ int main(int argc, char** argv) {
                                      options.broadcast_port);
         auto previous_time = std::chrono::steady_clock::now();
         int frame_count = 0;
+        std::vector<robot::VisualPoseCandidate> visual_candidates;
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
@@ -503,12 +514,16 @@ int main(int argc, char** argv) {
             odometry_pose.yaw_rad += prediction.yaw_radps * prediction_dt;
             filter.predict(prediction, prediction_dt);
             const std::vector<cv::Point2d> fence = lower_fence_points(small, projector);
+            if (frame_count % 5 == 0) {
+                visual_candidates = robot::match_fence_geometry(fence, odometry_pose.yaw_rad);
+            }
             filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
-                         telemetry_age_ms, wheel, visual, fused, odometry_pose, pose, fence.size());
+                         telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
+                         visual_candidates, fence.size());
             log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());

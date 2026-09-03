@@ -229,4 +229,49 @@ BodyVelocity wheel_body_velocity(const std::array<double, 4>& rpm, const std::ar
             (-wheel[0] + wheel[1] - wheel[2] + wheel[3]) / (4.0 * kMecanumRadiusM)};
 }
 
+std::vector<VisualPoseCandidate> match_fence_geometry(
+    const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
+    std::size_t maximum_candidates) {
+    std::vector<VisualPoseCandidate> evaluated;
+    if (observations.size() < 20 || maximum_candidates == 0) return evaluated;
+    constexpr double kPositionStepM = .05;
+    constexpr double kYawSpanRad = 25.0 * CV_PI / 180.0;
+    constexpr double kYawStepRad = 5.0 * CV_PI / 180.0;
+    std::vector<double> distances(observations.size());
+    for (double yaw = yaw_prior_rad - kYawSpanRad; yaw <= yaw_prior_rad + kYawSpanRad + 1e-9;
+         yaw += kYawStepRad) {
+        const double cosine = std::cos(yaw);
+        const double sine = std::sin(yaw);
+        for (double x = 0; x <= kFieldLengthM + 1e-9; x += kPositionStepM) {
+            for (double y = 0; y <= kFieldWidthM + 1e-9; y += kPositionStepM) {
+                for (std::size_t index = 0; index < observations.size(); ++index) {
+                    const auto& point = observations[index];
+                    distances[index] = field_wall_distance(
+                        x + cosine * point.x - sine * point.y,
+                        y + sine * point.x + cosine * point.y);
+                }
+                const std::size_t keep = std::max<std::size_t>(10, distances.size() * 2 / 3);
+                std::nth_element(distances.begin(), distances.begin() + static_cast<std::ptrdiff_t>(keep),
+                                 distances.end());
+                const double residual = std::accumulate(distances.begin(), distances.begin() +
+                                                         static_cast<std::ptrdiff_t>(keep), 0.0) / keep;
+                evaluated.push_back({{x, y, wrap_angle(yaw)}, residual});
+            }
+        }
+    }
+    std::sort(evaluated.begin(), evaluated.end(), [](const auto& left, const auto& right) {
+        return left.wall_residual_m < right.wall_residual_m;
+    });
+    std::vector<VisualPoseCandidate> output;
+    for (const auto& candidate : evaluated) {
+        const bool distinct = std::all_of(output.begin(), output.end(), [&](const auto& accepted) {
+            return std::hypot(candidate.pose.x_m - accepted.pose.x_m,
+                              candidate.pose.y_m - accepted.pose.y_m) >= .30;
+        });
+        if (distinct) output.push_back(candidate);
+        if (output.size() == maximum_candidates) break;
+    }
+    return output;
+}
+
 }  // namespace robot
