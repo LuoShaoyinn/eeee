@@ -9,7 +9,7 @@ struct RuntimeConfig {
     std::string socket_path = "/tmp/robotd.sock";
     std::string serial_device = "/dev/ttyAS2";
     int baud_rate = 115200;
-    double telemetry_hz = 25;
+    double telemetry_hz = 30;
     int command_timeout_ms = 250;
 
     std::string camera_device = "/dev/video0";
@@ -20,6 +20,7 @@ struct RuntimeConfig {
     int visual_width = 320;
     int visual_height = 180;
     double record_fps = 10;
+    double visual_geometry_hz = 1;
 
     std::size_t particles = 600;
     double camera_height_m = .1291;
@@ -63,6 +64,7 @@ struct RuntimeConfig {
 
     std::string detector_backend = "vip_lite";
     std::string detector_model = "models/official_yolo26n_split_pcq_a733.nb";
+    double detector_inference_hz = 30;
     double detector_confidence = .35;
     double detector_nms = .45;
 

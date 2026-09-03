@@ -16,6 +16,7 @@ void read(const cv::FileNode& parent, const char* key, T& value) {
 void validate(const RuntimeConfig& config) {
     if (config.telemetry_hz <= 0 || config.capture_width <= 0 || config.capture_height <= 0 ||
         config.capture_fps <= 0 || config.visual_width <= 0 || config.visual_height <= 0 ||
+        config.visual_geometry_hz <= 0 || config.detector_inference_hz <= 0 ||
         config.particles < 20) {
         throw std::runtime_error("robot configuration has invalid rates, dimensions, or particle count");
     }
@@ -69,6 +70,7 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(camera, "visual_width", config.visual_width);
     read(camera, "visual_height", config.visual_height);
     read(camera, "record_fps", config.record_fps);
+    read(camera, "visual_geometry_hz", config.visual_geometry_hz);
     const cv::FileNode localization = file["localization"];
     int particles = static_cast<int>(config.particles);
     read(localization, "particles", particles);
@@ -115,6 +117,7 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     const cv::FileNode detector = file["detector"];
     read(detector, "backend", config.detector_backend);
     read(detector, "model", config.detector_model);
+    read(detector, "inference_hz", config.detector_inference_hz);
     read(detector, "confidence_threshold", config.detector_confidence);
     read(detector, "nms_threshold", config.detector_nms);
     const cv::FileNode debug = file["debug"];

@@ -4,7 +4,7 @@ transport:
   socket: /tmp/robotd.sock
   serial_device: /dev/ttyAS2
   baud_rate: 115200
-  telemetry_hz: 25.
+  telemetry_hz: 30.
   command_timeout_ms: 250
 camera:
   device: /dev/video0
@@ -15,6 +15,7 @@ camera:
   visual_width: 320
   visual_height: 180
   record_fps: 10.
+  visual_geometry_hz: 1.
 localization:
   particles: 600
   camera_height_m: 1.2910000000000000e-01
@@ -59,6 +60,7 @@ control:
 detector:
   backend: vip_lite
   model: models/official_yolo26n_split_pcq_a733.nb
+  inference_hz: 30.
   confidence_threshold: 3.5000000000000003e-01
   nms_threshold: 4.4999999999999996e-01
 debug:

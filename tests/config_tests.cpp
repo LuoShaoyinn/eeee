@@ -14,7 +14,8 @@ int main() {
             std::cerr << "unexpected servo safety envelope\n";
             return 1;
         }
-        if (config.telemetry_hz != 25 || config.capture_fps != 30) {
+        if (config.telemetry_hz != 30 || config.capture_fps != 30 ||
+            config.detector_inference_hz != 30 || config.visual_geometry_hz != 1) {
             std::cerr << "unexpected production sampling rates\n";
             return 1;
         }

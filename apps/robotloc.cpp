@@ -33,6 +33,7 @@
 
 #include "robot/localization/location.hpp"
 #include "robot/config/runtime_config.hpp"
+#include "robot/runtime/latest_value.hpp"
 
 namespace {
 constexpr double kDegreesToRadians = CV_PI / 180.0;
@@ -64,6 +65,7 @@ struct Options {
     int capture_height = 720;
     double capture_fps = 30;
     double record_fps = 10;
+    double visual_geometry_hz = 1;
     double telemetry_hz = 25;
     double visual_pull_gain = .12;
     double visual_max_correction_m = .04;
@@ -280,6 +282,23 @@ struct FenceEdges {
     }
 };
 
+struct FenceRequest {
+    cv::Mat frame;
+    robot::Timestamp timestamp;
+    std::uint64_t sequence = 0;
+    double yaw_prior_rad = 0;
+    robot::Pose2 odometry_pose;
+};
+
+struct FenceResult {
+    robot::Timestamp timestamp;
+    std::uint64_t sequence = 0;
+    FenceEdges edges;
+    std::vector<cv::Point2d> observations;
+    robot::VisualGeometryEstimate geometry;
+    robot::Pose2 odometry_pose;
+};
+
 FenceEdges fence_edge_points(const cv::Mat& rectified,
                              const robot::GroundProjector& projector,
                              const cv::Scalar& hsv_lower,
@@ -315,6 +334,57 @@ FenceEdges fence_edge_points(const cv::Mat& rectified,
     }
     return points;
 }
+
+class FenceWorker {
+public:
+    FenceWorker(const robot::GroundProjector& projector, cv::Scalar hsv_lower,
+                cv::Scalar hsv_upper, double fence_height_m, double frequency_hz)
+        : projector_(projector), hsv_lower_(hsv_lower), hsv_upper_(hsv_upper),
+          fence_height_m_(fence_height_m),
+          period_(std::chrono::duration<double>(1.0 / frequency_hz)) {}
+
+    ~FenceWorker() { stop(); }
+
+    void start() { thread_ = std::thread(&FenceWorker::run, this); }
+    void submit(FenceRequest request) { requests_.publish(std::move(request)); }
+    std::optional<FenceResult> take() { return results_.take(); }
+
+    void stop() {
+        stopping_ = true;
+        if (thread_.joinable()) thread_.join();
+    }
+
+private:
+    void run() {
+        auto next = std::chrono::steady_clock::now();
+        while (!stopping_) {
+            if (const auto request = requests_.take()) {
+                FenceResult result;
+                result.timestamp = request->timestamp;
+                result.sequence = request->sequence;
+                result.odometry_pose = request->odometry_pose;
+                result.edges = fence_edge_points(request->frame, projector_, hsv_lower_,
+                                                  hsv_upper_, fence_height_m_);
+                result.observations = result.edges.combined();
+                result.geometry = robot::estimate_fence_geometry(
+                    result.observations, request->yaw_prior_rad);
+                results_.publish(std::move(result));
+            }
+            next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(period_);
+            std::this_thread::sleep_until(next);
+        }
+    }
+
+    robot::GroundProjector projector_;
+    cv::Scalar hsv_lower_;
+    cv::Scalar hsv_upper_;
+    double fence_height_m_;
+    std::chrono::duration<double> period_;
+    robot::LatestValue<FenceRequest> requests_;
+    robot::LatestValue<FenceResult> results_;
+    std::atomic_bool stopping_{false};
+    std::thread thread_;
+};
 
 std::string default_log_path() {
     const std::time_t now = std::time(nullptr);
@@ -355,6 +425,7 @@ Options parse_options(int argc, char** argv) {
     options.capture_height = config.capture_height;
     options.capture_fps = config.capture_fps;
     options.record_fps = config.record_fps;
+    options.visual_geometry_hz = config.visual_geometry_hz;
     options.telemetry_hz = config.telemetry_hz;
     options.visual_pull_gain = config.visual_pull_gain;
     options.visual_max_correction_m = config.visual_max_correction_m;
@@ -549,6 +620,13 @@ int main(int argc, char** argv) {
         std::optional<double> bias_anchor_visual_yaw;
         double bias_anchor_elapsed_s = 0;
         double bias_anchor_imu_delta_rad = 0;
+        FenceWorker fence_worker(projector, options.fence_hsv_lower,
+                                 options.fence_hsv_upper, options.fence_height_m,
+                                 options.visual_geometry_hz);
+        fence_worker.start();
+        std::uint64_t fence_request_sequence = 0;
+        std::size_t lower_fence_count = 0;
+        std::size_t upper_fence_count = 0;
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
@@ -601,29 +679,36 @@ int main(int argc, char** argv) {
                                   std::cos(midpoint_yaw) * prediction.left_mps) * prediction_dt;
             odometry_pose.yaw_rad += prediction.yaw_radps * prediction_dt;
             filter.predict(prediction, prediction_dt);
-            const FenceEdges fence_edges = fence_edge_points(
-                small, projector, options.fence_hsv_lower, options.fence_hsv_upper,
-                options.fence_height_m);
-            const std::vector<cv::Point2d> fence = fence_edges.combined();
+            fence_worker.submit({small.clone(), capture_time, ++fence_request_sequence,
+                                 odometry_pose.yaw_rad, odometry_pose});
             bool visual_certain = false;
             bool visual_very_certain = false;
             bool imu_yaw_reset = false;
-            if (frame_count % 5 == 0) {
-                visual_geometry = robot::estimate_fence_geometry(fence, odometry_pose.yaw_rad);
+            if (auto fence_result = fence_worker.take()) {
+                visual_geometry = std::move(fence_result->geometry);
+                lower_fence_count = fence_result->edges.lower.size();
+                upper_fence_count = fence_result->edges.upper.size();
+                filter.update(fence_result->observations);
                 if (visual_geometry.valid && !visual_geometry.candidates.empty()) {
                     const auto& candidate = visual_geometry.candidates.front();
+                    robot::Pose2 current_candidate = candidate.pose;
+                    current_candidate.x_m += odometry_pose.x_m - fence_result->odometry_pose.x_m;
+                    current_candidate.y_m += odometry_pose.y_m - fence_result->odometry_pose.y_m;
+                    current_candidate.yaw_rad += std::remainder(
+                        odometry_pose.yaw_rad - fence_result->odometry_pose.yaw_rad,
+                        2.0 * CV_PI);
                     const bool precise = candidate.wall_residual_m <=
                                          options.visual_precise_residual_m;
                     const bool dominant_edge = candidate.wall_residual_m <=
                                                    options.visual_dominant_residual_m &&
                                                visual_geometry.alternative_margin_m >=
                                                    options.visual_certain_margin_m &&
-                                               static_cast<int>(fence_edges.lower.size()) >=
+                                               static_cast<int>(lower_fence_count) >=
                                                    options.visual_min_lower_edge_points;
                     visual_certain = precise || dominant_edge ||
                                      visual_geometry.confidence >= options.visual_certain_confidence;
                     visual_very_certain = precise &&
-                        static_cast<int>(fence_edges.lower.size()) >=
+                        static_cast<int>(lower_fence_count) >=
                             options.visual_min_lower_edge_points &&
                         visual_geometry.yaw_sigma_rad <= 3.0 * kDegreesToRadians;
                     const double gain = visual_certain ? options.visual_certain_pull_gain
@@ -637,43 +722,46 @@ int main(int argc, char** argv) {
                     const double major_axis_gain = visual_geometry.sigma_major_m >= .15
                         ? 0.0
                         : std::clamp(.05 / (visual_geometry.sigma_major_m + .01), 0.0, 1.0);
-                    filter.correct_toward(candidate.pose, gain, max_distance, max_yaw,
-                                          visual_geometry.major_axis_rad, major_axis_gain);
+                    const double current_major_axis = visual_geometry.major_axis_rad +
+                        std::remainder(odometry_pose.yaw_rad -
+                                           fence_result->odometry_pose.yaw_rad,
+                                       2.0 * CV_PI);
+                    filter.correct_toward(current_candidate, gain, max_distance, max_yaw,
+                                          current_major_axis, major_axis_gain);
                     const double yaw_error = std::remainder(
-                        candidate.pose.yaw_rad - odometry_pose.yaw_rad, 2.0 * CV_PI);
+                        current_candidate.yaw_rad - odometry_pose.yaw_rad, 2.0 * CV_PI);
                     if (visual_very_certain &&
                         std::abs(yaw_error) <= options.visual_yaw_reset_max_error_rad) {
                         // The IMU supplies only relative yaw rate; reset the
                         // integrated heading reference, not the sensor itself.
-                        odometry_pose.yaw_rad = candidate.pose.yaw_rad;
+                        odometry_pose.yaw_rad = current_candidate.yaw_rad;
                         imu_yaw_reset = true;
                         if (!bias_anchor_visual_yaw) {
-                            bias_anchor_visual_yaw = candidate.pose.yaw_rad;
+                            bias_anchor_visual_yaw = current_candidate.yaw_rad;
                             bias_anchor_elapsed_s = 0;
                             bias_anchor_imu_delta_rad = 0;
                         } else if (bias_anchor_elapsed_s >= 1.0) {
                             const double visual_delta = std::remainder(
-                                candidate.pose.yaw_rad - *bias_anchor_visual_yaw,
+                                current_candidate.yaw_rad - *bias_anchor_visual_yaw,
                                 2.0 * CV_PI);
                             const double observed_bias = std::clamp(
                                 (bias_anchor_imu_delta_rad - visual_delta) /
                                     bias_anchor_elapsed_s,
                                 -5.0 * kDegreesToRadians, 5.0 * kDegreesToRadians);
                             gyro_bias_radps += .15 * (observed_bias - gyro_bias_radps);
-                            bias_anchor_visual_yaw = candidate.pose.yaw_rad;
+                            bias_anchor_visual_yaw = current_candidate.yaw_rad;
                             bias_anchor_elapsed_s = 0;
                             bias_anchor_imu_delta_rad = 0;
                         }
                     }
                 }
             }
-            filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
-                         visual_geometry, fence_edges.lower.size(), fence_edges.upper.size(),
+                         visual_geometry, lower_fence_count, upper_fence_count,
                          visual_certain, visual_very_certain, imu_yaw_reset,
                          gyro_bias_radps / kDegreesToRadians);
             log << record.str();
@@ -683,7 +771,7 @@ int main(int argc, char** argv) {
                 std::cerr << "frame=" << frame_count << " fps_dt=" << dt_s << " wheel=" << wheel.forward_mps << ','
                           << wheel.left_mps << " visual=" << (visual.valid ? "ok" : "warmup")
                           << " telemetry=" << (telemetry_valid ? "ok" : "stale")
-                          << " fence=" << fence_edges.lower.size() << '+' << fence_edges.upper.size()
+                          << " fence=" << lower_fence_count << '+' << upper_fence_count
                           << " pose=" << pose.x_m << ',' << pose.y_m << '\n';
             }
         }
