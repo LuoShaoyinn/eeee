@@ -40,6 +40,7 @@ struct VisualGeometryEstimate {
     double sigma_major_m = 0;
     double sigma_minor_m = 0;
     double major_axis_rad = 0;
+    double yaw_sigma_rad = 0;
     bool valid = false;
 };
 
@@ -48,6 +49,8 @@ public:
     GroundProjector(cv::Mat camera_matrix, double camera_height_m, double pitch_down_deg,
                     double roll_deg = 0);
     bool project(const cv::Point2f& pixel, cv::Point2d& ground) const;
+    bool project_to_height(const cv::Point2f& pixel, double height_m,
+                           cv::Point2d& ground) const;
 
 private:
     cv::Matx33d camera_inverse_;
@@ -71,6 +74,9 @@ public:
                         std::uint32_t seed = 1);
     void predict(const BodyVelocity& body_velocity, double dt_s);
     void update(const std::vector<cv::Point2d>& lower_fence_points);
+    void correct_toward(const Pose2& target, double gain, double max_distance_m,
+                        double max_yaw_rad, double major_axis_rad = 0,
+                        double major_axis_gain = 1);
     PoseEstimate estimate() const;
 
 private:
