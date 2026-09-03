@@ -48,7 +48,6 @@ not start the motor. Escape issues `stop` before exiting.
 Use `--servo-active-min-pulse`, `--servo-max-pulse`, and
 `--servo-pulse-step` to set the keyboard calibration range. Active values must
 remain within the ESP32 firmware's accepted S3 pulse range.
-=======
 For a Windows keyboard client, use tools/keyboard_control_windows.py. It uses
 Windows' built-in msvcrt keyboard API and a persistent OpenSSH channel; on the
 Cubie, a short-lived Python bridge forwards each command to the local Unix
@@ -136,6 +135,30 @@ against measured robot poses.
 The Camera1 fisheye calibration is included under `calibration/`; the C++
 OpenCV recorder is compiled locally on the Cubie when needed. For the faster
 native 640x480 MJPEG recorder, use `--raw`.
+
+## Measured arena-pose capture
+
+`tools/capture_arena_poses.py` collects the supervised data needed to fit the
+camera mount in the real arena. Run it locally on the Cubie over SSH. For each
+stationary placement, enter the measured chassis-centre `x`, `y`, and heading.
+Arena coordinates use A=(0,0), +x toward B along the 3 m side, and +y toward C
+along the 1.985 m side. Zero heading faces +x; positive heading turns toward
++y.
+
+```sh
+python3 tools/capture_arena_poses.py \
+  --output-dir "$HOME/arena-calibration/session-01"
+```
+
+An input such as `0.35 0.40 45 near-A-diagonal` records ten raw fisheye images
+under one pose. `list` displays completed poses, `undo` marks the last accepted
+pose rejected without deleting it, and `q` finishes. Reusing the same output
+directory resumes an interrupted session. The script writes `poses.json` after
+every completed pose and copies the active camera calibration into the session.
+
+Capture at least ten distinct placements: near all four corners, facing both
+long and short walls, and near the centre at different headings. Repeated
+images at one placement are one statistical sample, not independent poses.
 
 ## Fixed camera height and pitch
 

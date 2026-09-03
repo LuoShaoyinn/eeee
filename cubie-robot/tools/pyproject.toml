@@ -1,0 +1,9 @@
+[project]
+name = "cubie-camera-tools"
+version = "0.1.0"
+description = "Camera capture and calibration tools for the Cubie robot"
+requires-python = ">=3.10"
+dependencies = [
+  "opencv-python>=4.10",
+  "paramiko>=3.5",
+]

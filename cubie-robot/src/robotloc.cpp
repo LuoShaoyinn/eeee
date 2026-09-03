@@ -37,7 +37,9 @@ struct Options {
     std::string calibration = "calibration/camera1_fisheye_1280x720_rectilinear_f400.yaml";
     std::string log_path;
     std::string video_path;
+    std::string raw_video_path;
     bool record_video = true;
+    bool record_raw_video = false;
     int visual_width = 320;
     int visual_height = 180;
     size_t particles = 600;
@@ -185,6 +187,10 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--calibration") options.calibration = value("--calibration");
         else if (argument == "--log") options.log_path = value("--log");
         else if (argument == "--video") options.video_path = value("--video");
+        else if (argument == "--raw-video") {
+            options.raw_video_path = value("--raw-video");
+            options.record_raw_video = true;
+        }
         else if (argument == "--no-video") options.record_video = false;
         else if (argument == "--visual-width") options.visual_width = std::stoi(value("--visual-width"));
         else if (argument == "--visual-height") options.visual_height = std::stoi(value("--visual-height"));
@@ -198,7 +204,7 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--initial-yaw") options.initial_yaw_deg = std::stod(value("--initial-yaw"));
         else if (argument == "--global-initialize") options.global_initialize = true;
         else if (argument == "--help") {
-            std::cout << "robotloc [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--no-video] "
+            std::cout << "robotloc [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
                          "[--initial-yaw DEG] [--global-initialize]\n";
@@ -261,15 +267,23 @@ int main(int argc, char** argv) {
         std::ofstream log(options.log_path);
         if (!log) throw std::runtime_error("cannot write log: " + options.log_path);
         cv::VideoWriter video;
+        cv::VideoWriter raw_video;
         if (options.record_video) {
             const std::filesystem::path video_parent = std::filesystem::path(options.video_path).parent_path();
             if (!video_parent.empty()) std::filesystem::create_directories(video_parent);
             video.open(options.video_path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 10.0, cv::Size(1280, 720));
             if (!video.isOpened()) throw std::runtime_error("cannot open video writer: " + options.video_path);
         }
+        if (options.record_raw_video) {
+            const std::filesystem::path raw_parent = std::filesystem::path(options.raw_video_path).parent_path();
+            if (!raw_parent.empty()) std::filesystem::create_directories(raw_parent);
+            raw_video.open(options.raw_video_path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 10.0, cv::Size(1280, 720));
+            if (!raw_video.isOpened()) throw std::runtime_error("cannot open raw video writer: " + options.raw_video_path);
+        }
         std::cerr << "robotloc: passive capture=" << options.camera << " robotd=" << options.socket
                   << " log=" << options.log_path;
         if (options.record_video) std::cerr << " video=" << options.video_path;
+        if (options.record_raw_video) std::cerr << " raw_video=" << options.raw_video_path;
         std::cerr << '\n';
         std::signal(SIGINT, handle_signal);
         std::signal(SIGTERM, handle_signal);
@@ -283,6 +297,7 @@ int main(int argc, char** argv) {
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
             const auto capture_time = std::chrono::steady_clock::now();
             cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
+            if (options.record_raw_video) raw_video.write(raw);
             if (options.record_video) video.write(rectified);
             cv::resize(rectified, small, cv::Size(options.visual_width, options.visual_height), 0, 0, cv::INTER_AREA);
             cv::cvtColor(small, gray, cv::COLOR_BGR2GRAY);

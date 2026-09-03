@@ -10,6 +10,8 @@ managed_components/
 artifacts/
 main/wifi_credentials.h
 __pycache__/
+.venv/
 cubie-robot/tools/cubie_video_capture
 videos/
 dataset/
+run-log/

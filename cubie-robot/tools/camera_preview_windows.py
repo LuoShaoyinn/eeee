@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Windows live preview with Space-to-capture for a rectified Cubie camera."""
+"""Host-side live preview with Space-to-capture for Cubie camera calibration."""
 
 import argparse
 import getpass
 import shlex
 import struct
 import sys
-import tempfile
 from pathlib import Path
 
 import cv2
@@ -21,22 +20,24 @@ import struct
 import sys
 import numpy as np
 
-device, calibration, output_dir, width, height, fps = sys.argv[1:]
+device, calibration, output_dir, width, height, fps, raw_mode = sys.argv[1:]
 width, height, fps = int(width), int(height), int(fps)
-storage = cv2.FileStorage(calibration, cv2.FILE_STORAGE_READ)
-if not storage.isOpened():
-    raise SystemExit("cannot open calibration: " + calibration)
-K = storage.getNode("K").mat()
-D = storage.getNode("D").mat()
-rectified_K = storage.getNode("rectified_K").mat()
-calibration_width = int(storage.getNode("image_width").real())
-calibration_height = int(storage.getNode("image_height").real())
-storage.release()
-if (K is None or D is None or rectified_K is None or
-        calibration_width != width or calibration_height != height):
-    raise SystemExit("calibration does not match capture dimensions")
-map1, map2 = cv2.fisheye.initUndistortRectifyMap(
-    K, D, np.eye(3), rectified_K, (width, height), cv2.CV_16SC2)
+raw_mode = raw_mode == "1"
+if not raw_mode:
+    storage = cv2.FileStorage(calibration, cv2.FILE_STORAGE_READ)
+    if not storage.isOpened():
+        raise SystemExit("cannot open calibration: " + calibration)
+    K = storage.getNode("K").mat()
+    D = storage.getNode("D").mat()
+    rectified_K = storage.getNode("rectified_K").mat()
+    calibration_width = int(storage.getNode("image_width").real())
+    calibration_height = int(storage.getNode("image_height").real())
+    storage.release()
+    if (K is None or D is None or rectified_K is None or
+            calibration_width != width or calibration_height != height):
+        raise SystemExit("calibration does not match capture dimensions")
+    map1, map2 = cv2.fisheye.initUndistortRectifyMap(
+        K, D, np.eye(3), rectified_K, (width, height), cv2.CV_16SC2)
 os.makedirs(output_dir, exist_ok=True)
 capture = cv2.VideoCapture(device, cv2.CAP_V4L2)
 capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
@@ -51,19 +52,27 @@ def send(kind, payload):
     sys.stdout.buffer.write(kind + struct.pack("!I", len(wire)) + wire)
     sys.stdout.buffer.flush()
 
+prefix = "raw" if raw_mode else "floor"
+existing = [name for name in os.listdir(output_dir)
+            if name.startswith(prefix + "-") and name.endswith(".png")]
 index = 1
+for name in existing:
+    try:
+        index = max(index, int(name[len(prefix) + 1:-4]) + 1)
+    except ValueError:
+        pass
 try:
     while True:
         ok, raw = capture.read()
         if not ok or raw.shape[1] != width or raw.shape[0] != height:
             send(b"E", "camera frame read failed")
             break
-        frame = cv2.remap(raw, map1, map2, cv2.INTER_LINEAR)
+        frame = raw if raw_mode else cv2.remap(raw, map1, map2, cv2.INTER_LINEAR)
         ready, _, _ = select.select([sys.stdin], [], [], 0)
         if ready:
             command = sys.stdin.readline().strip()
             if command == "capture":
-                output = os.path.join(output_dir, "floor-{:02d}.png".format(index))
+                output = os.path.join(output_dir, "{}-{:03d}.png".format(prefix, index))
                 if cv2.imwrite(output, frame):
                     send(b"S", output)
                     index += 1
@@ -84,6 +93,7 @@ def remote_command(args):
     values = [
         args.device, args.calibration, args.output_dir,
         str(args.width), str(args.height), str(args.fps),
+        "1" if args.raw else "0",
     ]
     return "python3 -u -c {} {}".format(source, " ".join(shlex.quote(value) for value in values))
 
@@ -105,6 +115,7 @@ def find_checkerboard(image, full_pattern_size, usable_rows, search_roi_top):
         gray[offset:, :], full_pattern_size,
         cv2.CALIB_CB_ADAPTIVE_THRESH | cv2.CALIB_CB_NORMALIZE_IMAGE)
     if found:
+        corners = np.asarray(corners, dtype=np.float32).reshape(-1, 1, 2)
         corners[:, :, 1] += offset
         cv2.cornerSubPix(
             gray, corners, (11, 11), (-1, -1),
@@ -140,6 +151,13 @@ def annotate(image, found, corners, pattern_size, captured, spacing, minimum_spa
     cv2.putText(view, message, (24, 44), cv2.FONT_HERSHEY_SIMPLEX, .65, colour, 2, cv2.LINE_AA)
     cv2.putText(view, "saved: {}   Q/Esc: exit".format(captured), (24, 87),
                 cv2.FONT_HERSHEY_SIMPLEX, .55, (255, 255, 255), 1, cv2.LINE_AA)
+    if found:
+        bounds = corners.reshape(-1, 2)
+        centre = np.mean(bounds, axis=0) / np.array([image.shape[1], image.shape[0]])
+        area = np.prod(bounds.max(axis=0) - bounds.min(axis=0)) / (image.shape[0] * image.shape[1])
+        cv2.putText(view, "coverage: centre=({:.2f}, {:.2f}) area={:.3f}".format(
+            centre[0], centre[1], area), (24, 112), cv2.FONT_HERSHEY_SIMPLEX,
+            .50, colour, 1, cv2.LINE_AA)
     return view
 
 
@@ -151,8 +169,10 @@ def main():
                         default=Path.home() / ".ssh" / "id_ed25519_cubie_192_168_19_105")
     parser.add_argument("--device", default="/dev/video0")
     parser.add_argument("--calibration",
-                        default="/home/radxa/cubie-robot/calibration/camera1_fisheye_1280x720_rectilinear_f400.yaml")
-    parser.add_argument("--output-dir", default="/home/radxa/cubie-robot/calibration-session")
+                        default="/home/radxa/cubie-robot/calibration/camera2_fisheye_1280x720.yaml")
+    parser.add_argument("--output-dir", default="/home/radxa/cubie-robot/calibration-session-new/raw")
+    parser.add_argument("--raw", action="store_true",
+                        help="stream and save raw fisheye frames; use for intrinsic calibration")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--fps", type=int, default=20)
@@ -206,7 +226,8 @@ def main():
     pattern_size = (args.pattern_cols, usable_rows)
     window = "Cubie checkerboard preview - Space capture, Q exit"
     captured = 0
-    print("Preview started. Focus the image window; Space saves only a detected board.")
+    print("Preview started in {} mode. Focus the image window; Space saves only a detected board.".format(
+        "raw fisheye" if args.raw else "rectified"))
     try:
         while True:
             header = receive_exact(channel, 5)
@@ -214,6 +235,10 @@ def main():
             payload = receive_exact(channel, length)
             if kind == b"E":
                 raise RuntimeError(payload.decode(errors="replace"))
+            if kind == b"S":
+                captured += 1
+                print("saved {}".format(payload.decode(errors="replace")))
+                continue
             if kind != b"F":
                 raise RuntimeError("unknown stream message")
             frame = cv2.imdecode(np.frombuffer(payload, dtype=np.uint8), cv2.IMREAD_COLOR)
@@ -231,18 +256,7 @@ def main():
                 break
             if key == ord(" "):
                 if valid:
-                    remote_path = "{}/floor-{:02d}.png".format(args.output_dir, captured + 1)
-                    with tempfile.TemporaryDirectory(prefix="cubie-preview-") as temporary_directory:
-                        local_path = Path(temporary_directory) / "capture.png"
-                        if not cv2.imwrite(str(local_path), frame):
-                            raise RuntimeError("cannot encode local capture")
-                        sftp = client.open_sftp()
-                        try:
-                            sftp.put(str(local_path), remote_path)
-                        finally:
-                            sftp.close()
-                    captured += 1
-                    print("saved {}".format(remote_path))
+                    channel.sendall(b"capture\n")
                 else:
                     print("not captured: board is missing or too far ({:.1f}px)".format(spacing))
     except (RuntimeError, OSError, cv2.error) as error:
