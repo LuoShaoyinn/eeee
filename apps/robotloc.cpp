@@ -34,7 +34,7 @@ volatile std::sig_atomic_t g_running = 1;
 struct Options {
     std::string camera = "/dev/video0";
     std::string socket = "/tmp/robotd.sock";
-    std::string calibration = "calibration/camera1_fisheye_1280x720_rectilinear_f400.yaml";
+    std::string calibration = "config/camera_fisheye_1280x720.yaml";
     std::string log_path;
     std::string video_path;
     std::string raw_video_path;

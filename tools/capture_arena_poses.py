@@ -124,8 +124,8 @@ def main() -> int:
                         default=Path.home() / "arena-calibration" /
                                 datetime.now().strftime("session-%Y%m%d-%H%M%S"))
     parser.add_argument("--calibration", type=Path,
-                        default=Path(__file__).resolve().parents[1] / "calibration" /
-                                "camera2_fisheye_1280x720.yaml",
+                        default=Path(__file__).resolve().parents[1] / "config" /
+                                "camera_fisheye_1280x720.yaml",
                         help="YAML to archive with this raw-image session")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)

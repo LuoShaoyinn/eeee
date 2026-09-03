@@ -24,12 +24,12 @@ def main():
                         help="output filename prefix (segments receive -0001, -0002, ...)")
     capture_mode = parser.add_mutually_exclusive_group()
     capture_mode.add_argument("--rectify", dest="rectify", action="store_true", default=True,
-                              help="apply the Camera1 1280x720 fisheye calibration (default)")
+                              help="apply the configured 1280x720 fisheye calibration (default)")
     capture_mode.add_argument("--raw", dest="rectify", action="store_false",
                               help="save native 640x480 MJPEG frames without calibration")
     parser.add_argument("--calibration", type=Path,
-                        default=Path(__file__).resolve().parents[1] / "calibration" /
-                                "camera1_fisheye_1280x720_rectilinear_f400.yaml")
+                        default=Path(__file__).resolve().parents[1] / "config" /
+                                "camera_fisheye_1280x720.yaml")
     args = parser.parse_args()
 
     width = args.width or (1280 if args.rectify else 640)

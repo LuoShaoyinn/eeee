@@ -169,8 +169,8 @@ def main():
                         default=Path.home() / ".ssh" / "id_ed25519_cubie_192_168_19_105")
     parser.add_argument("--device", default="/dev/video0")
     parser.add_argument("--calibration",
-                        default="/home/radxa/cubie-robot/calibration/camera2_fisheye_1280x720.yaml")
-    parser.add_argument("--output-dir", default="/home/radxa/cubie-robot/calibration-session-new/raw")
+                        default="/home/radxa/cubie-robot/config/camera_fisheye_1280x720.yaml")
+    parser.add_argument("--output-dir", default="/home/radxa/arena-calibration/raw")
     parser.add_argument("--raw", action="store_true",
                         help="stream and save raw fisheye frames; use for intrinsic calibration")
     parser.add_argument("--width", type=int, default=1280)

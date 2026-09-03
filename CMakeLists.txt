@@ -20,11 +20,11 @@ add_library(robot_transport
 target_include_directories(robot_transport PUBLIC include)
 target_compile_options(robot_transport PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(robotd src/robotd.cpp)
+add_executable(robotd apps/robotd.cpp)
 target_link_libraries(robotd PRIVATE robot_transport)
 target_compile_options(robotd PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(robotctl src/robotctl.cpp)
+add_executable(robotctl apps/robotctl.cpp)
 target_link_libraries(robotctl PRIVATE robot_transport)
 target_compile_options(robotctl PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
@@ -33,8 +33,9 @@ target_include_directories(robot_location PUBLIC include)
 target_link_libraries(robot_location PUBLIC ${OpenCV_LIBS})
 target_compile_options(robot_location PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(robotloc src/robotloc.cpp)
+add_executable(robotloc apps/robotloc.cpp)
 target_link_libraries(robotloc PRIVATE robot_location)
 target_compile_options(robotloc PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 install(TARGETS robotd robotctl robotloc RUNTIME DESTINATION bin)
+install(FILES config/camera_fisheye_1280x720.yaml DESTINATION config)
