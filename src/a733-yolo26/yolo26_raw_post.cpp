@@ -34,17 +34,6 @@ void decode(const cv::Mat& image, const float* boxes_data, const float* scores_d
     std::vector<cv::Rect> boxes[CLASS_NUM];
     std::vector<float> scores[CLASS_NUM];
 
-    for (int class_id = 0; class_id < CLASS_NUM; ++class_id) {
-        const float* class_scores = scores_data + class_id * kCandidates;
-        float low = class_scores[0];
-        float high = class_scores[0];
-        for (int candidate = 1; candidate < kCandidates; ++candidate) {
-            low = std::min(low, class_scores[candidate]);
-            high = std::max(high, class_scores[candidate]);
-        }
-        std::printf("class %d score range %.5f..%.5f\n", class_id, low, high);
-    }
-
     // Each NBG output is planar [4, 8400]. Keeping boxes and scores separate
     // prevents coordinate values from collapsing the class-score INT8 scale.
     for (int candidate = 0; candidate < kCandidates; ++candidate) {
