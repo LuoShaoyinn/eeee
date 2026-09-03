@@ -26,6 +26,7 @@ class DebugGui:
         self.vx = self.vy = self.wz = 0.0
         self.pose = None
         self.trail = []
+        self.odometry_trail = []
 
         root.title("Robot arena debug")
         root.geometry("1000x720")
@@ -86,6 +87,7 @@ class DebugGui:
 
     def clear_trail(self):
         self.trail.clear()
+        self.odometry_trail.clear()
         self.draw()
 
     def on_key(self, event):
@@ -155,6 +157,10 @@ class DebugGui:
                     if not self.trail or math.dist(point, self.trail[-1]) > 0.005:
                         self.trail.append(point)
                         self.trail = self.trail[-2000:]
+                    odometry = tuple(self.pose.get("odometry_pose", [0, 0, 0])[:2])
+                    if not self.odometry_trail or math.dist(odometry, self.odometry_trail[-1]) > 0.005:
+                        self.odometry_trail.append(odometry)
+                        self.odometry_trail = self.odometry_trail[-2000:]
                     age = self.pose.get("telemetry_age_ms", -1)
                     valid = self.pose.get("telemetry_valid", False)
                     self.status_label.configure(
@@ -201,6 +207,12 @@ class DebugGui:
                 px, py, _ = self.transform(*point)
                 coordinates.extend((px, py))
             self.canvas.create_line(*coordinates, fill="#d36f24", width=2)
+        if len(self.odometry_trail) > 1:
+            coordinates = []
+            for point in self.odometry_trail:
+                px, py, _ = self.transform(*point)
+                coordinates.extend((px, py))
+            self.canvas.create_line(*coordinates, fill="#2676c9", width=2, dash=(5, 3))
         if not self.pose:
             self.canvas.create_text((x0 + x1) / 2, (y0 + y1) / 2,
                                     text="Waiting for UDP location on port {}".format(self.args.port))
@@ -218,8 +230,18 @@ class DebugGui:
                                 py - heading * math.sin(yaw), fill="#111", width=3,
                                 arrow=tk.LAST)
         self.canvas.create_text(px + 12, py - 16,
-                                text="({:.2f}, {:.2f})  {:.1f} deg  sigma {:.2f} m".format(
+                                text="PF ({:.2f}, {:.2f})  {:.1f} deg  sigma {:.2f} m".format(
                                     x_m, y_m, math.degrees(yaw), sigma / scale), anchor="w")
+        odom_x, odom_y, odom_yaw = self.pose.get("odometry_pose", [0, 0, 0])
+        opx, opy, _ = self.transform(odom_x, odom_y)
+        self.canvas.create_oval(opx - 6, opy - 6, opx + 6, opy + 6,
+                                fill="#2676c9", outline="#174a7d")
+        self.canvas.create_line(opx, opy, opx + 26 * math.cos(odom_yaw),
+                                opy - 26 * math.sin(odom_yaw), fill="#174a7d", width=2,
+                                arrow=tk.LAST)
+        self.canvas.create_text(opx + 10, opy + 14,
+                                text="wheel+IMU ({:.2f}, {:.2f})".format(odom_x, odom_y),
+                                fill="#174a7d", anchor="w")
 
     def close(self):
         self.stopping.set()

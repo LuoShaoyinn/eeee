@@ -134,7 +134,10 @@ sudo firewall-cmd --zone=public --add-port=3335/udp --permanent
 sudo firewall-cmd --reload
 ```
 
-The GUI uses UDP only for localization display. Chassis commands travel over
+The GUI draws the fence particle filter in green/orange and independent
+wheel-plus-relative-IMU dead reckoning in blue. This comparison exposes a bad
+fence correction instead of hiding it inside a fused pose. The GUI uses UDP
+only for localization display. Chassis commands travel over
 an authenticated persistent SSH session to `robotctl --stream`. It opens
 disarmed, Space always stops, closing an armed window sends `stop`, and it has
 no servo or GA25 controls.

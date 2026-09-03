@@ -368,7 +368,8 @@ Options parse_options(int argc, char** argv) {
 void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, const EspState& state,
                   bool telemetry_valid, std::uint64_t telemetry_sequence, double telemetry_age_ms,
                   const robot::BodyVelocity& wheel, const robot::VisualMotion& visual,
-                  const robot::BodyVelocity& fused, const robot::PoseEstimate& pose, size_t fence_count) {
+                  const robot::BodyVelocity& fused, const robot::Pose2& odometry_pose,
+                  const robot::PoseEstimate& pose, size_t fence_count) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
@@ -383,6 +384,8 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"features\":" << visual.tracked_features << ",\"velocity\":[" << visual.velocity.forward_mps
         << ',' << visual.velocity.left_mps << ',' << visual.velocity.yaw_radps << "]}"
         << ",\"fused\":[" << fused.forward_mps << ',' << fused.left_mps << ',' << fused.yaw_radps << ']'
+        << ",\"odometry_pose\":[" << odometry_pose.x_m << ',' << odometry_pose.y_m << ','
+        << odometry_pose.yaw_rad << ']'
         << ",\"pose\":[" << pose.x_m << ',' << pose.y_m << ',' << pose.yaw_rad << ']'
         << ",\"position_sigma_m\":" << pose.position_sigma_m
         << ",\"yaw_sigma_rad\":" << pose.yaw_sigma_rad
@@ -443,6 +446,8 @@ int main(int argc, char** argv) {
         robot::VisualOdometry visual_odometry;
         robot::FenceParticleFilter filter(options.particles, options.initial_x_m, options.initial_y_m,
                                           options.initial_yaw_deg * kDegreesToRadians, options.global_initialize);
+        robot::Pose2 odometry_pose{options.initial_x_m, options.initial_y_m,
+                                   options.initial_yaw_deg * kDegreesToRadians};
         TelemetrySampler telemetry(options.socket, options.telemetry_hz);
         telemetry.start();
         DebugBroadcaster broadcaster(options.broadcast_enabled, options.broadcast_address,
@@ -487,14 +492,23 @@ int main(int argc, char** argv) {
             fused.yaw_radps = (plausible_visual
                                ? .8 * imu_yaw_rate + .2 * visual.velocity.yaw_radps
                                : imu_yaw_rate);
-            filter.predict(fused, std::min(dt_s, .2));
+            robot::BodyVelocity prediction = wheel;
+            prediction.yaw_radps = imu_yaw_rate;
+            const double prediction_dt = std::min(dt_s, .2);
+            const double midpoint_yaw = odometry_pose.yaw_rad + .5 * prediction.yaw_radps * prediction_dt;
+            odometry_pose.x_m += (std::cos(midpoint_yaw) * prediction.forward_mps -
+                                  std::sin(midpoint_yaw) * prediction.left_mps) * prediction_dt;
+            odometry_pose.y_m += (std::sin(midpoint_yaw) * prediction.forward_mps +
+                                  std::cos(midpoint_yaw) * prediction.left_mps) * prediction_dt;
+            odometry_pose.yaw_rad += prediction.yaw_radps * prediction_dt;
+            filter.predict(prediction, prediction_dt);
             const std::vector<cv::Point2d> fence = lower_fence_points(small, projector);
             filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
-                         telemetry_age_ms, wheel, visual, fused, pose, fence.size());
+                         telemetry_age_ms, wheel, visual, fused, odometry_pose, pose, fence.size());
             log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());
