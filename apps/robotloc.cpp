@@ -35,6 +35,12 @@
 #include "robot/localization/location.hpp"
 #include "robot/config/runtime_config.hpp"
 #include "robot/runtime/latest_value.hpp"
+#include "robot/perception/object_projection.hpp"
+#include "robot/planning/approach_controller.hpp"
+#include "robot/planning/world_model.hpp"
+#ifdef ROBOT_A733_NPU
+#include "robot/perception/a733_detector.hpp"
+#endif
 
 namespace {
 constexpr double kDegreesToRadians = CV_PI / 180.0;
@@ -89,6 +95,9 @@ struct Options {
     bool broadcast_enabled = true;
     std::string broadcast_address = "255.255.255.255";
     int broadcast_port = 3335;
+    std::string detector_model;
+    double detector_hz = 30;
+    robot::ApproachControllerConfig approach;
 };
 
 struct EspState {
@@ -121,16 +130,15 @@ std::vector<ReplaySample> load_telemetry_replay(const std::string& path) {
                                       cv::FileStorage::FORMAT_JSON);
         ReplaySample sample;
         EspState& state = sample.state;
-        std::int64_t esp_ms = 0;
-        std::int64_t imu_age_ms = 0;
+        double esp_ms = 0;
+        double imu_age_ms = 0;
         json["esp_ms"] >> esp_ms;
         json["imu_age_ms"] >> imu_age_ms;
-        state.ms = static_cast<std::uint64_t>(std::max<std::int64_t>(esp_ms, 0));
-        state.imu_age_ms = static_cast<std::uint64_t>(std::max<std::int64_t>(imu_age_ms, 0));
-        std::int64_t monotonic_ns = 0;
+        state.ms = static_cast<std::uint64_t>(std::max(esp_ms, 0.0));
+        state.imu_age_ms = static_cast<std::uint64_t>(std::max(imu_age_ms, 0.0));
+        double monotonic_ns = 0;
         json["monotonic_ns"] >> monotonic_ns;
-        sample.monotonic_ns = static_cast<std::uint64_t>(
-            std::max<std::int64_t>(monotonic_ns, 0));
+        sample.monotonic_ns = static_cast<std::uint64_t>(std::max(monotonic_ns, 0.0));
         json["gyro_z_degps"] >> state.gyro_z_degps;
         std::vector<double> rpm, targets;
         json["rpm"] >> rpm;
@@ -431,6 +439,38 @@ private:
     std::thread thread_;
 };
 
+#ifdef ROBOT_A733_NPU
+struct DetectorRequest { cv::Mat frame; robot::Timestamp timestamp; std::uint64_t sequence; };
+
+class DetectorWorker {
+public:
+    DetectorWorker(std::unique_ptr<robot::Detector> detector, double frequency_hz)
+        : detector_(std::move(detector)), period_(1.0 / frequency_hz) {}
+    ~DetectorWorker() { stopping_ = true; if (thread_.joinable()) thread_.join(); }
+    void start() { thread_ = std::thread(&DetectorWorker::run, this); }
+    void submit(DetectorRequest request) { requests_.publish(std::move(request)); }
+    std::optional<robot::DetectionFrame> take() { return results_.take(); }
+private:
+    void run() {
+        auto next = std::chrono::steady_clock::now();
+        while (!stopping_) {
+            if (auto request = requests_.take()) {
+                results_.publish(detector_->detect(request->frame, request->timestamp,
+                                                   request->sequence));
+            }
+            next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(period_);
+            std::this_thread::sleep_until(next);
+        }
+    }
+    std::unique_ptr<robot::Detector> detector_;
+    std::chrono::duration<double> period_;
+    robot::LatestValue<DetectorRequest> requests_;
+    robot::LatestValue<robot::DetectionFrame> results_;
+    std::atomic_bool stopping_{false};
+    std::thread thread_;
+};
+#endif
+
 std::string default_log_path() {
     const std::time_t now = std::time(nullptr);
     std::tm local{};
@@ -494,6 +534,19 @@ Options parse_options(int argc, char** argv) {
     options.broadcast_enabled = config.debug_broadcast_enabled;
     options.broadcast_address = config.debug_broadcast_address;
     options.broadcast_port = config.debug_broadcast_port;
+    options.detector_model = config.detector_model;
+    options.detector_hz = config.detector_inference_hz;
+    options.approach.translation_kp = config.approach_translation_kp;
+    options.approach.translation_ki = config.approach_translation_ki;
+    options.approach.translation_kd = config.approach_translation_kd;
+    options.approach.yaw_kp = config.approach_yaw_kp;
+    options.approach.yaw_kd = config.approach_yaw_kd;
+    options.approach.maximum_linear_mps = config.approach_maximum_linear_mps;
+    options.approach.maximum_yaw_radps = config.approach_maximum_yaw_radps;
+    options.approach.maximum_linear_accel_mps2 = config.approach_maximum_linear_accel_mps2;
+    options.approach.maximum_yaw_accel_radps2 = config.approach_maximum_yaw_accel_radps2;
+    options.approach.stopping_distance_m = config.approach_stopping_distance_m;
+    options.approach.target_timeout = std::chrono::milliseconds(config.approach_target_timeout_ms);
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         const auto value = [&](const char* name) -> const char* {
@@ -557,7 +610,9 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   const robot::VisualGeometryEstimate& visual_geometry,
                   size_t lower_fence_count, size_t upper_fence_count,
                   bool visual_certain, bool visual_very_certain,
-                  bool imu_yaw_reset, double gyro_bias_degps) {
+                  bool imu_yaw_reset, double gyro_bias_degps,
+                  const std::vector<robot::TrackedObject>& objects,
+                  const robot::ApproachResult& approach) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
@@ -598,7 +653,18 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
     }
     log << "]"
         << ",\"lower_fence_points\":" << lower_fence_count
-        << ",\"upper_fence_points\":" << upper_fence_count << "}\n";
+        << ",\"upper_fence_points\":" << upper_fence_count << ",\"objects\":[";
+    for (std::size_t index = 0; index < objects.size(); ++index) {
+        if (index) log << ',';
+        log << "[" << static_cast<int>(objects[index].object_class) << ','
+            << objects[index].x_m << ',' << objects[index].y_m << ','
+            << objects[index].confidence << ']';
+    }
+    log << "],\"auto_proposal\":{\"valid\":" << (approach.target_valid ? "true" : "false")
+        << ",\"reached\":" << (approach.target_reached ? "true" : "false")
+        << ",\"distance_m\":" << approach.distance_m << ",\"twist\":["
+        << approach.command.forward_mps << ',' << approach.command.left_mps << ','
+        << approach.command.yaw_radps << "]}}\n";
 }
 }  // namespace
 
@@ -616,6 +682,8 @@ int main(int argc, char** argv) {
         }
         const cv::Mat visual_matrix = scaled_camera_matrix(rectified_matrix, options.visual_width, options.visual_height);
         robot::GroundProjector projector(visual_matrix, options.height_m, options.pitch_deg, options.roll_deg);
+        robot::GroundProjector object_projector(rectified_matrix, options.height_m,
+                                                options.pitch_deg, options.roll_deg);
         cv::Mat map_x, map_y;
         cv::fisheye::initUndistortRectifyMap(camera_matrix, distortion, cv::Mat::eye(3, 3, CV_64F),
                                              rectified_matrix, cv::Size(1280, 720), CV_16SC2, map_x, map_y);
@@ -682,6 +750,14 @@ int main(int argc, char** argv) {
         std::uint64_t fence_request_sequence = 0;
         std::size_t lower_fence_count = 0;
         std::size_t upper_fence_count = 0;
+        robot::WorldModel world;
+        robot::ApproachController approach_controller(options.approach);
+        robot::ApproachResult approach_result;
+#ifdef ROBOT_A733_NPU
+        DetectorWorker detector_worker(robot::make_a733_detector(options.detector_model),
+                                       options.detector_hz);
+        detector_worker.start();
+#endif
         const auto replay_start = std::chrono::steady_clock::now();
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             if (!replay_telemetry.empty() &&
@@ -704,6 +780,10 @@ int main(int argc, char** argv) {
             else cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
             if (options.record_raw_video) raw_video.write(raw);
             if (options.record_video) video.write(rectified);
+#ifdef ROBOT_A733_NPU
+            detector_worker.submit({rectified.clone(), capture_time,
+                                    static_cast<std::uint64_t>(frame_count)});
+#endif
             cv::resize(rectified, small, cv::Size(options.visual_width, options.visual_height), 0, 0, cv::INTER_AREA);
             cv::cvtColor(small, gray, cv::COLOR_BGR2GRAY);
             const double dt_s = std::chrono::duration<double>(capture_time - previous_time).count();
@@ -831,13 +911,29 @@ int main(int argc, char** argv) {
                 }
             }
             const robot::PoseEstimate pose = filter.estimate();
+#ifdef ROBOT_A733_NPU
+            if (auto detections = detector_worker.take()) {
+                world.replace_objects(robot::project_collectibles(
+                    *detections, object_projector,
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad}));
+            }
+#endif
+            if (const auto target = world.nearest_collectible(
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad})) {
+                approach_result = approach_controller.update(
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                    *target, capture_time, std::min(dt_s, .2));
+            } else {
+                approach_controller.reset();
+                approach_result = {};
+            }
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
                          visual_geometry, lower_fence_count, upper_fence_count,
                          visual_certain, visual_very_certain, imu_yaw_reset,
-                         gyro_bias_radps / kDegreesToRadians);
+                         gyro_bias_radps / kDegreesToRadians, world.objects(), approach_result);
             log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());

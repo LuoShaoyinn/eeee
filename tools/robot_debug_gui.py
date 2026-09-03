@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host-side arena localization viewer and explicitly armed teleoperation GUI."""
+"""Host-side arena viewer with manual and explicitly started automatic control."""
 
 import argparse
 import getpass
@@ -10,6 +10,7 @@ import queue
 import socket
 import threading
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
 
 
@@ -22,7 +23,7 @@ class DebugGui:
         self.control_stdout = control_stdout
         self.events = queue.Queue()
         self.stopping = threading.Event()
-        self.armed = False
+        self.auto_running = False
         self.vx = self.vy = self.wz = 0.0
         self.pose = None
         self.trail = []
@@ -32,9 +33,9 @@ class DebugGui:
         root.geometry("1000x720")
         toolbar = tk.Frame(root)
         toolbar.pack(fill=tk.X, padx=8, pady=8)
-        self.arm_button = tk.Button(toolbar, text="ARM", width=10, command=self.toggle_arm,
-                                    bg="#b7d7b0")
-        self.arm_button.pack(side=tk.LEFT)
+        self.auto_button = tk.Button(toolbar, text="Start Auto", width=10,
+                                     command=self.start_auto, bg="#b7d7b0")
+        self.auto_button.pack(side=tk.LEFT)
         tk.Button(toolbar, text="STOP", width=10, command=self.stop_motion,
                   bg="#e8a4a4").pack(side=tk.LEFT, padx=(8, 0))
         tk.Button(toolbar, text="Clear trail", command=self.clear_trail).pack(side=tk.LEFT, padx=8)
@@ -66,23 +67,20 @@ class DebugGui:
             self.control_stdin.flush()
         except Exception as error:
             self.events.put(("error", "control channel: {}".format(error)))
-            self.armed = False
+            self.auto_running = False
 
-    def toggle_arm(self):
-        self.armed = not self.armed
-        if self.armed:
-            self.arm_button.configure(text="DISARM", bg="#edc46f")
-        else:
-            self.vx = self.vy = self.wz = 0.0
-            self.send("stop")
-            self.arm_button.configure(text="ARM", bg="#b7d7b0")
+    def start_auto(self):
+        self.vx = self.vy = self.wz = 0.0
+        self.send("stop")
+        self.auto_running = True
+        self.auto_button.configure(text="Auto Running", bg="#edc46f")
         self.update_motion_label()
 
     def stop_motion(self):
         self.vx = self.vy = self.wz = 0.0
-        self.armed = False
+        self.auto_running = False
         self.send("stop")
-        self.arm_button.configure(text="ARM", bg="#b7d7b0")
+        self.auto_button.configure(text="Start Auto", bg="#b7d7b0")
         self.update_motion_label()
 
     def clear_trail(self):
@@ -95,8 +93,9 @@ class DebugGui:
         if key == "space":
             self.stop_motion()
             return "break"
-        if not self.armed:
-            return None
+        if key in ("w", "s", "a", "d", "q", "e", "x", "z", "c"):
+            self.auto_running = False
+            self.auto_button.configure(text="Start Auto", bg="#b7d7b0")
         if key == "w": self.vx = min(self.args.max_linear, self.vx + self.args.linear_step)
         elif key == "s": self.vx = max(-self.args.max_linear, self.vx - self.args.linear_step)
         elif key == "a": self.vy = min(self.args.max_linear, self.vy + self.args.linear_step)
@@ -111,13 +110,20 @@ class DebugGui:
         return "break"
 
     def refresh_command(self):
-        if self.armed:
+        if self.auto_running and self.pose:
+            proposal = self.pose.get("auto_proposal", {})
+            twist = proposal.get("twist", [0, 0, 0])
+            if proposal.get("valid", False) and not proposal.get("reached", False):
+                self.send("twist {:.3f} {:.3f} {:.3f}".format(*twist))
+            else:
+                self.send("stop")
+        elif any(abs(value) > 1e-6 for value in (self.vx, self.vy, self.wz)):
             self.send("twist {:.3f} {:.3f} {:.3f}".format(self.vx, self.vy, self.wz))
         if not self.stopping.is_set():
             self.root.after(self.args.command_period_ms, self.refresh_command)
 
     def update_motion_label(self):
-        state = "ARMED" if self.armed else "DISARMED"
+        state = "AUTO" if self.auto_running else "MANUAL"
         self.motion_label.configure(
             text="{}   vx={:+.2f}  vy={:+.2f} m/s  wz={:+.2f} rad/s".format(
                 state, self.vx, self.vy, self.wz))
@@ -153,6 +159,8 @@ class DebugGui:
                 event = self.events.get_nowait()
                 if event[0] == "pose":
                     self.pose = event[1]
+                    self.args.log_file.write(json.dumps(self.pose, separators=(",", ":")) + "\n")
+                    self.args.log_file.flush()
                     point = tuple(self.pose.get("pose", [0, 0, 0])[:2])
                     if not self.trail or math.dist(point, self.trail[-1]) > 0.005:
                         self.trail.append(point)
@@ -173,7 +181,7 @@ class DebugGui:
                     self.draw()
                 elif event[0] == "error":
                     self.status_label.configure(text=event[1], fg="#a02b2b")
-                    self.armed = False
+                    self.auto_running = False
                     self.update_motion_label()
         except queue.Empty:
             pass
@@ -283,14 +291,26 @@ class DebugGui:
                 text="visual certainty {:.0%} | 2sigma {:.2f} x {:.2f} m | alternate gap {:.3f} m".format(
                     confidence, major, minor, margin),
                 fill="#5f197b", anchor="nw")
+        object_colours = ("#d5a000", "#d3342f", "#333333", "#666666")
+        object_names = ("cylinder", "cube", "home", "opponent")
+        for item in self.pose.get("objects", []):
+            if len(item) < 4: continue
+            class_id, object_x, object_y, confidence = item
+            opx, opy, _ = self.transform(object_x, object_y)
+            colour = object_colours[int(class_id)]
+            self.canvas.create_oval(opx - 7, opy - 7, opx + 7, opy + 7,
+                                    fill=colour, outline="#111")
+            self.canvas.create_text(opx + 10, opy - 10,
+                                    text="{} {:.0%}".format(object_names[int(class_id)], confidence),
+                                    fill=colour, anchor="w")
 
     def close(self):
         self.stopping.set()
-        if self.armed:
-            self.send("stop")
+        self.send("stop")
         try:
             self.control_stdin.close()
         finally:
+            self.args.log_file.close()
             self.ssh_client.close()
             self.root.destroy()
 
@@ -333,7 +353,12 @@ def main():
     parser.add_argument("--max-linear", type=float, default=.45)
     parser.add_argument("--max-yaw", type=float, default=2.0)
     parser.add_argument("--command-period-ms", type=int, default=80)
+    parser.add_argument("--log", type=Path)
     args = parser.parse_args()
+    if args.log is None:
+        args.log = Path("run-log") / ("gui-" + datetime.now().strftime("%Y%m%d-%H%M%S") + ".jsonl")
+    args.log.parent.mkdir(parents=True, exist_ok=True)
+    args.log_file = args.log.open("w")
     try:
         client, stdin, stdout = connect_control(args)
     except Exception as error:

@@ -52,12 +52,32 @@ target_link_libraries(robot_autonomy PUBLIC robot_location)
 target_compile_options(robot_autonomy PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(robotloc apps/robotloc.cpp)
-target_link_libraries(robotloc PRIVATE robot_location robot_config Threads::Threads)
+target_link_libraries(robotloc PRIVATE robot_location robot_config robot_autonomy Threads::Threads)
 target_compile_options(robotloc PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(robot-runtime apps/robotloc.cpp)
-target_link_libraries(robot-runtime PRIVATE robot_location robot_config Threads::Threads)
+target_link_libraries(robot-runtime PRIVATE robot_location robot_config robot_autonomy Threads::Threads)
 target_compile_options(robot-runtime PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+set(ROBOT_A733_MODEL_ZOO "" CACHE PATH "Path to the A733 model-zoo root")
+if(ROBOT_A733_MODEL_ZOO)
+    set(A733_NPU_RUNTIME "${ROBOT_A733_MODEL_ZOO}/common/npuruntime")
+    file(GLOB A733_NPU_LIBS "${A733_NPU_RUNTIME}/lib_linux_aarch64/A733/*.so*")
+    add_executable(robot-runtime-a733
+        apps/robotloc.cpp
+        src/perception/a733_detector.cpp
+        src/a733-yolo26/yolo26_pre.cpp
+        src/a733-yolo26/yolo26_raw_post.cpp
+        ${A733_NPU_RUNTIME}/npulib.cpp
+        ${A733_NPU_RUNTIME}/npu_util.cpp)
+    target_compile_definitions(robot-runtime-a733 PRIVATE ROBOT_A733_NPU=1)
+    target_include_directories(robot-runtime-a733 PRIVATE
+        src/a733-yolo26 ${A733_NPU_RUNTIME} ${A733_NPU_RUNTIME}/include)
+    target_link_libraries(robot-runtime-a733 PRIVATE robot_location robot_config
+        robot_autonomy Threads::Threads ${A733_NPU_LIBS} dl m)
+    target_compile_options(robot-runtime-a733 PRIVATE -Wall -Wextra -Wpedantic)
+    install(TARGETS robot-runtime-a733 RUNTIME DESTINATION bin)
+endif()
 
 install(TARGETS robotd robotctl robotloc robot-runtime RUNTIME DESTINATION bin)
 install(FILES config/camera_fisheye_1280x720.yaml config/robot.yaml DESTINATION config)

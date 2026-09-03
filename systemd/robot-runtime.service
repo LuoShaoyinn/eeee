@@ -8,7 +8,8 @@ Type=simple
 User=radxa
 Group=radxa
 WorkingDirectory=/home/radxa/cubie-robot
-ExecStart=/home/radxa/cubie-robot/bin/robot-runtime --config config/robot.yaml
+Environment=LD_LIBRARY_PATH=/home/radxa/yolo26n-a733/src/model-zoo/common/npuruntime/lib_linux_aarch64/A733
+ExecStart=/home/radxa/cubie-robot/bin/robot-runtime-a733 --config config/robot.yaml
 Restart=on-failure
 RestartSec=2
 
