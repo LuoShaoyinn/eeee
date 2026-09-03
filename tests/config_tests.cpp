@@ -18,6 +18,10 @@ int main() {
             std::cerr << "unexpected production sampling rates\n";
             return 1;
         }
+        if (!config.debug_broadcast_enabled || config.debug_broadcast_port != 3335) {
+            std::cerr << "unexpected debug UDP configuration\n";
+            return 1;
+        }
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

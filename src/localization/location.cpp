@@ -203,6 +203,17 @@ PoseEstimate FenceParticleFilter::estimate() const {
         squared_weight += particle.weight * particle.weight;
     }
     output.yaw_rad = std::atan2(sine, cosine);
+    double position_variance = 0;
+    double yaw_variance = 0;
+    for (const auto& particle : particles_) {
+        const double dx = particle.x - output.x_m;
+        const double dy = particle.y - output.y_m;
+        const double dyaw = wrap_angle(particle.yaw - output.yaw_rad);
+        position_variance += particle.weight * (dx * dx + dy * dy);
+        yaw_variance += particle.weight * dyaw * dyaw;
+    }
+    output.position_sigma_m = std::sqrt(position_variance);
+    output.yaw_sigma_rad = std::sqrt(yaw_variance);
     output.effective_particles = squared_weight > 0 ? 1.0 / squared_weight : 0;
     return output;
 }

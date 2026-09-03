@@ -42,3 +42,8 @@ detector:
   model: models/yolo26n.rknn
   confidence_threshold: 3.5000000000000003e-01
   nms_threshold: 4.4999999999999996e-01
+debug:
+  broadcast_enabled: 1
+  # The A314 access point filters client broadcast; use the debug host directly.
+  broadcast_address: "192.168.19.218"
+  broadcast_port: 3335

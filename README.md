@@ -118,6 +118,27 @@ telemetry sequence, age, and validity alongside wheel, IMU, optical-flow,
 fence, and pose results. A temporary telemetry failure is logged as stale and
 does not block camera capture. This process has no actuator command path.
 
+It also sends the same passive JSON records over UDP port 3335. The configured
+destination is the current debug host because the A314 access point filters
+client broadcasts. Start the
+host arena viewer after deploying and starting `robot-runtime` on the Cubie:
+
+```sh
+uv run --project tools python tools/robot_debug_gui.py
+```
+
+On an Arch Linux host using firewalld, permit the passive stream once:
+
+```sh
+sudo firewall-cmd --zone=public --add-port=3335/udp --permanent
+sudo firewall-cmd --reload
+```
+
+The GUI uses UDP only for localization display. Chassis commands travel over
+an authenticated persistent SSH session to `robotctl --stream`. It opens
+disarmed, Space always stops, closing an armed window sends `stop`, and it has
+no servo or GA25 controls.
+
 The default camera calibration is
 `config/camera_fisheye_1280x720.yaml`. Override the starting pose with
 `--initial-x`, `--initial-y`, and `--initial-yaw`. Use `--global-initialize`

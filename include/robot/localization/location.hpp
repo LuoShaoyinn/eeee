@@ -23,6 +23,8 @@ struct PoseEstimate {
     double x_m = 1.5;
     double y_m = .9925;
     double yaw_rad = 0;
+    double position_sigma_m = 0;
+    double yaw_sigma_rad = 0;
     double effective_particles = 0;
 };
 

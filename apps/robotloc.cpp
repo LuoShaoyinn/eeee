@@ -23,6 +23,8 @@
 
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <unistd.h>
 
 #include <opencv2/calib3d.hpp>
@@ -62,6 +64,10 @@ struct Options {
     double capture_fps = 30;
     double record_fps = 10;
     double telemetry_hz = 25;
+    bool stream_json = false;
+    bool broadcast_enabled = true;
+    std::string broadcast_address = "255.255.255.255";
+    int broadcast_port = 3335;
 };
 
 struct EspState {
@@ -201,6 +207,40 @@ private:
     std::uint64_t sequence_ = 0;
 };
 
+class DebugBroadcaster {
+public:
+    DebugBroadcaster(bool enabled, const std::string& address, int port) {
+        if (!enabled) return;
+        fd_ = socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+        if (fd_ < 0) throw std::runtime_error("cannot create debug broadcast socket");
+        const int enabled_flag = 1;
+        if (setsockopt(fd_, SOL_SOCKET, SO_BROADCAST, &enabled_flag, sizeof(enabled_flag)) != 0) {
+            close(fd_);
+            fd_ = -1;
+            throw std::runtime_error("cannot enable UDP broadcast");
+        }
+        destination_.sin_family = AF_INET;
+        destination_.sin_port = htons(static_cast<std::uint16_t>(port));
+        if (inet_pton(AF_INET, address.c_str(), &destination_.sin_addr) != 1) {
+            close(fd_);
+            fd_ = -1;
+            throw std::runtime_error("invalid debug broadcast address: " + address);
+        }
+    }
+
+    ~DebugBroadcaster() { if (fd_ >= 0) close(fd_); }
+
+    void send(const std::string& record) const {
+        if (fd_ < 0) return;
+        (void)sendto(fd_, record.data(), record.size(), MSG_DONTWAIT,
+                     reinterpret_cast<const sockaddr*>(&destination_), sizeof(destination_));
+    }
+
+private:
+    int fd_ = -1;
+    sockaddr_in destination_{};
+};
+
 cv::Mat scaled_camera_matrix(const cv::Mat& matrix, int width, int height) {
     cv::Mat result;
     matrix.convertTo(result, CV_64F);
@@ -273,6 +313,9 @@ Options parse_options(int argc, char** argv) {
     options.capture_fps = config.capture_fps;
     options.record_fps = config.record_fps;
     options.telemetry_hz = config.telemetry_hz;
+    options.broadcast_enabled = config.debug_broadcast_enabled;
+    options.broadcast_address = config.debug_broadcast_address;
+    options.broadcast_port = config.debug_broadcast_port;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         const auto value = [&](const char* name) -> const char* {
@@ -301,11 +344,13 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--initial-y") options.initial_y_m = std::stod(value("--initial-y"));
         else if (argument == "--initial-yaw") options.initial_yaw_deg = std::stod(value("--initial-yaw"));
         else if (argument == "--global-initialize") options.global_initialize = true;
+        else if (argument == "--stdout-json") options.stream_json = true;
+        else if (argument == "--no-broadcast") options.broadcast_enabled = false;
         else if (argument == "--help") {
             std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
-                         "[--initial-yaw DEG] [--global-initialize]\n";
+                         "[--initial-yaw DEG] [--global-initialize] [--stdout-json] [--no-broadcast]\n";
             std::exit(0);
         } else throw std::runtime_error("unknown option: " + argument);
     }
@@ -320,7 +365,7 @@ Options parse_options(int argc, char** argv) {
     return options;
 }
 
-void write_record(std::ofstream& log, int frame_index, std::uint64_t time_ns, const EspState& state,
+void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, const EspState& state,
                   bool telemetry_valid, std::uint64_t telemetry_sequence, double telemetry_age_ms,
                   const robot::BodyVelocity& wheel, const robot::VisualMotion& visual,
                   const robot::BodyVelocity& fused, const robot::PoseEstimate& pose, size_t fence_count) {
@@ -339,6 +384,8 @@ void write_record(std::ofstream& log, int frame_index, std::uint64_t time_ns, co
         << ',' << visual.velocity.left_mps << ',' << visual.velocity.yaw_radps << "]}"
         << ",\"fused\":[" << fused.forward_mps << ',' << fused.left_mps << ',' << fused.yaw_radps << ']'
         << ",\"pose\":[" << pose.x_m << ',' << pose.y_m << ',' << pose.yaw_rad << ']'
+        << ",\"position_sigma_m\":" << pose.position_sigma_m
+        << ",\"yaw_sigma_rad\":" << pose.yaw_sigma_rad
         << ",\"effective_particles\":" << pose.effective_particles
         << ",\"lower_fence_points\":" << fence_count << "}\n";
 }
@@ -398,6 +445,8 @@ int main(int argc, char** argv) {
                                           options.initial_yaw_deg * kDegreesToRadians, options.global_initialize);
         TelemetrySampler telemetry(options.socket, options.telemetry_hz);
         telemetry.start();
+        DebugBroadcaster broadcaster(options.broadcast_enabled, options.broadcast_address,
+                                     options.broadcast_port);
         auto previous_time = std::chrono::steady_clock::now();
         int frame_count = 0;
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
@@ -443,8 +492,12 @@ int main(int argc, char** argv) {
             filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
-            write_record(log, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
+            std::ostringstream record;
+            write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
                          telemetry_age_ms, wheel, visual, fused, pose, fence.size());
+            log << record.str();
+            if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
+            broadcaster.send(record.str());
             if ((frame_count++ % 30) == 0) {
                 std::cerr << "frame=" << frame_count << " fps_dt=" << dt_s << " wheel=" << wheel.forward_mps << ','
                           << wheel.left_mps << " visual=" << (visual.valid ? "ok" : "warmup")

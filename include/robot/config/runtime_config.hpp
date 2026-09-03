@@ -47,6 +47,10 @@ struct RuntimeConfig {
     std::string detector_model = "models/yolo26n.rknn";
     double detector_confidence = .35;
     double detector_nms = .45;
+
+    bool debug_broadcast_enabled = true;
+    std::string debug_broadcast_address = "192.168.19.218";
+    int debug_broadcast_port = 3335;
 };
 
 RuntimeConfig load_runtime_config(const std::string& path);

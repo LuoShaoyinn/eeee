@@ -80,6 +80,15 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(detector, "model", config.detector_model);
     read(detector, "confidence_threshold", config.detector_confidence);
     read(detector, "nms_threshold", config.detector_nms);
+    const cv::FileNode debug = file["debug"];
+    int broadcast_enabled = config.debug_broadcast_enabled ? 1 : 0;
+    read(debug, "broadcast_enabled", broadcast_enabled);
+    config.debug_broadcast_enabled = broadcast_enabled != 0;
+    read(debug, "broadcast_address", config.debug_broadcast_address);
+    read(debug, "broadcast_port", config.debug_broadcast_port);
+    if (config.debug_broadcast_port <= 0 || config.debug_broadcast_port > 65535) {
+        throw std::runtime_error("debug broadcast port must be in 1..65535");
+    }
     validate(config);
     return config;
 }

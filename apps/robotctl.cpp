@@ -39,16 +39,35 @@ std::string request(const std::string& socket_path, const std::string& command) 
 int main(int argc, char** argv) {
     std::string socket_path = "/tmp/robotd.sock";
     int hold_ms = 0;
+    bool stream = false;
     int first_command = 1;
     while (first_command < argc) {
         const std::string argument = argv[first_command];
         if (argument == "--socket" && first_command + 1 < argc) socket_path = argv[++first_command];
         else if (argument == "--hold-ms" && first_command + 1 < argc) hold_ms = std::stoi(argv[++first_command]);
+        else if (argument == "--stream") stream = true;
         else break;
         ++first_command;
     }
+    if (stream) {
+        try {
+            std::string command;
+            while (std::getline(std::cin, command)) {
+                if (command.empty()) continue;
+                std::cout << request(socket_path, command);
+                if (std::cout.good()) std::cout.flush();
+            }
+            try { (void)request(socket_path, "stop"); } catch (const std::exception&) {}
+        } catch (const std::exception& error) {
+            std::cerr << "robotctl: " << error.what() << '\n';
+            try { (void)request(socket_path, "stop"); } catch (const std::exception&) {}
+            return 1;
+        }
+        return 0;
+    }
     if (first_command >= argc) {
-        std::cerr << "usage: robotctl [--socket PATH] [--hold-ms N] COMMAND...\n";
+        std::cerr << "usage: robotctl [--socket PATH] [--hold-ms N] COMMAND...\n"
+                     "       robotctl [--socket PATH] --stream\n";
         return 2;
     }
     std::string command;
