@@ -43,9 +43,12 @@ target_compile_options(robot_config PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(robot_autonomy
     src/control/safety_supervisor.cpp
+    src/perception/object_projection.cpp
+    src/planning/approach_controller.cpp
     src/planning/mission.cpp
     src/planning/world_model.cpp)
 target_include_directories(robot_autonomy PUBLIC include)
+target_link_libraries(robot_autonomy PUBLIC robot_location)
 target_compile_options(robot_autonomy PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(robotloc apps/robotloc.cpp)

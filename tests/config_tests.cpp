@@ -35,6 +35,13 @@ int main() {
             std::cerr << "unexpected visual correction limits\n";
             return 1;
         }
+        if (config.approach_translation_kp != .75 ||
+            config.approach_maximum_linear_mps != .28 ||
+            config.approach_stopping_distance_m != .18 ||
+            config.approach_target_timeout_ms != 300) {
+            std::cerr << "unexpected approach controller configuration\n";
+            return 1;
+        }
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

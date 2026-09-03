@@ -29,6 +29,15 @@ void validate(const RuntimeConfig& config) {
         config.initial_y_m < 0 || config.initial_y_m > config.arena_width_m) {
         throw std::runtime_error("configured initial pose lies outside the arena");
     }
+    if (config.approach_translation_kp < 0 || config.approach_translation_ki < 0 ||
+        config.approach_translation_kd < 0 || config.approach_yaw_kp < 0 ||
+        config.approach_yaw_kd < 0 || config.approach_maximum_linear_mps <= 0 ||
+        config.approach_maximum_yaw_radps <= 0 ||
+        config.approach_maximum_linear_accel_mps2 <= 0 ||
+        config.approach_maximum_yaw_accel_radps2 <= 0 ||
+        config.approach_stopping_distance_m <= 0 || config.approach_target_timeout_ms <= 0) {
+        throw std::runtime_error("approach controller configuration is invalid");
+    }
     if (config.fence_hsv_h_min < 0 || config.fence_hsv_h_max > 179 ||
         config.fence_hsv_s_min < 0 || config.fence_hsv_s_max > 255 ||
         config.fence_hsv_v_min < 0 || config.fence_hsv_v_max > 255 ||
@@ -114,6 +123,18 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(control, "max_yaw_radps", config.max_yaw_radps);
     read(control, "max_linear_accel_mps2", config.max_linear_accel_mps2);
     read(control, "max_yaw_accel_radps2", config.max_yaw_accel_radps2);
+    const cv::FileNode approach = file["approach"];
+    read(approach, "translation_kp", config.approach_translation_kp);
+    read(approach, "translation_ki", config.approach_translation_ki);
+    read(approach, "translation_kd", config.approach_translation_kd);
+    read(approach, "yaw_kp", config.approach_yaw_kp);
+    read(approach, "yaw_kd", config.approach_yaw_kd);
+    read(approach, "maximum_linear_mps", config.approach_maximum_linear_mps);
+    read(approach, "maximum_yaw_radps", config.approach_maximum_yaw_radps);
+    read(approach, "maximum_linear_accel_mps2", config.approach_maximum_linear_accel_mps2);
+    read(approach, "maximum_yaw_accel_radps2", config.approach_maximum_yaw_accel_radps2);
+    read(approach, "stopping_distance_m", config.approach_stopping_distance_m);
+    read(approach, "target_timeout_ms", config.approach_target_timeout_ms);
     const cv::FileNode detector = file["detector"];
     read(detector, "backend", config.detector_backend);
     read(detector, "model", config.detector_model);

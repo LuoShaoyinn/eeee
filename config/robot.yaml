@@ -57,6 +57,18 @@ control:
   max_yaw_radps: 2.
   max_linear_accel_mps2: 5.9999999999999998e-01
   max_yaw_accel_radps2: 2.5
+approach:
+  translation_kp: 7.5000000000000000e-01
+  translation_ki: 4.0000000000000001e-02
+  translation_kd: 5.9999999999999998e-02
+  yaw_kp: 1.4
+  yaw_kd: 8.0000000000000002e-02
+  maximum_linear_mps: 2.8000000000000003e-01
+  maximum_yaw_radps: 8.0000000000000004e-01
+  maximum_linear_accel_mps2: 5.0000000000000000e-01
+  maximum_yaw_accel_radps2: 1.5
+  stopping_distance_m: 1.7999999999999999e-01
+  target_timeout_ms: 300
 detector:
   backend: vip_lite
   model: models/official_yolo26n_split_pcq_a733.nb

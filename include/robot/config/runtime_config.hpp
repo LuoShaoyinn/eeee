@@ -62,6 +62,18 @@ struct RuntimeConfig {
     double max_linear_accel_mps2 = .6;
     double max_yaw_accel_radps2 = 2.5;
 
+    double approach_translation_kp = .75;
+    double approach_translation_ki = .04;
+    double approach_translation_kd = .06;
+    double approach_yaw_kp = 1.4;
+    double approach_yaw_kd = .08;
+    double approach_maximum_linear_mps = .28;
+    double approach_maximum_yaw_radps = .8;
+    double approach_maximum_linear_accel_mps2 = .5;
+    double approach_maximum_yaw_accel_radps2 = 1.5;
+    double approach_stopping_distance_m = .18;
+    int approach_target_timeout_ms = 300;
+
     std::string detector_backend = "vip_lite";
     std::string detector_model = "models/official_yolo26n_split_pcq_a733.nb";
     double detector_inference_hz = 30;
