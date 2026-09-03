@@ -61,8 +61,8 @@ struct RuntimeConfig {
     double max_linear_accel_mps2 = .6;
     double max_yaw_accel_radps2 = 2.5;
 
-    std::string detector_backend = "npu";
-    std::string detector_model = "models/yolo26n.rknn";
+    std::string detector_backend = "vip_lite";
+    std::string detector_model = "models/official_yolo26n_split_pcq_a733.nb";
     double detector_confidence = .35;
     double detector_nms = .45;
 

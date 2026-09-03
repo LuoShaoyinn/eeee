@@ -63,7 +63,7 @@ else()
     message(FATAL_ERROR "SYS_ARCH is not linux_armhf, linux_aarch64 or android.")
 endif()
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs dnn)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs dnn videoio)
 
 
 set(NPU_RT_DIR ${MODEL_ZOO_HOME_DIR}/common/npuruntime)
@@ -93,6 +93,9 @@ string(TOLOWER "${CMAKE_SYSTEM_NAME}" SYSTEM_LOWER)
 # Target
 add_executable(${PROJECT_NAME}_${TARGET_LOWER} ${DIRSRCS} ${NPULIB_DIRSRCS})
 target_link_libraries(${PROJECT_NAME}_${TARGET_LOWER} ${OpenCV_LIBS} ${NPU_RT_LIBS} -lm -ldl)
+add_executable(yolo26_video_benchmark video_benchmark.cpp yolo26_pre.cpp
+               yolo26_raw_post.cpp ${NPULIB_DIRSRCS})
+target_link_libraries(yolo26_video_benchmark ${OpenCV_LIBS} ${NPU_RT_LIBS} -lm -ldl)
 
 
 # install

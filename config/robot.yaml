@@ -57,8 +57,8 @@ control:
   max_linear_accel_mps2: 5.9999999999999998e-01
   max_yaw_accel_radps2: 2.5
 detector:
-  backend: npu
-  model: models/yolo26n.rknn
+  backend: vip_lite
+  model: models/official_yolo26n_split_pcq_a733.nb
   confidence_threshold: 3.5000000000000003e-01
   nms_threshold: 4.4999999999999996e-01
 debug:

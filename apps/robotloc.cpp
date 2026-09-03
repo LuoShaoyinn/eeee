@@ -48,6 +48,7 @@ struct Options {
     std::string raw_video_path;
     bool record_video = true;
     bool record_raw_video = false;
+    bool rectified_input = false;
     int visual_width = 320;
     int visual_height = 180;
     size_t particles = 600;
@@ -394,6 +395,7 @@ Options parse_options(int argc, char** argv) {
             options.record_raw_video = true;
         }
         else if (argument == "--no-video") options.record_video = false;
+        else if (argument == "--rectified-input") options.rectified_input = true;
         else if (argument == "--visual-width") options.visual_width = std::stoi(value("--visual-width"));
         else if (argument == "--visual-height") options.visual_height = std::stoi(value("--visual-height"));
         else if (argument == "--particles") options.particles = std::stoul(value("--particles"));
@@ -411,7 +413,8 @@ Options parse_options(int argc, char** argv) {
             std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
-                         "[--initial-yaw DEG] [--global-initialize] [--stdout-json] [--no-broadcast]\n";
+                         "[--initial-yaw DEG] [--global-initialize] [--rectified-input] "
+                         "[--stdout-json] [--no-broadcast]\n";
             std::exit(0);
         } else throw std::runtime_error("unknown option: " + argument);
     }
@@ -496,7 +499,9 @@ int main(int argc, char** argv) {
         cv::Mat map_x, map_y;
         cv::fisheye::initUndistortRectifyMap(camera_matrix, distortion, cv::Mat::eye(3, 3, CV_64F),
                                              rectified_matrix, cv::Size(1280, 720), CV_16SC2, map_x, map_y);
-        cv::VideoCapture capture(options.camera, cv::CAP_V4L2);
+        cv::VideoCapture capture;
+        if (std::filesystem::is_regular_file(options.camera)) capture.open(options.camera);
+        else capture.open(options.camera, cv::CAP_V4L2);
         if (!capture.isOpened()) throw std::runtime_error("cannot open camera: " + options.camera);
         capture.set(cv::CAP_PROP_FRAME_WIDTH, options.capture_width);
         capture.set(cv::CAP_PROP_FRAME_HEIGHT, options.capture_height);
@@ -549,7 +554,8 @@ int main(int argc, char** argv) {
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
             const auto capture_time = std::chrono::steady_clock::now();
             const auto captured_telemetry = telemetry.latest();
-            cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
+            if (options.rectified_input) rectified = raw;
+            else cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
             if (options.record_raw_video) raw_video.write(raw);
             if (options.record_video) video.write(rectified);
             cv::resize(rectified, small, cv::Size(options.visual_width, options.visual_height), 0, 0, cv::INTER_AREA);

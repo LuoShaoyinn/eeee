@@ -214,6 +214,21 @@ Enter `x_m y_m yaw_deg [note]` for each stationary pose. The arena frame uses
 `+x` forward from home along the 3 m side, `+y` left along the 1.985 m side,
 and positive yaw toward `+y`.
 
+## Offline Cubie Benchmark
+
+`robot-runtime` accepts a recorded rectified AVI for passive benchmarking:
+
+```sh
+./build/robot-runtime --camera RUN.avi --rectified-input --no-video \
+  --no-broadcast --socket /tmp/no-robotd --max-frames 300
+```
+
+The resident `src/a733-yolo26/yolo26_video_benchmark` keeps the NPU network
+loaded and reports in-memory preprocessing, inference, and decode/NMS timing.
+On the 2026-09-03 `location-20260903-065016` run, 300-frame concurrent tests
+measured 3.83 FPS for exhaustive fence localization and 51.2 FPS for YOLO26.
+The visual geometry grid search is currently the limiting stage.
+
 ## Service
 
 Install `systemd/robotd.service` as `/etc/systemd/system/robotd.service`, then:

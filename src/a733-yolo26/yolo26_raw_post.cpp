@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "model_config.h"
+#include "yolo26_pipeline.h"
 
 namespace {
 
@@ -110,4 +111,17 @@ int yolo26_postprocess(const char* imagepath, float** output) {
     std::printf("detection num: %zu\n", objects.size());
     draw(image, objects);
     return 0;
+}
+
+std::vector<Yolo26Detection> yolo26_decode_frame(const cv::Size& image_size,
+                                                  float** output) {
+    cv::Mat shape_only(image_size, CV_8UC3);
+    std::vector<Object> objects;
+    decode(shape_only, output[0], output[1], &objects);
+    std::vector<Yolo26Detection> detections;
+    detections.reserve(objects.size());
+    for (const Object& object : objects) {
+        detections.push_back({object.rect, object.label, object.score});
+    }
+    return detections;
 }
