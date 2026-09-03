@@ -110,6 +110,10 @@ derives that candidate count from the configured input dimensions, and
 `tools/split_yolo26_outputs.py` reads the actual ONNX shape rather than
 assuming the square-model count.
 
+The resulting payload is `official_yolo26n_640x384_split_pcq_a733.nb`. Its
+NPU input is UINT8 `3x640x384x1` (737,280 bytes), so the board sample's RGB
+letterbox buffer and the model have exactly the same layout.
+
 ## YOLO26s training record
 
 An official pretrained YOLO26s model was fine-tuned on the arena dataset on
