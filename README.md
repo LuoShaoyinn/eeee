@@ -95,3 +95,25 @@ The validated payload is `official_yolo26n_split_pcq_a733.nb`. On the Cubie it
 ran in 13.55 ms and detected a positive calibration image. `arena-test.jpg`
 is a negative/low-confidence frame (the original ONNX peak score is 0.096),
 so zero detections from that image are expected at the 0.35 score threshold.
+
+## YOLO26s training record
+
+An official pretrained YOLO26s model was fine-tuned on the arena dataset on
+2026-09-03. The run used 648 training images, 162 validation images, four
+classes, 640-pixel inputs, 100 epochs, and two RTX 4090 GPUs. Global batch 64
+(32 images per GPU) was used because full-precision global batch 128 exceeded
+the 24 GB GPU memory limit.
+
+The best checkpoint was epoch 93:
+
+- precision: 0.94021
+- recall: 0.93242
+- mAP50: 0.96401
+- mAP50-95: 0.67573
+
+The final epoch reached mAP50-95 0.66728. This improves over the YOLO26n run's
+best mAP50-95 of 0.65124, but the small model remains the default deployment
+candidate: YOLO26s has about 9.5M parameters and 20.7G FLOPs, versus about
+2.4M parameters and 5.4G FLOPs for YOLO26n. The training outputs, including
+`best.pt`, remain on persistent training storage and are deliberately not
+committed to this hardware deployment repository.
