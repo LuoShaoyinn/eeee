@@ -28,10 +28,28 @@ struct RuntimeConfig {
     double initial_x_m = .1;
     double initial_y_m = .1;
     double initial_yaw_deg = 0;
+    double visual_pull_gain = .12;
+    double visual_max_correction_m = .04;
+    double visual_max_correction_deg = 1.5;
+    double visual_certain_pull_gain = .50;
+    double visual_certain_max_correction_m = .15;
+    double visual_certain_max_correction_deg = 6.0;
+    double visual_certain_confidence = .65;
+    double visual_precise_residual_m = .010;
+    double visual_dominant_residual_m = .030;
+    double visual_certain_margin_m = .015;
+    int visual_min_lower_edge_points = 60;
+    double visual_yaw_reset_max_error_deg = 15.0;
 
     double arena_length_m = 3;
     double arena_width_m = 1.985;
     double fence_height_m = .254;
+    int fence_hsv_h_min = 96;
+    int fence_hsv_s_min = 128;
+    int fence_hsv_v_min = 82;
+    int fence_hsv_h_max = 121;
+    int fence_hsv_s_max = 255;
+    int fence_hsv_v_max = 255;
 
     int servo_operational_min_pulse_us = 1600;
     int servo_operational_max_pulse_us = 2000;

@@ -28,6 +28,24 @@ void validate(const RuntimeConfig& config) {
         config.initial_y_m < 0 || config.initial_y_m > config.arena_width_m) {
         throw std::runtime_error("configured initial pose lies outside the arena");
     }
+    if (config.fence_hsv_h_min < 0 || config.fence_hsv_h_max > 179 ||
+        config.fence_hsv_s_min < 0 || config.fence_hsv_s_max > 255 ||
+        config.fence_hsv_v_min < 0 || config.fence_hsv_v_max > 255 ||
+        config.fence_hsv_h_min > config.fence_hsv_h_max ||
+        config.fence_hsv_s_min > config.fence_hsv_s_max ||
+        config.fence_hsv_v_min > config.fence_hsv_v_max) {
+        throw std::runtime_error("invalid blue-fence HSV range");
+    }
+    if (config.visual_pull_gain <= 0 || config.visual_pull_gain > 1 ||
+        config.visual_certain_pull_gain <= 0 || config.visual_certain_pull_gain > 1 ||
+        config.visual_max_correction_m <= 0 || config.visual_certain_max_correction_m <= 0 ||
+        config.visual_max_correction_deg <= 0 || config.visual_certain_max_correction_deg <= 0 ||
+        config.visual_certain_confidence < 0 || config.visual_certain_confidence > 1 ||
+        config.visual_precise_residual_m <= 0 || config.visual_dominant_residual_m <= 0 ||
+        config.visual_certain_margin_m < 0 || config.visual_min_lower_edge_points < 1 ||
+        config.visual_yaw_reset_max_error_deg <= 0 || config.visual_yaw_reset_max_error_deg > 90) {
+        throw std::runtime_error("invalid visual correction limits");
+    }
 }
 
 }  // namespace
@@ -61,10 +79,29 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(localization, "initial_x_m", config.initial_x_m);
     read(localization, "initial_y_m", config.initial_y_m);
     read(localization, "initial_yaw_deg", config.initial_yaw_deg);
+    read(localization, "visual_pull_gain", config.visual_pull_gain);
+    read(localization, "visual_max_correction_m", config.visual_max_correction_m);
+    read(localization, "visual_max_correction_deg", config.visual_max_correction_deg);
+    read(localization, "visual_certain_pull_gain", config.visual_certain_pull_gain);
+    read(localization, "visual_certain_max_correction_m", config.visual_certain_max_correction_m);
+    read(localization, "visual_certain_max_correction_deg", config.visual_certain_max_correction_deg);
+    read(localization, "visual_certain_confidence", config.visual_certain_confidence);
+    read(localization, "visual_precise_residual_m", config.visual_precise_residual_m);
+    read(localization, "visual_dominant_residual_m", config.visual_dominant_residual_m);
+    read(localization, "visual_certain_margin_m", config.visual_certain_margin_m);
+    read(localization, "visual_min_lower_edge_points", config.visual_min_lower_edge_points);
+    read(localization, "visual_yaw_reset_max_error_deg", config.visual_yaw_reset_max_error_deg);
     const cv::FileNode arena = file["arena"];
     read(arena, "length_m", config.arena_length_m);
     read(arena, "width_m", config.arena_width_m);
     read(arena, "fence_height_m", config.fence_height_m);
+    const cv::FileNode fence_hsv = file["fence_hsv"];
+    read(fence_hsv, "h_min", config.fence_hsv_h_min);
+    read(fence_hsv, "s_min", config.fence_hsv_s_min);
+    read(fence_hsv, "v_min", config.fence_hsv_v_min);
+    read(fence_hsv, "h_max", config.fence_hsv_h_max);
+    read(fence_hsv, "s_max", config.fence_hsv_s_max);
+    read(fence_hsv, "v_max", config.fence_hsv_v_max);
     const cv::FileNode servo = file["servo"];
     read(servo, "operational_min_pulse_us", config.servo_operational_min_pulse_us);
     read(servo, "operational_max_pulse_us", config.servo_operational_max_pulse_us);

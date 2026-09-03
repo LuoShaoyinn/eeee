@@ -64,6 +64,21 @@ struct Options {
     double capture_fps = 30;
     double record_fps = 10;
     double telemetry_hz = 25;
+    double visual_pull_gain = .12;
+    double visual_max_correction_m = .04;
+    double visual_max_correction_rad = 1.5 * kDegreesToRadians;
+    double visual_certain_pull_gain = .50;
+    double visual_certain_max_correction_m = .15;
+    double visual_certain_max_correction_rad = 6.0 * kDegreesToRadians;
+    double visual_certain_confidence = .65;
+    double visual_precise_residual_m = .010;
+    double visual_dominant_residual_m = .030;
+    double visual_certain_margin_m = .015;
+    int visual_min_lower_edge_points = 60;
+    double visual_yaw_reset_max_error_rad = 15.0 * kDegreesToRadians;
+    double fence_height_m = .254;
+    cv::Scalar fence_hsv_lower{96, 128, 82};
+    cv::Scalar fence_hsv_upper{121, 255, 255};
     bool stream_json = false;
     bool broadcast_enabled = true;
     std::string broadcast_address = "255.255.255.255";
@@ -253,21 +268,48 @@ cv::Mat scaled_camera_matrix(const cv::Mat& matrix, int width, int height) {
     return result;
 }
 
-std::vector<cv::Point2d> lower_fence_points(const cv::Mat& rectified, const robot::GroundProjector& projector) {
+struct FenceEdges {
+    std::vector<cv::Point2d> lower;
+    std::vector<cv::Point2d> upper;
+
+    std::vector<cv::Point2d> combined() const {
+        std::vector<cv::Point2d> result = lower;
+        result.insert(result.end(), upper.begin(), upper.end());
+        return result;
+    }
+};
+
+FenceEdges fence_edge_points(const cv::Mat& rectified,
+                             const robot::GroundProjector& projector,
+                             const cv::Scalar& hsv_lower,
+                             const cv::Scalar& hsv_upper,
+                             double fence_height_m) {
     cv::Mat hsv, mask;
     cv::cvtColor(rectified, hsv, cv::COLOR_BGR2HSV);
-    cv::inRange(hsv, cv::Scalar(92, 75, 45), cv::Scalar(135, 255, 255), mask);
+    cv::inRange(hsv, hsv_lower, hsv_upper, mask);
     cv::morphologyEx(mask, mask, cv::MORPH_CLOSE,
                      cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 3)));
-    std::vector<cv::Point2d> points;
+    FenceEdges points;
     for (int x = 0; x < mask.cols; x += 4) {
-        int y = -1;
-        for (int row = mask.rows - 1; row >= mask.rows / 5; --row) {
-            if (mask.at<unsigned char>(row, x) != 0) { y = row; break; }
+        int upper_y = -1;
+        int lower_y = -1;
+        for (int row = 0; row < mask.rows; ++row) {
+            if (mask.at<unsigned char>(row, x) == 0) continue;
+            if (upper_y < 0) upper_y = row;
+            lower_y = row;
         }
         cv::Point2d ground;
-        if (y >= 0 && projector.project(cv::Point2f(static_cast<float>(x), static_cast<float>(y)), ground)) {
-            points.push_back(ground);
+        if (lower_y - upper_y < 3) continue;
+        // A mask contour coincident with the image border is clipping, not an
+        // observed fence edge. Side-border intersections remain valid samples.
+        if (lower_y < mask.rows - 2 &&
+            projector.project(cv::Point2f(static_cast<float>(x), static_cast<float>(lower_y)), ground)) {
+            points.lower.push_back(ground);
+        }
+        if (upper_y > 1 && projector.project_to_height(
+                cv::Point2f(static_cast<float>(x), static_cast<float>(upper_y)),
+                fence_height_m, ground)) {
+            points.upper.push_back(ground);
         }
     }
     return points;
@@ -313,6 +355,25 @@ Options parse_options(int argc, char** argv) {
     options.capture_fps = config.capture_fps;
     options.record_fps = config.record_fps;
     options.telemetry_hz = config.telemetry_hz;
+    options.visual_pull_gain = config.visual_pull_gain;
+    options.visual_max_correction_m = config.visual_max_correction_m;
+    options.visual_max_correction_rad = config.visual_max_correction_deg * kDegreesToRadians;
+    options.visual_certain_pull_gain = config.visual_certain_pull_gain;
+    options.visual_certain_max_correction_m = config.visual_certain_max_correction_m;
+    options.visual_certain_max_correction_rad =
+        config.visual_certain_max_correction_deg * kDegreesToRadians;
+    options.visual_certain_confidence = config.visual_certain_confidence;
+    options.visual_precise_residual_m = config.visual_precise_residual_m;
+    options.visual_dominant_residual_m = config.visual_dominant_residual_m;
+    options.visual_certain_margin_m = config.visual_certain_margin_m;
+    options.visual_min_lower_edge_points = config.visual_min_lower_edge_points;
+    options.visual_yaw_reset_max_error_rad =
+        config.visual_yaw_reset_max_error_deg * kDegreesToRadians;
+    options.fence_height_m = config.fence_height_m;
+    options.fence_hsv_lower = cv::Scalar(config.fence_hsv_h_min, config.fence_hsv_s_min,
+                                         config.fence_hsv_v_min);
+    options.fence_hsv_upper = cv::Scalar(config.fence_hsv_h_max, config.fence_hsv_s_max,
+                                         config.fence_hsv_v_max);
     options.broadcast_enabled = config.debug_broadcast_enabled;
     options.broadcast_address = config.debug_broadcast_address;
     options.broadcast_port = config.debug_broadcast_port;
@@ -371,7 +432,9 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   const robot::BodyVelocity& fused, const robot::Pose2& odometry_pose,
                   const robot::PoseEstimate& pose,
                   const robot::VisualGeometryEstimate& visual_geometry,
-                  size_t fence_count) {
+                  size_t lower_fence_count, size_t upper_fence_count,
+                  bool visual_certain, bool visual_very_certain,
+                  bool imu_yaw_reset, double gyro_bias_degps) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
@@ -398,6 +461,11 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"sigma_major_m\":" << visual_geometry.sigma_major_m
         << ",\"sigma_minor_m\":" << visual_geometry.sigma_minor_m
         << ",\"major_axis_rad\":" << visual_geometry.major_axis_rad << '}'
+        << ",\"visual_yaw_sigma_rad\":" << visual_geometry.yaw_sigma_rad
+        << ",\"visual_certain\":" << (visual_certain ? "true" : "false")
+        << ",\"visual_very_certain\":" << (visual_very_certain ? "true" : "false")
+        << ",\"imu_yaw_reset\":" << (imu_yaw_reset ? "true" : "false")
+        << ",\"gyro_bias_degps\":" << gyro_bias_degps
         << ",\"visual_geometry_candidates\":[";
     for (std::size_t index = 0; index < visual_geometry.candidates.size(); ++index) {
         if (index != 0) log << ',';
@@ -406,7 +474,8 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
             << candidate.pose.yaw_rad << ',' << candidate.wall_residual_m << ']';
     }
     log << "]"
-        << ",\"lower_fence_points\":" << fence_count << "}\n";
+        << ",\"lower_fence_points\":" << lower_fence_count
+        << ",\"upper_fence_points\":" << upper_fence_count << "}\n";
 }
 }  // namespace
 
@@ -471,6 +540,10 @@ int main(int argc, char** argv) {
         auto previous_time = std::chrono::steady_clock::now();
         int frame_count = 0;
         robot::VisualGeometryEstimate visual_geometry;
+        double gyro_bias_radps = 0;
+        std::optional<double> bias_anchor_visual_yaw;
+        double bias_anchor_elapsed_s = 0;
+        double bias_anchor_imu_delta_rad = 0;
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
@@ -505,13 +578,16 @@ int main(int argc, char** argv) {
             }
             // IMU axes are +x forward, +y right, +z down. Robot +z is up, so
             // use the negated gyro-z rate and never the IMU's absolute yaw.
-            const double imu_yaw_rate = -state.gyro_z_degps * kDegreesToRadians;
+            const double prediction_dt = std::min(dt_s, .2);
+            const double measured_imu_yaw_rate = -state.gyro_z_degps * kDegreesToRadians;
+            bias_anchor_elapsed_s += prediction_dt;
+            bias_anchor_imu_delta_rad += measured_imu_yaw_rate * prediction_dt;
+            const double imu_yaw_rate = measured_imu_yaw_rate - gyro_bias_radps;
             fused.yaw_radps = (plausible_visual
                                ? .8 * imu_yaw_rate + .2 * visual.velocity.yaw_radps
                                : imu_yaw_rate);
             robot::BodyVelocity prediction = wheel;
             prediction.yaw_radps = imu_yaw_rate;
-            const double prediction_dt = std::min(dt_s, .2);
             const double midpoint_yaw = odometry_pose.yaw_rad + .5 * prediction.yaw_radps * prediction_dt;
             odometry_pose.x_m += (std::cos(midpoint_yaw) * prediction.forward_mps -
                                   std::sin(midpoint_yaw) * prediction.left_mps) * prediction_dt;
@@ -519,9 +595,71 @@ int main(int argc, char** argv) {
                                   std::cos(midpoint_yaw) * prediction.left_mps) * prediction_dt;
             odometry_pose.yaw_rad += prediction.yaw_radps * prediction_dt;
             filter.predict(prediction, prediction_dt);
-            const std::vector<cv::Point2d> fence = lower_fence_points(small, projector);
+            const FenceEdges fence_edges = fence_edge_points(
+                small, projector, options.fence_hsv_lower, options.fence_hsv_upper,
+                options.fence_height_m);
+            const std::vector<cv::Point2d> fence = fence_edges.combined();
+            bool visual_certain = false;
+            bool visual_very_certain = false;
+            bool imu_yaw_reset = false;
             if (frame_count % 5 == 0) {
                 visual_geometry = robot::estimate_fence_geometry(fence, odometry_pose.yaw_rad);
+                if (visual_geometry.valid && !visual_geometry.candidates.empty()) {
+                    const auto& candidate = visual_geometry.candidates.front();
+                    const bool precise = candidate.wall_residual_m <=
+                                         options.visual_precise_residual_m;
+                    const bool dominant_edge = candidate.wall_residual_m <=
+                                                   options.visual_dominant_residual_m &&
+                                               visual_geometry.alternative_margin_m >=
+                                                   options.visual_certain_margin_m &&
+                                               static_cast<int>(fence_edges.lower.size()) >=
+                                                   options.visual_min_lower_edge_points;
+                    visual_certain = precise || dominant_edge ||
+                                     visual_geometry.confidence >= options.visual_certain_confidence;
+                    visual_very_certain = precise &&
+                        static_cast<int>(fence_edges.lower.size()) >=
+                            options.visual_min_lower_edge_points &&
+                        visual_geometry.yaw_sigma_rad <= 3.0 * kDegreesToRadians;
+                    const double gain = visual_certain ? options.visual_certain_pull_gain
+                                                       : options.visual_pull_gain;
+                    const double max_distance = visual_certain
+                        ? options.visual_certain_max_correction_m
+                        : options.visual_max_correction_m;
+                    const double max_yaw = visual_certain
+                        ? options.visual_certain_max_correction_rad
+                        : options.visual_max_correction_rad;
+                    const double major_axis_gain = visual_geometry.sigma_major_m >= .15
+                        ? 0.0
+                        : std::clamp(.05 / (visual_geometry.sigma_major_m + .01), 0.0, 1.0);
+                    filter.correct_toward(candidate.pose, gain, max_distance, max_yaw,
+                                          visual_geometry.major_axis_rad, major_axis_gain);
+                    const double yaw_error = std::remainder(
+                        candidate.pose.yaw_rad - odometry_pose.yaw_rad, 2.0 * CV_PI);
+                    if (visual_very_certain &&
+                        std::abs(yaw_error) <= options.visual_yaw_reset_max_error_rad) {
+                        // The IMU supplies only relative yaw rate; reset the
+                        // integrated heading reference, not the sensor itself.
+                        odometry_pose.yaw_rad = candidate.pose.yaw_rad;
+                        imu_yaw_reset = true;
+                        if (!bias_anchor_visual_yaw) {
+                            bias_anchor_visual_yaw = candidate.pose.yaw_rad;
+                            bias_anchor_elapsed_s = 0;
+                            bias_anchor_imu_delta_rad = 0;
+                        } else if (bias_anchor_elapsed_s >= 1.0) {
+                            const double visual_delta = std::remainder(
+                                candidate.pose.yaw_rad - *bias_anchor_visual_yaw,
+                                2.0 * CV_PI);
+                            const double observed_bias = std::clamp(
+                                (bias_anchor_imu_delta_rad - visual_delta) /
+                                    bias_anchor_elapsed_s,
+                                -5.0 * kDegreesToRadians, 5.0 * kDegreesToRadians);
+                            gyro_bias_radps += .15 * (observed_bias - gyro_bias_radps);
+                            bias_anchor_visual_yaw = candidate.pose.yaw_rad;
+                            bias_anchor_elapsed_s = 0;
+                            bias_anchor_imu_delta_rad = 0;
+                        }
+                    }
+                }
             }
             filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
@@ -529,7 +667,9 @@ int main(int argc, char** argv) {
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
-                         visual_geometry, fence.size());
+                         visual_geometry, fence_edges.lower.size(), fence_edges.upper.size(),
+                         visual_certain, visual_very_certain, imu_yaw_reset,
+                         gyro_bias_radps / kDegreesToRadians);
             log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());
@@ -537,7 +677,8 @@ int main(int argc, char** argv) {
                 std::cerr << "frame=" << frame_count << " fps_dt=" << dt_s << " wheel=" << wheel.forward_mps << ','
                           << wheel.left_mps << " visual=" << (visual.valid ? "ok" : "warmup")
                           << " telemetry=" << (telemetry_valid ? "ok" : "stale")
-                          << " fence=" << fence.size() << " pose=" << pose.x_m << ',' << pose.y_m << '\n';
+                          << " fence=" << fence_edges.lower.size() << '+' << fence_edges.upper.size()
+                          << " pose=" << pose.x_m << ',' << pose.y_m << '\n';
             }
         }
     } catch (const std::exception& error) {

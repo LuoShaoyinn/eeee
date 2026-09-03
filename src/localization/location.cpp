@@ -64,9 +64,15 @@ GroundProjector::GroundProjector(cv::Mat camera_matrix, double camera_height_m,
 }
 
 bool GroundProjector::project(const cv::Point2f& pixel, cv::Point2d& ground) const {
+    return project_to_height(pixel, 0, ground);
+}
+
+bool GroundProjector::project_to_height(const cv::Point2f& pixel, double height_m,
+                                        cv::Point2d& ground) const {
     const cv::Vec3d ray = rotation_car_from_camera_ * (camera_inverse_ * cv::Vec3d(pixel.x, pixel.y, 1));
-    if (ray[2] >= -1e-6) return false;
-    const double scale = -camera_height_m_ / ray[2];
+    if (std::abs(ray[2]) < 1e-6) return false;
+    const double scale = (height_m - camera_height_m_) / ray[2];
+    if (scale <= 0) return false;
     ground = {scale * ray[0], scale * ray[1]};
     return std::isfinite(ground.x) && std::isfinite(ground.y) && ground.x > -.5 && ground.x < 6.0 &&
            std::abs(ground.y) < 4.0;
@@ -150,18 +156,28 @@ void FenceParticleFilter::update(const std::vector<cv::Point2d>& observations) {
     if (observations.size() < 20) return;
     constexpr double sigma_m = .07;
     for (auto& particle : particles_) {
-        std::vector<double> distances;
+        std::vector<std::pair<double, double>> distances;
         distances.reserve(observations.size());
         const double cosine = std::cos(particle.yaw);
         const double sine = std::sin(particle.yaw);
         for (const auto& point : observations) {
             const double x = particle.x + cosine * point.x - sine * point.y;
             const double y = particle.y + sine * point.x + cosine * point.y;
-            distances.push_back(field_wall_distance(x, y));
+            const double range = std::hypot(point.x, point.y);
+            distances.push_back({field_wall_distance(x, y),
+                                 1.0 / ((.20 + range) * (.20 + range))});
         }
-        std::sort(distances.begin(), distances.end());
+        std::sort(distances.begin(), distances.end(), [](const auto& left, const auto& right) {
+            return left.first < right.first;
+        });
         const size_t keep = std::max<size_t>(10, distances.size() * 2 / 3);
-        const double mean = std::accumulate(distances.begin(), distances.begin() + keep, 0.0) / keep;
+        double weighted_error = 0;
+        double total_weight = 0;
+        for (size_t index = 0; index < keep; ++index) {
+            weighted_error += distances[index].first * distances[index].second;
+            total_weight += distances[index].second;
+        }
+        const double mean = weighted_error / total_weight;
         particle.weight *= std::exp(-.5 * mean * mean / (sigma_m * sigma_m));
     }
     const double total = std::accumulate(particles_.begin(), particles_.end(), 0.0,
@@ -175,6 +191,34 @@ void FenceParticleFilter::update(const std::vector<cv::Point2d>& observations) {
     const double ess_inverse = std::accumulate(particles_.begin(), particles_.end(), 0.0,
                                                 [](double sum, const Particle& item) { return sum + item.weight * item.weight; });
     if (1.0 / ess_inverse < particles_.size() * .55) resample();
+}
+
+void FenceParticleFilter::correct_toward(const Pose2& target, double gain,
+                                         double max_distance_m, double max_yaw_rad,
+                                         double major_axis_rad, double major_axis_gain) {
+    if (particles_.empty() || gain <= 0 || max_distance_m <= 0 || max_yaw_rad <= 0) return;
+    const PoseEstimate current = estimate();
+    double dx = target.x_m - current.x_m;
+    double dy = target.y_m - current.y_m;
+    major_axis_gain = std::clamp(major_axis_gain, 0.0, 1.0);
+    const double axis_x = std::cos(major_axis_rad);
+    const double axis_y = std::sin(major_axis_rad);
+    const double along = dx * axis_x + dy * axis_y;
+    dx += (major_axis_gain - 1.0) * along * axis_x;
+    dy += (major_axis_gain - 1.0) * along * axis_y;
+    const double distance = std::hypot(dx, dy);
+    const double step = std::min(max_distance_m, gain * distance);
+    if (distance > 1e-9) {
+        dx *= step / distance;
+        dy *= step / distance;
+    }
+    const double yaw_step = std::clamp(gain * wrap_angle(target.yaw_rad - current.yaw_rad),
+                                       -max_yaw_rad, max_yaw_rad);
+    for (auto& particle : particles_) {
+        particle.x = std::clamp(particle.x + dx, 0.0, kFieldLengthM);
+        particle.y = std::clamp(particle.y + dy, 0.0, kFieldWidthM);
+        particle.yaw = wrap_angle(particle.yaw + yaw_step);
+    }
 }
 
 void FenceParticleFilter::resample() {
@@ -240,7 +284,7 @@ VisualGeometryEstimate estimate_fence_geometry(
     constexpr double kPositionStepM = .05;
     constexpr double kYawSpanRad = 25.0 * CV_PI / 180.0;
     constexpr double kYawStepRad = 5.0 * CV_PI / 180.0;
-    std::vector<double> distances(observations.size());
+    std::vector<std::pair<double, double>> weighted_distances(observations.size());
     for (double yaw = yaw_prior_rad - kYawSpanRad; yaw <= yaw_prior_rad + kYawSpanRad + 1e-9;
          yaw += kYawStepRad) {
         const double cosine = std::cos(yaw);
@@ -249,15 +293,25 @@ VisualGeometryEstimate estimate_fence_geometry(
             for (double y = 0; y <= kFieldWidthM + 1e-9; y += kPositionStepM) {
                 for (std::size_t index = 0; index < observations.size(); ++index) {
                     const auto& point = observations[index];
-                    distances[index] = field_wall_distance(
+                    const double range = std::hypot(point.x, point.y);
+                    weighted_distances[index] = {field_wall_distance(
                         x + cosine * point.x - sine * point.y,
-                        y + sine * point.x + cosine * point.y);
+                        y + sine * point.x + cosine * point.y),
+                        1.0 / ((.20 + range) * (.20 + range))};
                 }
-                const std::size_t keep = std::max<std::size_t>(10, distances.size() * 2 / 3);
-                std::nth_element(distances.begin(), distances.begin() + static_cast<std::ptrdiff_t>(keep),
-                                 distances.end());
-                const double residual = std::accumulate(distances.begin(), distances.begin() +
-                                                         static_cast<std::ptrdiff_t>(keep), 0.0) / keep;
+                const std::size_t keep = std::max<std::size_t>(10, weighted_distances.size() * 2 / 3);
+                std::nth_element(weighted_distances.begin(), weighted_distances.begin() +
+                                 static_cast<std::ptrdiff_t>(keep), weighted_distances.end(),
+                                 [](const auto& left, const auto& right) {
+                                     return left.first < right.first;
+                                 });
+                double weighted_error = 0;
+                double total_range_weight = 0;
+                for (std::size_t index = 0; index < keep; ++index) {
+                    weighted_error += weighted_distances[index].first * weighted_distances[index].second;
+                    total_range_weight += weighted_distances[index].second;
+                }
+                const double residual = weighted_error / total_range_weight;
                 evaluated.push_back({{x, y, wrap_angle(yaw)}, residual});
             }
         }
@@ -284,6 +338,8 @@ VisualGeometryEstimate estimate_fence_geometry(
     double total_weight = 0;
     double mean_x = 0;
     double mean_y = 0;
+    double mean_yaw_sine = 0;
+    double mean_yaw_cosine = 0;
     double alternative_score = std::numeric_limits<double>::infinity();
     for (const auto& candidate : evaluated) {
         const double separation = std::hypot(candidate.pose.x_m - best.pose.x_m,
@@ -299,13 +355,17 @@ VisualGeometryEstimate estimate_fence_geometry(
         total_weight += weight;
         mean_x += weight * candidate.pose.x_m;
         mean_y += weight * candidate.pose.y_m;
+        mean_yaw_sine += weight * std::sin(candidate.pose.yaw_rad);
+        mean_yaw_cosine += weight * std::cos(candidate.pose.yaw_rad);
     }
     if (total_weight <= 0) return result;
     mean_x /= total_weight;
     mean_y /= total_weight;
+    const double mean_yaw = std::atan2(mean_yaw_sine, mean_yaw_cosine);
     double covariance_xx = 0;
     double covariance_xy = 0;
     double covariance_yy = 0;
+    double yaw_variance = 0;
     for (const auto& candidate : evaluated) {
         const double separation = std::hypot(candidate.pose.x_m - best.pose.x_m,
                                              candidate.pose.y_m - best.pose.y_m);
@@ -319,10 +379,13 @@ VisualGeometryEstimate estimate_fence_geometry(
         covariance_xx += weight * dx * dx;
         covariance_xy += weight * dx * dy;
         covariance_yy += weight * dy * dy;
+        const double dyaw = wrap_angle(candidate.pose.yaw_rad - mean_yaw);
+        yaw_variance += weight * dyaw * dyaw;
     }
     covariance_xx /= total_weight;
     covariance_xy /= total_weight;
     covariance_yy /= total_weight;
+    result.yaw_sigma_rad = std::sqrt(yaw_variance / total_weight);
     const double trace = covariance_xx + covariance_yy;
     const double discriminant = std::sqrt(std::max(0.0,
         (covariance_xx - covariance_yy) * (covariance_xx - covariance_yy) +
