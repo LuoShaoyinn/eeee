@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <csignal>
@@ -11,10 +12,13 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include <sys/socket.h>
@@ -26,12 +30,14 @@
 #include <opencv2/videoio.hpp>
 
 #include "robot/localization/location.hpp"
+#include "robot/config/runtime_config.hpp"
 
 namespace {
 constexpr double kDegreesToRadians = CV_PI / 180.0;
 volatile std::sig_atomic_t g_running = 1;
 
 struct Options {
+    std::string config = "config/robot.yaml";
     std::string camera = "/dev/video0";
     std::string socket = "/tmp/robotd.sock";
     std::string calibration = "config/camera_fisheye_1280x720.yaml";
@@ -51,6 +57,11 @@ struct Options {
     double initial_y_m = .10;
     double initial_yaw_deg = 0;
     bool global_initialize = false;
+    int capture_width = 1280;
+    int capture_height = 720;
+    double capture_fps = 30;
+    double record_fps = 10;
+    double telemetry_hz = 25;
 };
 
 struct EspState {
@@ -59,6 +70,12 @@ struct EspState {
     double gyro_z_degps = 0;
     std::array<double, 4> rpm{};
     std::array<double, 4> targets{};
+};
+
+struct TimedEspState {
+    EspState state;
+    std::chrono::steady_clock::time_point timestamp{};
+    std::uint64_t sequence = 0;
 };
 
 void handle_signal(int) { g_running = 0; }
@@ -127,6 +144,63 @@ bool parse_telemetry_targets(const std::string& reply, std::array<double, 4>& ta
     return false;
 }
 
+class TelemetrySampler {
+public:
+    TelemetrySampler(std::string socket_path, double frequency_hz)
+        : socket_path_(std::move(socket_path)), period_(std::chrono::duration<double>(1.0 / frequency_hz)) {}
+
+    ~TelemetrySampler() { stop(); }
+
+    void start() { thread_ = std::thread(&TelemetrySampler::run, this); }
+
+    void stop() {
+        stopping_ = true;
+        if (thread_.joinable()) thread_.join();
+    }
+
+    std::optional<TimedEspState> latest() const {
+        std::scoped_lock lock(mutex_);
+        return latest_;
+    }
+
+private:
+    void run() {
+        auto next = std::chrono::steady_clock::now();
+        auto next_error_log = next;
+        while (!stopping_) {
+            next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(period_);
+            try {
+                TimedEspState sample;
+                if (!parse_state(request_robotd(socket_path_, "state"), sample.state)) {
+                    throw std::runtime_error("invalid ESP state reply");
+                }
+                if (!parse_telemetry_targets(request_robotd(socket_path_, "telemetry"), sample.state.targets)) {
+                    throw std::runtime_error("invalid ESP telemetry reply");
+                }
+                sample.timestamp = std::chrono::steady_clock::now();
+                sample.sequence = ++sequence_;
+                std::scoped_lock lock(mutex_);
+                latest_ = sample;
+            } catch (const std::exception& error) {
+                const auto now = std::chrono::steady_clock::now();
+                if (now >= next_error_log) {
+                    std::cerr << "robot-runtime: passive telemetry unavailable: " << error.what() << '\n';
+                    next_error_log = now + std::chrono::seconds(2);
+                }
+            }
+            std::this_thread::sleep_until(next);
+        }
+    }
+
+    std::string socket_path_;
+    std::chrono::duration<double> period_;
+    mutable std::mutex mutex_;
+    std::optional<TimedEspState> latest_;
+    std::thread thread_;
+    std::atomic_bool stopping_{false};
+    std::uint64_t sequence_ = 0;
+};
+
 cv::Mat scaled_camera_matrix(const cv::Mat& matrix, int width, int height) {
     cv::Mat result;
     matrix.convertTo(result, CV_64F);
@@ -164,7 +238,7 @@ std::string default_log_path() {
     std::tm local{};
     localtime_r(&now, &local);
     std::ostringstream name;
-    name << "location-" << std::put_time(&local, "%Y%m%d-%H%M%S") << ".jsonl";
+    name << "run-log/location-" << std::put_time(&local, "%Y%m%d-%H%M%S") << ".jsonl";
     return name.str();
 }
 
@@ -175,14 +249,38 @@ std::string default_video_path(const std::string& log_path) {
 }
 
 Options parse_options(int argc, char** argv) {
+    std::string config_path = "config/robot.yaml";
+    for (int index = 1; index + 1 < argc; ++index) {
+        if (std::string(argv[index]) == "--config") config_path = argv[index + 1];
+    }
+    const robot::RuntimeConfig config = robot::load_runtime_config(config_path);
     Options options;
+    options.config = config_path;
+    options.camera = config.camera_device;
+    options.socket = config.socket_path;
+    options.calibration = config.camera_calibration;
+    options.visual_width = config.visual_width;
+    options.visual_height = config.visual_height;
+    options.particles = config.particles;
+    options.height_m = config.camera_height_m;
+    options.pitch_deg = config.camera_pitch_deg;
+    options.roll_deg = config.camera_roll_deg;
+    options.initial_x_m = config.initial_x_m;
+    options.initial_y_m = config.initial_y_m;
+    options.initial_yaw_deg = config.initial_yaw_deg;
+    options.capture_width = config.capture_width;
+    options.capture_height = config.capture_height;
+    options.capture_fps = config.capture_fps;
+    options.record_fps = config.record_fps;
+    options.telemetry_hz = config.telemetry_hz;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         const auto value = [&](const char* name) -> const char* {
             if (index + 1 >= argc) throw std::runtime_error(std::string("missing value for ") + name);
             return argv[++index];
         };
-        if (argument == "--camera") options.camera = value("--camera");
+        if (argument == "--config") ++index;
+        else if (argument == "--camera") options.camera = value("--camera");
         else if (argument == "--socket") options.socket = value("--socket");
         else if (argument == "--calibration") options.calibration = value("--calibration");
         else if (argument == "--log") options.log_path = value("--log");
@@ -204,7 +302,7 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--initial-yaw") options.initial_yaw_deg = std::stod(value("--initial-yaw"));
         else if (argument == "--global-initialize") options.global_initialize = true;
         else if (argument == "--help") {
-            std::cout << "robotloc [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] "
+            std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
                          "[--initial-yaw DEG] [--global-initialize]\n";
@@ -223,10 +321,14 @@ Options parse_options(int argc, char** argv) {
 }
 
 void write_record(std::ofstream& log, int frame_index, std::uint64_t time_ns, const EspState& state,
+                  bool telemetry_valid, std::uint64_t telemetry_sequence, double telemetry_age_ms,
                   const robot::BodyVelocity& wheel, const robot::VisualMotion& visual,
                   const robot::BodyVelocity& fused, const robot::PoseEstimate& pose, size_t fence_count) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
+        << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
+        << ",\"telemetry_sequence\":" << telemetry_sequence
+        << ",\"telemetry_age_ms\":" << telemetry_age_ms
         << ",\"esp_ms\":" << state.ms << ",\"imu_age_ms\":" << state.imu_age_ms
         << ",\"gyro_z_degps\":" << state.gyro_z_degps
         << ",\"rpm\":[" << state.rpm[0] << ',' << state.rpm[1] << ',' << state.rpm[2] << ',' << state.rpm[3] << ']'
@@ -261,9 +363,11 @@ int main(int argc, char** argv) {
                                              rectified_matrix, cv::Size(1280, 720), CV_16SC2, map_x, map_y);
         cv::VideoCapture capture(options.camera, cv::CAP_V4L2);
         if (!capture.isOpened()) throw std::runtime_error("cannot open camera: " + options.camera);
-        capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-        capture.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
-        capture.set(cv::CAP_PROP_FPS, 30);
+        capture.set(cv::CAP_PROP_FRAME_WIDTH, options.capture_width);
+        capture.set(cv::CAP_PROP_FRAME_HEIGHT, options.capture_height);
+        capture.set(cv::CAP_PROP_FPS, options.capture_fps);
+        const std::filesystem::path log_parent = std::filesystem::path(options.log_path).parent_path();
+        if (!log_parent.empty()) std::filesystem::create_directories(log_parent);
         std::ofstream log(options.log_path);
         if (!log) throw std::runtime_error("cannot write log: " + options.log_path);
         cv::VideoWriter video;
@@ -271,17 +375,19 @@ int main(int argc, char** argv) {
         if (options.record_video) {
             const std::filesystem::path video_parent = std::filesystem::path(options.video_path).parent_path();
             if (!video_parent.empty()) std::filesystem::create_directories(video_parent);
-            video.open(options.video_path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 10.0, cv::Size(1280, 720));
+            video.open(options.video_path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), options.record_fps,
+                       cv::Size(options.capture_width, options.capture_height));
             if (!video.isOpened()) throw std::runtime_error("cannot open video writer: " + options.video_path);
         }
         if (options.record_raw_video) {
             const std::filesystem::path raw_parent = std::filesystem::path(options.raw_video_path).parent_path();
             if (!raw_parent.empty()) std::filesystem::create_directories(raw_parent);
-            raw_video.open(options.raw_video_path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 10.0, cv::Size(1280, 720));
+            raw_video.open(options.raw_video_path, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), options.record_fps,
+                           cv::Size(options.capture_width, options.capture_height));
             if (!raw_video.isOpened()) throw std::runtime_error("cannot open raw video writer: " + options.raw_video_path);
         }
-        std::cerr << "robotloc: passive capture=" << options.camera << " robotd=" << options.socket
-                  << " log=" << options.log_path;
+        std::cerr << "robot-runtime: PASSIVE config=" << options.config << " capture=" << options.camera
+                  << " robotd=" << options.socket << " log=" << options.log_path;
         if (options.record_video) std::cerr << " video=" << options.video_path;
         if (options.record_raw_video) std::cerr << " raw_video=" << options.raw_video_path;
         std::cerr << '\n';
@@ -290,12 +396,15 @@ int main(int argc, char** argv) {
         robot::VisualOdometry visual_odometry;
         robot::FenceParticleFilter filter(options.particles, options.initial_x_m, options.initial_y_m,
                                           options.initial_yaw_deg * kDegreesToRadians, options.global_initialize);
+        TelemetrySampler telemetry(options.socket, options.telemetry_hz);
+        telemetry.start();
         auto previous_time = std::chrono::steady_clock::now();
         int frame_count = 0;
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
             const auto capture_time = std::chrono::steady_clock::now();
+            const auto captured_telemetry = telemetry.latest();
             cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
             if (options.record_raw_video) raw_video.write(raw);
             if (options.record_video) video.write(rectified);
@@ -304,8 +413,15 @@ int main(int argc, char** argv) {
             const double dt_s = std::chrono::duration<double>(capture_time - previous_time).count();
             previous_time = capture_time;
             EspState state;
-            if (!parse_state(request_robotd(options.socket, "state"), state)) throw std::runtime_error("invalid ESP state reply");
-            (void)parse_telemetry_targets(request_robotd(options.socket, "telemetry"), state.targets);
+            bool telemetry_valid = false;
+            std::uint64_t telemetry_sequence = 0;
+            double telemetry_age_ms = -1;
+            if (const auto& sample = captured_telemetry) {
+                state = sample->state;
+                telemetry_sequence = sample->sequence;
+                telemetry_age_ms = std::chrono::duration<double, std::milli>(capture_time - sample->timestamp).count();
+                telemetry_valid = telemetry_age_ms >= 0 && telemetry_age_ms <= 250;
+            }
             const robot::BodyVelocity wheel = robot::wheel_body_velocity(state.rpm, state.targets);
             const robot::VisualMotion visual = visual_odometry.update(gray, projector, dt_s);
             robot::BodyVelocity fused = wheel;
@@ -327,10 +443,12 @@ int main(int argc, char** argv) {
             filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
-            write_record(log, frame_count, time_ns, state, wheel, visual, fused, pose, fence.size());
+            write_record(log, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
+                         telemetry_age_ms, wheel, visual, fused, pose, fence.size());
             if ((frame_count++ % 30) == 0) {
                 std::cerr << "frame=" << frame_count << " fps_dt=" << dt_s << " wheel=" << wheel.forward_mps << ','
                           << wheel.left_mps << " visual=" << (visual.valid ? "ok" : "warmup")
+                          << " telemetry=" << (telemetry_valid ? "ok" : "stale")
                           << " fence=" << fence.size() << " pose=" << pose.x_m << ',' << pose.y_m << '\n';
             }
         }

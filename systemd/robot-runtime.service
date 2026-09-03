@@ -1,0 +1,16 @@
+[Unit]
+Description=Cubie passive robot perception and localization runtime
+After=robotd.service
+Requires=robotd.service
+
+[Service]
+Type=simple
+User=radxa
+Group=radxa
+WorkingDirectory=/home/radxa/cubie-robot
+ExecStart=/home/radxa/cubie-robot/bin/robot-runtime --config config/robot.yaml
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

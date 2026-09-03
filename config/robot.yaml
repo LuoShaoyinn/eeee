@@ -1,0 +1,44 @@
+%YAML:1.0
+---
+transport:
+  socket: /tmp/robotd.sock
+  serial_device: /dev/ttyAS2
+  baud_rate: 115200
+  telemetry_hz: 25.
+  command_timeout_ms: 250
+camera:
+  device: /dev/video0
+  calibration: config/camera_fisheye_1280x720.yaml
+  capture_width: 1280
+  capture_height: 720
+  capture_fps: 30.
+  visual_width: 320
+  visual_height: 180
+  record_fps: 10.
+localization:
+  particles: 600
+  camera_height_m: 1.2910000000000000e-01
+  camera_pitch_deg: 3.0029600000000000e+01
+  camera_roll_deg: 2.0710000000000000e-01
+  initial_x_m: 1.0000000000000001e-01
+  initial_y_m: 1.0000000000000001e-01
+  initial_yaw_deg: 0.
+arena:
+  length_m: 3.
+  width_m: 1.985
+  fence_height_m: 2.5400000000000000e-01
+servo:
+  operational_min_pulse_us: 1600
+  operational_max_pulse_us: 2000
+  firmware_min_pulse_us: 1550
+  firmware_max_pulse_us: 2125
+control:
+  max_linear_mps: 4.5000000000000001e-01
+  max_yaw_radps: 2.
+  max_linear_accel_mps2: 5.9999999999999998e-01
+  max_yaw_accel_radps2: 2.5
+detector:
+  backend: npu
+  model: models/yolo26n.rknn
+  confidence_threshold: 3.5000000000000003e-01
+  nms_threshold: 4.4999999999999996e-01

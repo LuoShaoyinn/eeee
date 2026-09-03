@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenCV REQUIRED COMPONENTS core imgproc video videoio
              OPTIONAL_COMPONENTS calib calib3d features)
+find_package(Threads REQUIRED)
 if(NOT OpenCV_calib_FOUND AND NOT OpenCV_calib3d_FOUND)
     message(FATAL_ERROR "OpenCV camera-calibration module not found (calib or calib3d)")
 endif()
@@ -35,6 +36,11 @@ target_include_directories(robot_location PUBLIC include)
 target_link_libraries(robot_location PUBLIC ${OpenCV_LIBS})
 target_compile_options(robot_location PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
+add_library(robot_config src/config/runtime_config.cpp)
+target_include_directories(robot_config PUBLIC include)
+target_link_libraries(robot_config PUBLIC ${OpenCV_LIBS})
+target_compile_options(robot_config PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
 add_library(robot_autonomy
     src/control/safety_supervisor.cpp
     src/planning/mission.cpp
@@ -43,11 +49,15 @@ target_include_directories(robot_autonomy PUBLIC include)
 target_compile_options(robot_autonomy PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(robotloc apps/robotloc.cpp)
-target_link_libraries(robotloc PRIVATE robot_location)
+target_link_libraries(robotloc PRIVATE robot_location robot_config Threads::Threads)
 target_compile_options(robotloc PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-install(TARGETS robotd robotctl robotloc RUNTIME DESTINATION bin)
-install(FILES config/camera_fisheye_1280x720.yaml DESTINATION config)
+add_executable(robot-runtime apps/robotloc.cpp)
+target_link_libraries(robot-runtime PRIVATE robot_location robot_config Threads::Threads)
+target_compile_options(robot-runtime PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+install(TARGETS robotd robotctl robotloc robot-runtime RUNTIME DESTINATION bin)
+install(FILES config/camera_fisheye_1280x720.yaml config/robot.yaml DESTINATION config)
 install(PROGRAMS tools/uart_ota_update.py DESTINATION tools)
 
 if(BUILD_TESTING)
@@ -55,4 +65,10 @@ if(BUILD_TESTING)
     target_link_libraries(robot_core_tests PRIVATE robot_autonomy)
     target_compile_options(robot_core_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     add_test(NAME robot_core_tests COMMAND robot_core_tests)
+
+    add_executable(robot_config_tests tests/config_tests.cpp)
+    target_link_libraries(robot_config_tests PRIVATE robot_config)
+    target_compile_definitions(robot_config_tests PRIVATE ROBOT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    target_compile_options(robot_config_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    add_test(NAME robot_config_tests COMMAND robot_config_tests)
 endif()

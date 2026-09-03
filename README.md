@@ -26,6 +26,9 @@ ignored by Git.
 - `robotctl`: command-line client for `robotd`.
 - `robotloc`: passive camera, wheel, and IMU localization logger. It never
   sends motion commands.
+- `robot-runtime`: production name for the same passive runtime. Camera work
+  and ESP32 telemetry sampling are decoupled so UART latency does not stall
+  frame processing.
 - `robot_transport`: UART framing and ESP32 transport library.
 - `robot_location`: mecanum odometry, optical flow, ground projection, and
   fence particle-filter library.
@@ -100,9 +103,20 @@ Run the passive logger from the repository root so its default configuration
 path resolves correctly:
 
 ```sh
-./build/robotloc \
+./build/robot-runtime --config config/robot.yaml \
   --log "run-log/location-$(date +%Y%m%d-%H%M%S).jsonl"
 ```
+
+`config/robot.yaml` is the versioned source for UART/camera rates, camera
+mount, arena dimensions, motion limits, detector paths, and servo envelopes.
+The normal S3 range is 1600-2000 us; the firmware-only calibration envelope is
+1550-2125 us. Command-line arguments override configuration values for
+diagnostics.
+
+The runtime reads only `state` and `telemetry`. Each JSONL frame contains the
+telemetry sequence, age, and validity alongside wheel, IMU, optical-flow,
+fence, and pose results. A temporary telemetry failure is logged as stale and
+does not block camera capture. This process has no actuator command path.
 
 The default camera calibration is
 `config/camera_fisheye_1280x720.yaml`. Override the starting pose with
