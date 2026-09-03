@@ -10,7 +10,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "robot/esp32_client.hpp"
+#include "robot/hardware/esp32_client.hpp"
 
 namespace {
 

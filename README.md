@@ -9,9 +9,10 @@ encoder, and IMU interfaces.
 ```text
 apps/       Executable entry points
 config/     Versioned runtime calibration
-include/    Public C++ interfaces
-src/        Reusable C++ implementations
+include/    Public C++ interfaces grouped by subsystem
+src/        Hardware, localization, planning, and control implementations
 systemd/    Deployment units
+tests/      Passive unit and replay tests
 tools/      Linux control, capture, and calibration utilities
 ```
 
@@ -28,10 +29,28 @@ ignored by Git.
 - `robot_transport`: UART framing and ESP32 transport library.
 - `robot_location`: mecanum odometry, optical flow, ground projection, and
   fence particle-filter library.
+- `robot_autonomy`: hardware-independent world model, solo mission state
+  machine, and final command safety checks.
+
+The production dependency direction is:
+
+```text
+hardware/perception -> localization -> planning -> control -> hardware
+```
+
+Perception publishes timestamped detections through the abstract `Detector`
+interface. The YOLO26n backend will implement that interface after its model
+artifact and Cubie NPU conversion are ready. Camera workers publish only the
+newest frame; stale frames are intentionally discarded.
 
 The ESP32 remains responsible for fast velocity PID, direction-change ramps,
 and its independent 500 ms safety watchdog. Cubie localization must not be
 placed in that control loop.
+
+The Cubie safety supervisor independently rejects motion when localization is
+stale or invalid, limits translation by vector magnitude, and reduces speed
+when localization uncertainty is high. Hardware validation is never part of
+the build or test suite.
 
 ## Build
 
@@ -41,6 +60,7 @@ OpenCV 4.5.1 and OpenCV 5 are both supported.
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
+ctest --test-dir build --output-on-failure
 cmake --install build --prefix "$HOME/cubie-robot"
 ```
 
@@ -98,6 +118,36 @@ safety bound.
 Full-resolution rectification and MJPEG logging reduce the observed Cubie loop
 rate to about 6.4 Hz. Use `--no-video` when localization throughput matters.
 The ESP32 continues its control loop independently at all times.
+
+## Solo Runtime
+
+The autonomous mission progresses through `boot`, `self_test`, `localize`,
+`search_target`, `approach_target`, `acquire_target`, `navigate_home`, and
+`deposit`. Loss of localization enters `recover_localization`; a hardware or
+runtime fault enters the latched `safe_stop` state.
+
+Initial integration stops after approaching a target and returning home.
+Servo and GA25 actions remain disabled until navigation has passed logged
+replay and deliberate low-speed arena validation.
+
+## ESP32 UART OTA
+
+The firmware on the `esp32` branch has two OTA application partitions. The
+UART updater sends `ota SIZE CRC32`, writes and verifies the inactive
+partition, selects it, and reboots automatically. Firmware stops its motors
+and releases the servo before accepting image bytes.
+
+Only one process may own `/dev/ttyAS2`, so stop `robotd` before updating:
+
+```sh
+sudo systemctl stop robotd
+python3 tools/uart_ota_update.py firmware.bin --port /dev/ttyAS2
+sudo systemctl start robotd
+```
+
+OTA is an explicit maintenance operation and is never called by startup,
+builds, or tests. Its UART format is not authenticated, so use only trusted
+firmware images on the trusted Cubie.
 
 ## Camera Tools
 

@@ -7,13 +7,11 @@
 
 #include <opencv2/core.hpp>
 
+#include "robot/core/types.hpp"
+
 namespace robot {
 
-struct BodyVelocity {
-    double forward_mps = 0;
-    double left_mps = 0;
-    double yaw_radps = 0;
-};
+using BodyVelocity = Twist2;
 
 struct VisualMotion {
     bool valid = false;

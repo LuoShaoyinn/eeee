@@ -1,4 +1,4 @@
-#include "robot/location.hpp"
+#include "robot/localization/location.hpp"
 
 #include <algorithm>
 #include <cmath>

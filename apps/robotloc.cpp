@@ -25,7 +25,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 
-#include "robot/location.hpp"
+#include "robot/localization/location.hpp"
 
 namespace {
 constexpr double kDegreesToRadians = CV_PI / 180.0;
