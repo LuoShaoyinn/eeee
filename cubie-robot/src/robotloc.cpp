@@ -316,8 +316,12 @@ int main(int argc, char** argv) {
                 fused.forward_mps = .7 * wheel.forward_mps + .3 * visual.velocity.forward_mps;
                 fused.left_mps = .7 * wheel.left_mps + .3 * visual.velocity.left_mps;
             }
-            const double imu_yaw = state.gyro_z_degps * kDegreesToRadians;
-            fused.yaw_radps = plausible_visual ? .8 * imu_yaw + .2 * visual.velocity.yaw_radps : imu_yaw;
+            // IMU axes are +x forward, +y right, +z down. Robot +z is up, so
+            // use the negated gyro-z rate and never the IMU's absolute yaw.
+            const double imu_yaw_rate = -state.gyro_z_degps * kDegreesToRadians;
+            fused.yaw_radps = (plausible_visual
+                               ? .8 * imu_yaw_rate + .2 * visual.velocity.yaw_radps
+                               : imu_yaw_rate);
             filter.predict(fused, std::min(dt_s, .2));
             const std::vector<cv::Point2d> fence = lower_fence_points(small, projector);
             filter.update(fence);

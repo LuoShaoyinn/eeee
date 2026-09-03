@@ -5,7 +5,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc video videoio calib3d)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc video videoio
+             OPTIONAL_COMPONENTS calib calib3d features)
+if(NOT OpenCV_calib_FOUND AND NOT OpenCV_calib3d_FOUND)
+    message(FATAL_ERROR "OpenCV camera-calibration module not found (calib or calib3d)")
+endif()
+if(OpenCV_VERSION_MAJOR GREATER_EQUAL 5 AND NOT OpenCV_features_FOUND)
+    message(FATAL_ERROR "OpenCV 5 features module not found")
+endif()
 
 add_library(robot_transport
     src/serial_port.cpp
