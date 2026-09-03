@@ -96,6 +96,20 @@ ran in 13.55 ms and detected a positive calibration image. `arena-test.jpg`
 is a negative/low-confidence frame (the original ONNX peak score is 0.096),
 so zero detections from that image are expected at the 0.35 score threshold.
 
+## Widescreen model input
+
+The existing NBG is statically compiled for `640x640`. NBG graphs cannot
+change their input shape at runtime. For the 16:9 camera stream, export and
+compile a separate `640x384` model. YOLO26 has a stride of 32, so exact
+`640x360` is invalid: a 360-pixel height makes its feature-pyramid branches
+misalign. The `640x384` model retains a 16:9 frame at `640x360` with 12-pixel
+letterbox bands above and below it.
+
+This changes each split output from `1x4x8400` to `1x4x5040`. The A733 source
+derives that candidate count from the configured input dimensions, and
+`tools/split_yolo26_outputs.py` reads the actual ONNX shape rather than
+assuming the square-model count.
+
 ## YOLO26s training record
 
 An official pretrained YOLO26s model was fine-tuned on the arena dataset on

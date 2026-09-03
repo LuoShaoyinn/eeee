@@ -14,20 +14,21 @@ import onnxruntime as ort
 
 
 CLASSES = ["other_robot", "red_cube", "yellow_cylinder", "home"]
-INPUT_SIZE = 640
+INPUT_ROWS = 384
+INPUT_COLS = 640
 SCORE_THRESHOLD = 0.35
 NMS_THRESHOLD = 0.45
 
 
 def prepare(image: np.ndarray) -> tuple[np.ndarray, float, float, float]:
     height, width = image.shape[:2]
-    scale = min(INPUT_SIZE / height, INPUT_SIZE / width)
+    scale = min(INPUT_ROWS / height, INPUT_COLS / width)
     resized_width = round(width * scale)
     resized_height = round(height * scale)
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     resized = cv2.resize(rgb, (resized_width, resized_height))
-    pad_x = (INPUT_SIZE - resized_width) / 2
-    pad_y = (INPUT_SIZE - resized_height) / 2
+    pad_x = (INPUT_COLS - resized_width) / 2
+    pad_y = (INPUT_ROWS - resized_height) / 2
     padded = cv2.copyMakeBorder(
         resized,
         round(pad_y - 0.1),

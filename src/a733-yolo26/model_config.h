@@ -4,7 +4,7 @@
 #include <vector>
 
 #define CLASS_NUM 4
-#define LETTERBOX_ROWS 640
+#define LETTERBOX_ROWS 384
 #define LETTERBOX_COLS 640
 #define SCORE_THRESHOLD 0.35f
 #define NMS_THRESHOLD 0.45f
