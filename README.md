@@ -57,3 +57,31 @@ ssh radxa@192.168.1.112 'rm -r /home/radxa/yolo-a733'
 
 Do not replace `libc`, the kernel driver, or files under `/usr/lib` with the
 bundled runtime.  The launcher uses a private `LD_LIBRARY_PATH` instead.
+
+## Thermal-limited video verification
+
+The deployed `verify_a733_yolov5_video.py` samples frames with the board's
+OpenCV installation and invokes the NPU demo once per sample. It logs NPU
+temperature before and after every inference and stops when the temperature
+reaches 70C by default. This is a verification path, not a real-time pipeline:
+the vendor demo creates and destroys the NPU network for each frame.
+
+Run it on the board after deployment:
+
+```sh
+cd /home/radxa/yolo-a733
+./verify_a733_yolov5_video.py /home/radxa/videos/capture.avi \
+  --sample-fps 1 --max-frames 30 --max-temp-c 70
+```
+
+Frames, NPU output logs, and `temperatures.csv` are written to a timestamped
+`video-verify-*` directory. Use a lower temperature limit when the board is in
+a warm enclosure.
+
+## Custom YOLO26n model
+
+`official_yolo26n_4_pcq_a733.nb` is a four-class, per-channel INT8 A733 NBG.
+Its raw output is `1x8x8400`, with four box channels and four class channels.
+Do not run it with `yolov5_demo_a733`: that demo assumes the YOLOv5 six-output
+layout and aborts during postprocessing. Deploy it only with a matching
+YOLO26n postprocessor.

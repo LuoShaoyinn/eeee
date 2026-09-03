@@ -15,6 +15,8 @@ done
 
 ssh "$target" "mkdir -p '$remote_dir'"
 scp "$release_dir"/* "$target:$remote_dir/"
+scp "$project_dir/tools/verify_a733_yolov5_video.py" "$target:$remote_dir/"
 ssh "$target" "cd '$remote_dir' && chmod +x yolov5_demo_a733 && \
+    chmod +x verify_a733_yolov5_video.py && \
     LD_LIBRARY_PATH=. ./yolov5_demo_a733 \
     -nb yolov5s_rt_uint8_a733.nb -i dog.jpg -l 10"
