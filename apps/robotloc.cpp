@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <sstream>
@@ -47,9 +48,11 @@ struct Options {
     std::string log_path;
     std::string video_path;
     std::string raw_video_path;
+    std::string telemetry_replay_path;
     bool record_video = true;
     bool record_raw_video = false;
     bool rectified_input = false;
+    bool realtime_video = false;
     int visual_width = 320;
     int visual_height = 180;
     size_t particles = 600;
@@ -101,6 +104,48 @@ struct TimedEspState {
     std::chrono::steady_clock::time_point timestamp{};
     std::uint64_t sequence = 0;
 };
+
+struct ReplaySample {
+    EspState state;
+    std::uint64_t monotonic_ns = 0;
+};
+
+std::vector<ReplaySample> load_telemetry_replay(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("cannot read telemetry replay: " + path);
+    std::vector<ReplaySample> samples;
+    std::string line;
+    while (std::getline(input, line)) {
+        if (line.empty()) continue;
+        cv::FileStorage json(line, cv::FileStorage::READ | cv::FileStorage::MEMORY |
+                                      cv::FileStorage::FORMAT_JSON);
+        ReplaySample sample;
+        EspState& state = sample.state;
+        std::int64_t esp_ms = 0;
+        std::int64_t imu_age_ms = 0;
+        json["esp_ms"] >> esp_ms;
+        json["imu_age_ms"] >> imu_age_ms;
+        state.ms = static_cast<std::uint64_t>(std::max<std::int64_t>(esp_ms, 0));
+        state.imu_age_ms = static_cast<std::uint64_t>(std::max<std::int64_t>(imu_age_ms, 0));
+        std::int64_t monotonic_ns = 0;
+        json["monotonic_ns"] >> monotonic_ns;
+        sample.monotonic_ns = static_cast<std::uint64_t>(
+            std::max<std::int64_t>(monotonic_ns, 0));
+        json["gyro_z_degps"] >> state.gyro_z_degps;
+        std::vector<double> rpm, targets;
+        json["rpm"] >> rpm;
+        json["targets"] >> targets;
+        if (rpm.size() != state.rpm.size() || targets.size() != state.targets.size()) {
+            throw std::runtime_error("invalid telemetry replay row " +
+                                     std::to_string(samples.size() + 1));
+        }
+        std::copy(rpm.begin(), rpm.end(), state.rpm.begin());
+        std::copy(targets.begin(), targets.end(), state.targets.begin());
+        samples.push_back(sample);
+    }
+    if (samples.empty()) throw std::runtime_error("telemetry replay is empty: " + path);
+    return samples;
+}
 
 void handle_signal(int) { g_running = 0; }
 
@@ -465,6 +510,10 @@ Options parse_options(int argc, char** argv) {
             options.raw_video_path = value("--raw-video");
             options.record_raw_video = true;
         }
+        else if (argument == "--telemetry-replay") {
+            options.telemetry_replay_path = value("--telemetry-replay");
+        }
+        else if (argument == "--realtime-video") options.realtime_video = true;
         else if (argument == "--no-video") options.record_video = false;
         else if (argument == "--rectified-input") options.rectified_input = true;
         else if (argument == "--visual-width") options.visual_width = std::stoi(value("--visual-width"));
@@ -481,7 +530,7 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--stdout-json") options.stream_json = true;
         else if (argument == "--no-broadcast") options.broadcast_enabled = false;
         else if (argument == "--help") {
-            std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] "
+            std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] [--telemetry-replay FILE] [--realtime-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
                          "[--initial-yaw DEG] [--global-initialize] [--rectified-input] "
@@ -609,8 +658,14 @@ int main(int argc, char** argv) {
                                           options.initial_yaw_deg * kDegreesToRadians, options.global_initialize);
         robot::Pose2 odometry_pose{options.initial_x_m, options.initial_y_m,
                                    options.initial_yaw_deg * kDegreesToRadians};
-        TelemetrySampler telemetry(options.socket, options.telemetry_hz);
-        telemetry.start();
+        std::unique_ptr<TelemetrySampler> telemetry;
+        std::vector<ReplaySample> replay_telemetry;
+        if (options.telemetry_replay_path.empty()) {
+            telemetry = std::make_unique<TelemetrySampler>(options.socket, options.telemetry_hz);
+            telemetry->start();
+        } else {
+            replay_telemetry = load_telemetry_replay(options.telemetry_replay_path);
+        }
         DebugBroadcaster broadcaster(options.broadcast_enabled, options.broadcast_address,
                                      options.broadcast_port);
         auto previous_time = std::chrono::steady_clock::now();
@@ -627,11 +682,24 @@ int main(int argc, char** argv) {
         std::uint64_t fence_request_sequence = 0;
         std::size_t lower_fence_count = 0;
         std::size_t upper_fence_count = 0;
+        const auto replay_start = std::chrono::steady_clock::now();
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
+            if (!replay_telemetry.empty() &&
+                static_cast<std::size_t>(frame_count) >= replay_telemetry.size()) break;
+            if (options.realtime_video && frame_count > 0) {
+                const double elapsed_s = replay_telemetry.empty()
+                    ? frame_count / options.capture_fps
+                    : (replay_telemetry[frame_count].monotonic_ns -
+                       replay_telemetry.front().monotonic_ns) / 1e9;
+                const auto offset = std::chrono::duration<double>(elapsed_s);
+                std::this_thread::sleep_until(
+                    replay_start + std::chrono::duration_cast<std::chrono::steady_clock::duration>(offset));
+            }
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
             const auto capture_time = std::chrono::steady_clock::now();
-            const auto captured_telemetry = telemetry.latest();
+            const auto captured_telemetry = telemetry ? telemetry->latest()
+                : std::optional<TimedEspState>{};
             if (options.rectified_input) rectified = raw;
             else cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
             if (options.record_raw_video) raw_video.write(raw);
@@ -644,7 +712,13 @@ int main(int argc, char** argv) {
             bool telemetry_valid = false;
             std::uint64_t telemetry_sequence = 0;
             double telemetry_age_ms = -1;
-            if (const auto& sample = captured_telemetry) {
+            if (!replay_telemetry.empty()) {
+                if (static_cast<std::size_t>(frame_count) >= replay_telemetry.size()) break;
+                state = replay_telemetry[frame_count].state;
+                telemetry_sequence = static_cast<std::uint64_t>(frame_count + 1);
+                telemetry_age_ms = 0;
+                telemetry_valid = true;
+            } else if (const auto& sample = captured_telemetry) {
                 state = sample->state;
                 telemetry_sequence = sample->sequence;
                 telemetry_age_ms = std::chrono::duration<double, std::milli>(capture_time - sample->timestamp).count();
