@@ -131,7 +131,11 @@ The GUI draws the fence particle filter in green/orange and independent
 wheel-plus-relative-IMU dead reckoning in blue. This comparison exposes a bad
 fence correction instead of hiding it inside a fused pose. Ranked visual-only fence matches are shown as
 purple `V1..V4` markers with their mean wall residual in metres. Their search
-runs at 2 Hz with a +/-25 degree relative-IMU yaw prior. The GUI uses UDP
+runs at 2 Hz with a +/-25 degree relative-IMU yaw prior. The GUI draws a
+two-sigma visual uncertainty ellipse. Its certainty combines the
+absolute fence residual, separation from distant arena hypotheses, and the
+local score-surface shape; it is a diagnostic score, not a calibrated
+probability. The GUI uses UDP
 only for localization display. Chassis commands travel over
 an authenticated persistent SSH session to `robotctl --stream`. It opens
 disarmed, Space always stops, closing an armed window sends `stop`, and it has

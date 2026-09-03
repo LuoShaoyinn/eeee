@@ -33,6 +33,16 @@ struct VisualPoseCandidate {
     double wall_residual_m = 0;
 };
 
+struct VisualGeometryEstimate {
+    std::vector<VisualPoseCandidate> candidates;
+    double confidence = 0;
+    double alternative_margin_m = 0;
+    double sigma_major_m = 0;
+    double sigma_minor_m = 0;
+    double major_axis_rad = 0;
+    bool valid = false;
+};
+
 class GroundProjector {
 public:
     GroundProjector(cv::Mat camera_matrix, double camera_height_m, double pitch_down_deg,
@@ -74,6 +84,9 @@ BodyVelocity wheel_body_velocity(const std::array<double, 4>& rpm,
                                  const std::array<double, 4>& targets);
 
 std::vector<VisualPoseCandidate> match_fence_geometry(
+    const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
+    std::size_t maximum_candidates = 4);
+VisualGeometryEstimate estimate_fence_geometry(
     const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
     std::size_t maximum_candidates = 4);
 

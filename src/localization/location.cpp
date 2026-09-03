@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numeric>
+#include <utility>
 
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/version.hpp>
@@ -229,11 +231,12 @@ BodyVelocity wheel_body_velocity(const std::array<double, 4>& rpm, const std::ar
             (-wheel[0] + wheel[1] - wheel[2] + wheel[3]) / (4.0 * kMecanumRadiusM)};
 }
 
-std::vector<VisualPoseCandidate> match_fence_geometry(
+VisualGeometryEstimate estimate_fence_geometry(
     const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
     std::size_t maximum_candidates) {
+    VisualGeometryEstimate result;
     std::vector<VisualPoseCandidate> evaluated;
-    if (observations.size() < 20 || maximum_candidates == 0) return evaluated;
+    if (observations.size() < 20 || maximum_candidates == 0) return result;
     constexpr double kPositionStepM = .05;
     constexpr double kYawSpanRad = 25.0 * CV_PI / 180.0;
     constexpr double kYawStepRad = 5.0 * CV_PI / 180.0;
@@ -271,7 +274,78 @@ std::vector<VisualPoseCandidate> match_fence_geometry(
         if (distinct) output.push_back(candidate);
         if (output.size() == maximum_candidates) break;
     }
-    return output;
+    result.candidates = std::move(output);
+    if (result.candidates.empty()) return result;
+
+    const auto& best = result.candidates.front();
+    constexpr double kLocalRadiusM = .75;
+    constexpr double kLocalScoreWindowM = .02;
+    constexpr double kWeightScaleM = .01;
+    double total_weight = 0;
+    double mean_x = 0;
+    double mean_y = 0;
+    double alternative_score = std::numeric_limits<double>::infinity();
+    for (const auto& candidate : evaluated) {
+        const double separation = std::hypot(candidate.pose.x_m - best.pose.x_m,
+                                             candidate.pose.y_m - best.pose.y_m);
+        const double yaw_difference = std::abs(wrap_angle(candidate.pose.yaw_rad - best.pose.yaw_rad));
+        if (separation >= kLocalRadiusM || yaw_difference > 10.0 * CV_PI / 180.0) {
+            alternative_score = std::min(alternative_score, candidate.wall_residual_m);
+            continue;
+        }
+        if (candidate.wall_residual_m > best.wall_residual_m + kLocalScoreWindowM) continue;
+        const double weight = std::exp(-(candidate.wall_residual_m - best.wall_residual_m) /
+                                       kWeightScaleM);
+        total_weight += weight;
+        mean_x += weight * candidate.pose.x_m;
+        mean_y += weight * candidate.pose.y_m;
+    }
+    if (total_weight <= 0) return result;
+    mean_x /= total_weight;
+    mean_y /= total_weight;
+    double covariance_xx = 0;
+    double covariance_xy = 0;
+    double covariance_yy = 0;
+    for (const auto& candidate : evaluated) {
+        const double separation = std::hypot(candidate.pose.x_m - best.pose.x_m,
+                                             candidate.pose.y_m - best.pose.y_m);
+        const double yaw_difference = std::abs(wrap_angle(candidate.pose.yaw_rad - best.pose.yaw_rad));
+        if (separation >= kLocalRadiusM || yaw_difference > 10.0 * CV_PI / 180.0 ||
+            candidate.wall_residual_m > best.wall_residual_m + kLocalScoreWindowM) continue;
+        const double weight = std::exp(-(candidate.wall_residual_m - best.wall_residual_m) /
+                                       kWeightScaleM);
+        const double dx = candidate.pose.x_m - mean_x;
+        const double dy = candidate.pose.y_m - mean_y;
+        covariance_xx += weight * dx * dx;
+        covariance_xy += weight * dx * dy;
+        covariance_yy += weight * dy * dy;
+    }
+    covariance_xx /= total_weight;
+    covariance_xy /= total_weight;
+    covariance_yy /= total_weight;
+    const double trace = covariance_xx + covariance_yy;
+    const double discriminant = std::sqrt(std::max(0.0,
+        (covariance_xx - covariance_yy) * (covariance_xx - covariance_yy) +
+        4.0 * covariance_xy * covariance_xy));
+    result.sigma_major_m = std::sqrt(std::max(0.0, .5 * (trace + discriminant)));
+    result.sigma_minor_m = std::sqrt(std::max(0.0, .5 * (trace - discriminant)));
+    result.major_axis_rad = .5 * std::atan2(2.0 * covariance_xy,
+                                            covariance_xx - covariance_yy);
+    result.alternative_margin_m = std::isfinite(alternative_score)
+        ? std::max(0.0, alternative_score - best.wall_residual_m) : 0;
+    const double residual_quality = std::clamp(1.0 - best.wall_residual_m / .06, 0.0, 1.0);
+    const double margin_quality = std::clamp(result.alternative_margin_m / .03, 0.0, 1.0);
+    const double shape_quality = std::clamp(1.0 - result.sigma_major_m / .50, 0.0, 1.0);
+    result.confidence = residual_quality * (.3 + .7 * margin_quality) *
+                        (.4 + .6 * shape_quality);
+    result.valid = best.wall_residual_m < .06;
+    return result;
+}
+
+std::vector<VisualPoseCandidate> match_fence_geometry(
+    const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
+    std::size_t maximum_candidates) {
+    return estimate_fence_geometry(observations, yaw_prior_rad, maximum_candidates).candidates;
 }
 
 }  // namespace robot

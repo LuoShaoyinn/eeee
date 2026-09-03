@@ -9,7 +9,8 @@
 int main() {
     std::vector<cv::Point2d> wall;
     for (double x = -.8; x <= .8; x += .04) wall.emplace_back(x, -.5);
-    const auto candidates = robot::match_fence_geometry(wall, 0, 4);
+    const auto estimate = robot::estimate_fence_geometry(wall, 0, 4);
+    const auto& candidates = estimate.candidates;
     if (candidates.empty()) {
         std::cerr << "geometry matcher returned no candidates\n";
         return 1;
@@ -18,6 +19,10 @@ int main() {
         std::abs(candidates.front().pose.y_m - .5) > .051 ||
         std::abs(candidates.front().pose.yaw_rad) > .001) {
         std::cerr << "geometry matcher did not recover the synthetic wall offset\n";
+        return 1;
+    }
+    if (!estimate.valid || estimate.sigma_major_m <= estimate.sigma_minor_m) {
+        std::cerr << "single-wall uncertainty is not anisotropic\n";
         return 1;
     }
 }

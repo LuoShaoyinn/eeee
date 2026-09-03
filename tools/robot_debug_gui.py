@@ -163,10 +163,12 @@ class DebugGui:
                         self.odometry_trail = self.odometry_trail[-2000:]
                     age = self.pose.get("telemetry_age_ms", -1)
                     valid = self.pose.get("telemetry_valid", False)
+                    geometry = self.pose.get("visual_geometry", {})
                     self.status_label.configure(
-                        text="{}  frame {}  UART {} {:.0f} ms".format(
+                        text="{}  frame {}  UART {} {:.0f} ms  visual {:.0%}".format(
                             event[2], self.pose.get("frame_index", "?"),
-                            "OK" if valid else "STALE", age),
+                            "OK" if valid else "STALE", age,
+                            geometry.get("confidence", 0)),
                         fg="#176b2c" if valid else "#a02b2b")
                     self.draw()
                 elif event[0] == "error":
@@ -243,6 +245,7 @@ class DebugGui:
                                 text="wheel+IMU ({:.2f}, {:.2f})".format(odom_x, odom_y),
                                 fill="#174a7d", anchor="w")
         candidates = self.pose.get("visual_geometry_candidates", [])
+        geometry = self.pose.get("visual_geometry", {})
         colours = ("#8b2db3", "#b15bc7", "#ca8ed9", "#dfb9e8")
         for index, candidate in enumerate(candidates):
             if len(candidate) < 4:
@@ -258,6 +261,28 @@ class DebugGui:
             self.canvas.create_text(cpx + 9, cpy - 12,
                                     text="V{} {:.3f}m".format(index + 1, residual),
                                     fill=colour, anchor="w")
+        if candidates and geometry.get("valid", False):
+            center_x, center_y = candidates[0][:2]
+            major = 2.0 * geometry.get("sigma_major_m", 0)
+            minor = 2.0 * geometry.get("sigma_minor_m", 0)
+            axis = geometry.get("major_axis_rad", 0)
+            ellipse = []
+            for step in range(49):
+                angle = 2 * math.pi * step / 48
+                local_x = major * math.cos(angle)
+                local_y = minor * math.sin(angle)
+                world_x = center_x + math.cos(axis) * local_x - math.sin(axis) * local_y
+                world_y = center_y + math.sin(axis) * local_x + math.cos(axis) * local_y
+                pixel_x, pixel_y, _ = self.transform(world_x, world_y)
+                ellipse.extend((pixel_x, pixel_y))
+            self.canvas.create_line(*ellipse, fill="#8b2db3", width=2)
+            confidence = geometry.get("confidence", 0)
+            margin = geometry.get("alternative_margin_m", 0)
+            self.canvas.create_text(
+                16, 18,
+                text="visual certainty {:.0%} | 2sigma {:.2f} x {:.2f} m | alternate gap {:.3f} m".format(
+                    confidence, major, minor, margin),
+                fill="#5f197b", anchor="nw")
 
     def close(self):
         self.stopping.set()

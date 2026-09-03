@@ -370,7 +370,7 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   const robot::BodyVelocity& wheel, const robot::VisualMotion& visual,
                   const robot::BodyVelocity& fused, const robot::Pose2& odometry_pose,
                   const robot::PoseEstimate& pose,
-                  const std::vector<robot::VisualPoseCandidate>& visual_candidates,
+                  const robot::VisualGeometryEstimate& visual_geometry,
                   size_t fence_count) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
@@ -392,10 +392,16 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"position_sigma_m\":" << pose.position_sigma_m
         << ",\"yaw_sigma_rad\":" << pose.yaw_sigma_rad
         << ",\"effective_particles\":" << pose.effective_particles
+        << ",\"visual_geometry\":{\"valid\":" << (visual_geometry.valid ? "true" : "false")
+        << ",\"confidence\":" << visual_geometry.confidence
+        << ",\"alternative_margin_m\":" << visual_geometry.alternative_margin_m
+        << ",\"sigma_major_m\":" << visual_geometry.sigma_major_m
+        << ",\"sigma_minor_m\":" << visual_geometry.sigma_minor_m
+        << ",\"major_axis_rad\":" << visual_geometry.major_axis_rad << '}'
         << ",\"visual_geometry_candidates\":[";
-    for (std::size_t index = 0; index < visual_candidates.size(); ++index) {
+    for (std::size_t index = 0; index < visual_geometry.candidates.size(); ++index) {
         if (index != 0) log << ',';
-        const auto& candidate = visual_candidates[index];
+        const auto& candidate = visual_geometry.candidates[index];
         log << '[' << candidate.pose.x_m << ',' << candidate.pose.y_m << ','
             << candidate.pose.yaw_rad << ',' << candidate.wall_residual_m << ']';
     }
@@ -464,7 +470,7 @@ int main(int argc, char** argv) {
                                      options.broadcast_port);
         auto previous_time = std::chrono::steady_clock::now();
         int frame_count = 0;
-        std::vector<robot::VisualPoseCandidate> visual_candidates;
+        robot::VisualGeometryEstimate visual_geometry;
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
@@ -515,7 +521,7 @@ int main(int argc, char** argv) {
             filter.predict(prediction, prediction_dt);
             const std::vector<cv::Point2d> fence = lower_fence_points(small, projector);
             if (frame_count % 5 == 0) {
-                visual_candidates = robot::match_fence_geometry(fence, odometry_pose.yaw_rad);
+                visual_geometry = robot::estimate_fence_geometry(fence, odometry_pose.yaw_rad);
             }
             filter.update(fence);
             const robot::PoseEstimate pose = filter.estimate();
@@ -523,7 +529,7 @@ int main(int argc, char** argv) {
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
-                         visual_candidates, fence.size());
+                         visual_geometry, fence.size());
             log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());
