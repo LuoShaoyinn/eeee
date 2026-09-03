@@ -9,3 +9,4 @@ managed_components/
 *.lck
 artifacts/
 models/
+__pycache__/

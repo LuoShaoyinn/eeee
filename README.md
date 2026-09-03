@@ -80,8 +80,18 @@ a warm enclosure.
 
 ## Custom YOLO26n model
 
-`official_yolo26n_4_pcq_a733.nb` is a four-class, per-channel INT8 A733 NBG.
-Its raw output is `1x8x8400`, with four box channels and four class channels.
-Do not run it with `yolov5_demo_a733`: that demo assumes the YOLOv5 six-output
-layout and aborts during postprocessing. Deploy it only with a matching
-YOLO26n postprocessor.
+The custom model must use two NPU outputs, not one combined `1x8x8400` tensor:
+
+- boxes: `1x4x8400`
+- sigmoid class scores: `1x4x8400`
+
+Combining the tensors gives coordinates and class probabilities one INT8 output
+scale. The coordinate range is hundreds of pixels, so the 0--1 class scores
+round to zero. `tools/split_yolo26_outputs.py` exposes the two tensors before
+conversion so they are calibrated independently. The board decoder source is
+in `src/a733-yolo26/` and expects outputs in that order.
+
+The validated payload is `official_yolo26n_split_pcq_a733.nb`. On the Cubie it
+ran in 13.55 ms and detected a positive calibration image. `arena-test.jpg`
+is a negative/low-confidence frame (the original ONNX peak score is 0.096),
+so zero detections from that image are expected at the 0.35 score threshold.
