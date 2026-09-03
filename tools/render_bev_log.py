@@ -45,28 +45,35 @@ def load_projector(calibration_path, visual_size, height_m, pitch_deg, roll_deg)
     return np.linalg.inv(matrix), pitch_rotation @ roll_rotation, height_m
 
 
-def fence_observations(frame, projector, visual_size):
+def fence_observations(frame, projector, visual_size, hsv_lower, hsv_upper,
+                       fence_height):
     inverse, rotation, camera_height = projector
     small = cv2.resize(frame, visual_size, interpolation=cv2.INTER_AREA)
     hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))
+    mask = cv2.inRange(hsv, hsv_lower, hsv_upper)
     mask = cv2.morphologyEx(
         mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3)))
-    pixels = []
+    lower_pixels, upper_pixels = [], []
     ground = []
     for x in range(0, visual_size[0], 4):
-        rows = np.flatnonzero(mask[visual_size[1] // 5:, x])
-        if not len(rows):
+        rows = np.flatnonzero(mask[:, x])
+        if len(rows) < 4:
             continue
-        y = int(rows[-1] + visual_size[1] // 5)
-        ray = rotation @ (inverse @ np.array([x, y, 1.0]))
-        if ray[2] >= -1e-6:
-            continue
-        point = (-camera_height / ray[2]) * ray
-        if -0.5 < point[0] < 6 and abs(point[1]) < 4:
-            pixels.append((x, y))
-            ground.append(point[:2])
-    return small, pixels, np.asarray(ground, dtype=np.float64)
+        upper_y = int(rows[0])
+        lower_y = int(rows[-1])
+        for y, height, pixels in ((lower_y, 0, lower_pixels),
+                                  (upper_y, fence_height, upper_pixels)):
+            if (height == 0 and y >= visual_size[1] - 2) or (height != 0 and y <= 1):
+                continue
+            ray = rotation @ (inverse @ np.array([x, y, 1.0]))
+            if abs(ray[2]) < 1e-6:
+                continue
+            scale = (height - camera_height) / ray[2]
+            point = scale * ray
+            if scale > 0 and -0.5 < point[0] < 6 and abs(point[1]) < 4:
+                pixels.append((x, y))
+                ground.append(point[:2])
+    return small, lower_pixels, upper_pixels, np.asarray(ground, dtype=np.float64)
 
 
 def transform_points(points, pose):
@@ -133,6 +140,9 @@ def main():
     parser.add_argument("--fps", type=float, default=10)
     parser.add_argument("--replay", type=Path,
                         help="optional offline PF JSONL to overlay")
+    parser.add_argument("--hsv-lower", type=int, nargs=3, default=(96, 128, 82))
+    parser.add_argument("--hsv-upper", type=int, nargs=3, default=(121, 255, 255))
+    parser.add_argument("--fence-height", type=float, default=.254)
     args = parser.parse_args()
     telemetry_path = args.run_dir / "telemetry.jsonl"
     video_path = args.run_dir / "video.avi"
@@ -162,10 +172,14 @@ def main():
             ok, frame = capture.read()
             if not ok:
                 break
-            small, edge_pixels, observations = fence_observations(frame, projector, visual_size)
+            small, lower_pixels, upper_pixels, observations = fence_observations(
+                frame, projector, visual_size, args.hsv_lower, args.hsv_upper,
+                args.fence_height)
             camera_view = cv2.resize(small, CAMERA_VIEW_SIZE, interpolation=cv2.INTER_LINEAR)
-            for x, y in edge_pixels:
+            for x, y in lower_pixels:
                 cv2.circle(camera_view, (x * 2, y * 2), 3, (0, 165, 255), -1, cv2.LINE_AA)
+            for x, y in upper_pixels:
+                cv2.circle(camera_view, (x * 2, y * 2), 3, (0, 210, 0), -1, cv2.LINE_AA)
             output = np.full((OUTPUT_SIZE[1], OUTPUT_SIZE[0], 3), 246, np.uint8)
             output[:CAMERA_VIEW_SIZE[1], :CAMERA_VIEW_SIZE[0]] = camera_view
             arena.draw_arena(output)
@@ -197,7 +211,7 @@ def main():
                 cv2.putText(output, "V{} {:.3f}m".format(index + 1, candidate[3]),
                             (center[0] + 7, center[1] + 14), cv2.FONT_HERSHEY_SIMPLEX,
                             .38, colour, 1, cv2.LINE_AA)
-            cv2.putText(output, "rectified camera + extracted lower fence edge", (12, 385),
+            cv2.putText(output, "rectified camera + upper/lower fence edges", (12, 385),
                         cv2.FONT_HERSHEY_SIMPLEX, .55, (35, 35, 35), 1, cv2.LINE_AA)
             lines = [
                 "frame {}   t={:.1f}s   UART {} age {:.0f}ms".format(
