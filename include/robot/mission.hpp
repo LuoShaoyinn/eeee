@@ -39,12 +39,14 @@ struct MissionConfig {
     double collect_bottom_y = 0.82;
     double home_dock_bottom_y = 0.86;
     double search_yaw_radps = 0.45;
-    double cruise_mps = 0.18;
+    double cruise_mps = 0.20;
     double final_approach_mps = 0.07;
     double avoid_left_mps = 0.16;
     double avoid_yaw_radps = 0.70;
     double steering_gain = 1.35;
-    int collector_percent = 100;
+    // The installed front GA25 motor is wired so negative power rotates in
+    // the collecting direction.
+    int collector_percent = -100;
     int dump_servo_pulse_us = 2000;
     int stow_servo_pulse_us = 1600;
 };

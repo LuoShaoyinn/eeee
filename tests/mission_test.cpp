@@ -21,7 +21,7 @@ int main() {
     auto output = mission.update({.localization_valid = true,
                                   .detections = {object(robot::ObjectClass::yellow, .9)}});
     assert(output.state == robot::MissionState::approaching_target);
-    assert(output.collector_percent == 100);
+    assert(output.collector_percent == -100);
 
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::other_robot, .7)}});

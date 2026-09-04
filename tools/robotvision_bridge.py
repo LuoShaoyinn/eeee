@@ -8,8 +8,11 @@ the emitted frames first.
 """
 
 import argparse
+import json
+import math
 import os
 import re
+import socket
 import subprocess
 import sys
 import tempfile
@@ -82,6 +85,107 @@ def write_protocol_frame(path: str, frame: str) -> None:
         raise
 
 
+def write_json(path: str, payload: dict) -> None:
+    directory = os.path.dirname(path) or "."
+    descriptor, temporary_path = tempfile.mkstemp(prefix=".robotpose-", dir=directory, text=True)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(payload, output)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        try:
+            os.unlink(temporary_path)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def robotd_request(socket_path: str, command: str) -> str:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(.15)
+        client.connect(socket_path)
+        client.sendall((command + "\n").encode())
+        return client.recv(1024).decode(errors="replace")
+
+
+def parse_motion(state_reply: str, telemetry_reply: str):
+    words = iter(state_reply.replace(";", " ").split())
+    gyro_z = 0.0
+    rpm = [0.0] * 4
+    for word in words:
+        if word == "gyro":
+            next(words), next(words)
+            gyro_z = float(next(words))
+        elif word == "rpm":
+            rpm = [float(next(words)) for _ in range(4)]
+    tokens = telemetry_reply.replace(";", " ").split()
+    targets = [0.0] * 4
+    if "target" in tokens:
+        index = tokens.index("target") + 1
+        targets = [float(value) for value in tokens[index:index + 4]]
+    wheel = []
+    for measured, target in zip(rpm, targets):
+        direction = 1.0 if target > .03 else -1.0 if target < -.03 else 0.0
+        wheel.append(direction * measured * 2.0 * math.pi * .023 / 60.0)
+    return ((wheel[0] + wheel[1] + wheel[2] + wheel[3]) / 4.0,
+            (-wheel[0] + wheel[1] + wheel[2] - wheel[3]) / 4.0,
+            -gyro_z * math.pi / 180.0)
+
+
+class V1PoseTracker:
+    """Broad arena pose for the operator map; blue fence validates each update."""
+    def __init__(self, x_m: float, y_m: float, yaw_deg: float):
+        self.x_m = x_m
+        self.y_m = y_m
+        self.yaw_rad = math.radians(yaw_deg)
+        self.last_time = time.monotonic()
+
+    def update(self, forward_mps: float, left_mps: float, yaw_radps: float) -> None:
+        now = time.monotonic()
+        dt = min(.2, max(0.0, now - self.last_time))
+        self.last_time = now
+        self.x_m = min(3.0, max(0.0, self.x_m + (math.cos(self.yaw_rad) * forward_mps -
+                                                   math.sin(self.yaw_rad) * left_mps) * dt))
+        self.y_m = min(1.985, max(0.0, self.y_m + (math.sin(self.yaw_rad) * forward_mps +
+                                                    math.cos(self.yaw_rad) * left_mps) * dt))
+        self.yaw_rad = (self.yaw_rad + yaw_radps * dt + math.pi) % (2.0 * math.pi) - math.pi
+
+    def render(self, path: str, localization_valid: bool, blue_pixels: int) -> None:
+        width, height, margin = 720, 500, 40
+        canvas = np.full((height, width, 3), (22, 30, 34), dtype=np.uint8)
+        scale = min((width - 2 * margin) / 3.0, (height - 2 * margin) / 1.985)
+        field_w, field_h = int(3.0 * scale), int(1.985 * scale)
+        origin = (margin, height - margin)
+        cv2.rectangle(canvas, (origin[0], origin[1] - field_h), (origin[0] + field_w, origin[1]),
+                      (245, 170, 45), 3)
+        for meter in (1, 2):
+            x = origin[0] + int(meter * scale)
+            cv2.line(canvas, (x, origin[1] - field_h), (x, origin[1]), (55, 66, 72), 1)
+        cv2.line(canvas, (origin[0], origin[1] - int(scale)), (origin[0] + field_w, origin[1] - int(scale)),
+                 (55, 66, 72), 1)
+        px = origin[0] + int(self.x_m * scale)
+        py = origin[1] - int(self.y_m * scale)
+        radius = 14
+        cv2.circle(canvas, (px, py), radius, (70, 220, 105) if localization_valid else (50, 150, 235), -1)
+        tip = (px + int(30 * math.cos(self.yaw_rad)), py - int(30 * math.sin(self.yaw_rad)))
+        cv2.arrowedLine(canvas, (px, py), tip, (245, 245, 245), 3, tipLength=.32)
+        status = "BLUE FENCE: VALID" if localization_valid else "BLUE FENCE: LOST"
+        color = (70, 220, 105) if localization_valid else (50, 150, 235)
+        cv2.putText(canvas, "V1 ARENA POSITION", (40, 32), cv2.FONT_HERSHEY_SIMPLEX, .78, (235, 235, 235), 2)
+        cv2.putText(canvas, status, (40, 62), cv2.FONT_HERSHEY_SIMPLEX, .60, color, 2)
+        cv2.putText(canvas, f"x={self.x_m:.2f}m  y={self.y_m:.2f}m  yaw={math.degrees(self.yaw_rad):.0f}deg",
+                    (40, height - 12), cv2.FONT_HERSHEY_SIMPLEX, .57, (235, 235, 235), 2)
+        cv2.putText(canvas, f"blue pixels: {blue_pixels}", (430, 62), cv2.FONT_HERSHEY_SIMPLEX, .48,
+                    (210, 210, 210), 1)
+        temporary = path + ".tmp.png"
+        if not cv2.imwrite(temporary, canvas):
+            raise RuntimeError(f"cannot write localization map: {path}")
+        os.replace(temporary, path)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera", default="/dev/video0")
@@ -96,7 +200,15 @@ def main() -> None:
     parser.add_argument("--frame-path", default="/tmp/robotvision-rectified.jpg")
     parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt",
                         help="atomically updated latest frame for the supervised mission runner")
+    parser.add_argument("--robotd-socket", default="/tmp/robotd.sock")
+    parser.add_argument("--localization-file", default="/tmp/robot-localization.json")
+    parser.add_argument("--localization-map", default="/tmp/robot-localization-map.png")
+    parser.add_argument("--initial-x", type=float, default=.10)
+    parser.add_argument("--initial-y", type=float, default=.10)
+    parser.add_argument("--initial-yaw", type=float, default=0.0)
     args = parser.parse_args()
+    if not 0.0 <= args.initial_x <= 3.0 or not 0.0 <= args.initial_y <= 1.985:
+        raise SystemExit("initial pose must lie inside the 3.0m x 1.985m arena")
 
     capture = cv2.VideoCapture(args.camera, cv2.CAP_V4L2)
     capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -106,6 +218,7 @@ def main() -> None:
         raise SystemExit(f"cannot open camera: {args.camera}")
     maps = None
     frames = 0
+    pose = V1PoseTracker(args.initial_x, args.initial_y, args.initial_yaw)
     try:
         while not args.max_frames or frames < args.max_frames:
             ok, raw = capture.read()
@@ -116,6 +229,23 @@ def main() -> None:
             rectified = cv2.remap(raw, maps[0], maps[1], cv2.INTER_LINEAR)
             hsv = cv2.cvtColor(rectified, cv2.COLOR_BGR2HSV)
             blue_pixels = int(cv2.countNonZero(cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))))
+            localization_valid = blue_pixels >= args.minimum_blue_pixels
+            try:
+                pose.update(*parse_motion(robotd_request(args.robotd_socket, "state"),
+                                          robotd_request(args.robotd_socket, "telemetry")))
+            except (OSError, ValueError, StopIteration):
+                # Keep the last broad pose visible. The motion watchdog in
+                # robotd remains authoritative if telemetry is unavailable.
+                pass
+            pose.render(args.localization_map, localization_valid, blue_pixels)
+            write_json(args.localization_file, {
+                "valid": localization_valid,
+                "x_m": round(pose.x_m, 3),
+                "y_m": round(pose.y_m, 3),
+                "yaw_deg": round(math.degrees(pose.yaw_rad), 1),
+                "blue_pixels": blue_pixels,
+                "source": "v1_blue_fence_wheel_imu",
+            })
             environment = os.environ.copy()
             environment["LD_LIBRARY_PATH"] = args.yolo_dir + ":" + environment.get("LD_LIBRARY_PATH", "")
             # The NPU runner accepts a file path.  Write the corrected, unannotated
@@ -131,7 +261,7 @@ def main() -> None:
                 raise RuntimeError("A733 YOLO failed: " + result.stdout[-500:])
             detections = parse_detections(result.stdout, rectified.shape[1], rectified.shape[0])
             annotated = rectified.copy()
-            frame = ["1" if blue_pixels >= args.minimum_blue_pixels else "0", "0"]
+            frame = ["1" if localization_valid else "0", "0"]
             for label, confidence, left, top, right, bottom in detections:
                 center_x = max(0.0, min(1.0, (left + right) * .5 / rectified.shape[1]))
                 bottom_y = max(0.0, min(1.0, bottom / rectified.shape[0]))

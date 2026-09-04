@@ -128,8 +128,8 @@ moving; `robotd` stops stale twist commands after 250 ms.
 ./build/robotbrain --live --expected-objects 2 < live-yolo-frames.txt
 ```
 
-During all active mission states, the bridge refreshes `ga25 100` for the
-front collector. It sends `ga25 0` and `stop` on exit, a fault, or Ctrl-C.
+During all active mission states, the bridge refreshes `ga25 -100` for the
+front collector (the installed motor's collecting direction). It sends `ga25 0` and `stop` on exit, a fault, or Ctrl-C.
 `--dump-pulse` must be set only after confirming the physical dump direction.
 
 ## Operator dashboard

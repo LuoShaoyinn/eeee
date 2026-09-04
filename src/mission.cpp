@@ -16,7 +16,7 @@ bool is_collectible(ObjectClass object_class) {
 MissionController::MissionController(MissionConfig config) : config_(config) {
     if (config_.expected_collectibles < 0 || config_.frames_to_confirm_collection < 1 ||
         config_.frames_to_confirm_dock < 1 || config_.max_lost_target_frames < 1 ||
-        config_.collector_percent < 0 || config_.collector_percent > 100) {
+        config_.collector_percent < -100 || config_.collector_percent > 100) {
         throw std::invalid_argument("invalid mission configuration");
     }
 }
