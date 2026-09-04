@@ -30,17 +30,15 @@ struct RuntimeConfig {
     double initial_y_m = .1;
     double initial_yaw_deg = 0;
     double visual_pull_gain = .12;
-    double visual_max_correction_m = .04;
-    double visual_max_correction_deg = 1.5;
-    double visual_certain_pull_gain = .50;
-    double visual_certain_max_correction_m = .15;
-    double visual_certain_max_correction_deg = 6.0;
-    double visual_certain_confidence = .65;
     double visual_precise_residual_m = .010;
-    double visual_dominant_residual_m = .030;
-    double visual_certain_margin_m = .015;
-    int visual_min_lower_edge_points = 60;
+    double visual_residual_limit_m = .045;
     double visual_yaw_reset_max_error_deg = 15.0;
+    double visual_axis_certainty_min = .05;
+    double visual_axis_sigma_m = .15;
+    double visual_yaw_sigma_deg = 5.0;
+    double visual_axis_max_correction_m = 1.0;
+    double visual_axis_max_correction_deg = 30.0;
+    double visual_axis_max_pull_gain = .80;
 
     double arena_length_m = 3;
     double arena_width_m = 1.985;

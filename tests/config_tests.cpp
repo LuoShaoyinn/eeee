@@ -28,10 +28,10 @@ int main() {
             std::cerr << "unexpected blue-fence HSV profile\n";
             return 1;
         }
-        if (config.visual_max_correction_m != .04 ||
-            config.visual_certain_max_correction_m != .15 ||
-            config.visual_min_lower_edge_points != 60 ||
-            config.visual_yaw_reset_max_error_deg != 15.0) {
+        if (config.visual_yaw_reset_max_error_deg != 15.0 ||
+            config.visual_axis_certainty_min != .05 ||
+            config.visual_axis_max_correction_m != 1.0 ||
+            config.visual_axis_max_correction_deg != 30.0) {
             std::cerr << "unexpected visual correction limits\n";
             return 1;
         }

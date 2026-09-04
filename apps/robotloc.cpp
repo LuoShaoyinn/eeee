@@ -77,17 +77,15 @@ struct Options {
     double visual_geometry_hz = 1;
     double telemetry_hz = 25;
     double visual_pull_gain = .12;
-    double visual_max_correction_m = .04;
-    double visual_max_correction_rad = 1.5 * kDegreesToRadians;
-    double visual_certain_pull_gain = .50;
-    double visual_certain_max_correction_m = .15;
-    double visual_certain_max_correction_rad = 6.0 * kDegreesToRadians;
-    double visual_certain_confidence = .65;
     double visual_precise_residual_m = .010;
-    double visual_dominant_residual_m = .030;
-    double visual_certain_margin_m = .015;
-    int visual_min_lower_edge_points = 60;
+    double visual_residual_limit_m = .045;
     double visual_yaw_reset_max_error_rad = 15.0 * kDegreesToRadians;
+    double visual_axis_certainty_min = .05;
+    double visual_axis_sigma_m = .15;
+    double visual_yaw_sigma_rad = 5.0 * kDegreesToRadians;
+    double visual_axis_max_correction_m = 1.0;
+    double visual_axis_max_correction_rad = 30.0 * kDegreesToRadians;
+    double visual_axis_max_pull_gain = .80;
     double fence_height_m = .254;
     cv::Scalar fence_hsv_lower{96, 128, 82};
     cv::Scalar fence_hsv_upper{121, 255, 255};
@@ -513,19 +511,17 @@ Options parse_options(int argc, char** argv) {
     options.visual_geometry_hz = config.visual_geometry_hz;
     options.telemetry_hz = config.telemetry_hz;
     options.visual_pull_gain = config.visual_pull_gain;
-    options.visual_max_correction_m = config.visual_max_correction_m;
-    options.visual_max_correction_rad = config.visual_max_correction_deg * kDegreesToRadians;
-    options.visual_certain_pull_gain = config.visual_certain_pull_gain;
-    options.visual_certain_max_correction_m = config.visual_certain_max_correction_m;
-    options.visual_certain_max_correction_rad =
-        config.visual_certain_max_correction_deg * kDegreesToRadians;
-    options.visual_certain_confidence = config.visual_certain_confidence;
     options.visual_precise_residual_m = config.visual_precise_residual_m;
-    options.visual_dominant_residual_m = config.visual_dominant_residual_m;
-    options.visual_certain_margin_m = config.visual_certain_margin_m;
-    options.visual_min_lower_edge_points = config.visual_min_lower_edge_points;
+    options.visual_residual_limit_m = config.visual_residual_limit_m;
     options.visual_yaw_reset_max_error_rad =
         config.visual_yaw_reset_max_error_deg * kDegreesToRadians;
+    options.visual_axis_certainty_min = config.visual_axis_certainty_min;
+    options.visual_axis_sigma_m = config.visual_axis_sigma_m;
+    options.visual_yaw_sigma_rad = config.visual_yaw_sigma_deg * kDegreesToRadians;
+    options.visual_axis_max_correction_m = config.visual_axis_max_correction_m;
+    options.visual_axis_max_correction_rad =
+        config.visual_axis_max_correction_deg * kDegreesToRadians;
+    options.visual_axis_max_pull_gain = config.visual_axis_max_pull_gain;
     options.fence_height_m = config.fence_height_m;
     options.fence_hsv_lower = cv::Scalar(config.fence_hsv_h_min, config.fence_hsv_s_min,
                                          config.fence_hsv_v_min);
@@ -638,7 +634,13 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"alternative_margin_m\":" << visual_geometry.alternative_margin_m
         << ",\"sigma_major_m\":" << visual_geometry.sigma_major_m
         << ",\"sigma_minor_m\":" << visual_geometry.sigma_minor_m
-        << ",\"major_axis_rad\":" << visual_geometry.major_axis_rad << '}'
+        << ",\"major_axis_rad\":" << visual_geometry.major_axis_rad
+        << ",\"point_support\":" << visual_geometry.point_support
+        << ",\"axis_sigma\":[" << visual_geometry.axis_sigma[0] << ','
+        << visual_geometry.axis_sigma[1] << ',' << visual_geometry.axis_sigma[2] << ']'
+        << ",\"axis_certainty\":[" << visual_geometry.axis_certainty[0] << ','
+        << visual_geometry.axis_certainty[1] << ','
+        << visual_geometry.axis_certainty[2] << "]}"
         << ",\"visual_yaw_sigma_rad\":" << visual_geometry.yaw_sigma_rad
         << ",\"visual_certain\":" << (visual_certain ? "true" : "false")
         << ",\"visual_very_certain\":" << (visual_very_certain ? "true" : "false")
@@ -842,7 +844,6 @@ int main(int argc, char** argv) {
                 visual_geometry = std::move(fence_result->geometry);
                 lower_fence_count = fence_result->edges.lower.size();
                 upper_fence_count = fence_result->edges.upper.size();
-                filter.update(fence_result->observations);
                 if (visual_geometry.valid && !visual_geometry.candidates.empty()) {
                     const auto& candidate = visual_geometry.candidates.front();
                     robot::Pose2 current_candidate = candidate.pose;
@@ -853,38 +854,38 @@ int main(int argc, char** argv) {
                         2.0 * CV_PI);
                     const bool precise = candidate.wall_residual_m <=
                                          options.visual_precise_residual_m;
-                    const bool dominant_edge = candidate.wall_residual_m <=
-                                                   options.visual_dominant_residual_m &&
-                                               visual_geometry.alternative_margin_m >=
-                                                   options.visual_certain_margin_m &&
-                                               static_cast<int>(lower_fence_count) >=
-                                                   options.visual_min_lower_edge_points;
-                    visual_certain = precise || dominant_edge ||
-                                     visual_geometry.confidence >= options.visual_certain_confidence;
-                    visual_very_certain = precise &&
-                        static_cast<int>(lower_fence_count) >=
-                            options.visual_min_lower_edge_points &&
-                        visual_geometry.yaw_sigma_rad <= 3.0 * kDegreesToRadians;
-                    const double gain = visual_certain ? options.visual_certain_pull_gain
-                                                       : options.visual_pull_gain;
-                    const double max_distance = visual_certain
-                        ? options.visual_certain_max_correction_m
-                        : options.visual_max_correction_m;
-                    const double max_yaw = visual_certain
-                        ? options.visual_certain_max_correction_rad
-                        : options.visual_max_correction_rad;
-                    const double major_axis_gain = visual_geometry.sigma_major_m >= .15
-                        ? 0.0
-                        : std::clamp(.05 / (visual_geometry.sigma_major_m + .01), 0.0, 1.0);
-                    const double current_major_axis = visual_geometry.major_axis_rad +
-                        std::remainder(odometry_pose.yaw_rad -
-                                           fence_result->odometry_pose.yaw_rad,
-                                       2.0 * CV_PI);
-                    filter.correct_toward(current_candidate, gain, max_distance, max_yaw,
-                                          current_major_axis, major_axis_gain);
+                    const double residual_quality = std::clamp(
+                        (options.visual_residual_limit_m - candidate.wall_residual_m) /
+                            (options.visual_residual_limit_m -
+                             options.visual_precise_residual_m),
+                        0.0, 1.0);
+                    const std::array<double, 3> sigma_scale = {
+                        options.visual_axis_sigma_m, options.visual_axis_sigma_m,
+                        options.visual_yaw_sigma_rad};
+                    for (std::size_t axis = 0; axis < 3; ++axis) {
+                        const double ratio = visual_geometry.axis_sigma[axis] /
+                                             sigma_scale[axis];
+                        double certainty = residual_quality * visual_geometry.point_support *
+                                           std::exp(-.5 * ratio * ratio);
+                        if (certainty < options.visual_axis_certainty_min) certainty = 0;
+                        visual_geometry.axis_certainty[axis] = certainty;
+                    }
+                    visual_certain =
+                        std::max(visual_geometry.axis_certainty[0],
+                                 visual_geometry.axis_certainty[1]) >= .65 &&
+                        visual_geometry.axis_certainty[2] >= .50;
+                    visual_very_certain =
+                        std::min(visual_geometry.axis_certainty[0],
+                                 visual_geometry.axis_certainty[1]) >= .80 &&
+                        visual_geometry.axis_certainty[2] >= .85;
+                    filter.correct_toward_axes(
+                        current_candidate, visual_geometry.axis_certainty,
+                        options.visual_pull_gain, options.visual_axis_max_pull_gain,
+                        options.visual_axis_max_correction_m,
+                        options.visual_axis_max_correction_rad);
                     const double yaw_error = std::remainder(
                         current_candidate.yaw_rad - odometry_pose.yaw_rad, 2.0 * CV_PI);
-                    if (visual_very_certain &&
+                    if (precise && visual_geometry.axis_certainty[2] >= .90 &&
                         std::abs(yaw_error) <= options.visual_yaw_reset_max_error_rad) {
                         // The IMU supplies only relative yaw rate; reset the
                         // integrated heading reference, not the sensor itself.

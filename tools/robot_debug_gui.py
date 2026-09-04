@@ -172,11 +172,12 @@ class DebugGui:
                     age = self.pose.get("telemetry_age_ms", -1)
                     valid = self.pose.get("telemetry_valid", False)
                     geometry = self.pose.get("visual_geometry", {})
+                    axis_certainty = geometry.get("axis_certainty", [0, 0, 0])
                     self.status_label.configure(
-                        text="{}  frame {}  UART {} {:.0f} ms  visual {:.0%}".format(
+                        text="{}  frame {}  UART {} {:.0f} ms  visual X/Y/yaw {:.0%}/{:.0%}/{:.0%}".format(
                             event[2], self.pose.get("frame_index", "?"),
                             "OK" if valid else "STALE", age,
-                            geometry.get("confidence", 0)),
+                            *axis_certainty),
                         fg="#176b2c" if valid else "#a02b2b")
                     self.draw()
                 elif event[0] == "error":
@@ -285,11 +286,12 @@ class DebugGui:
                 ellipse.extend((pixel_x, pixel_y))
             self.canvas.create_line(*ellipse, fill="#8b2db3", width=2)
             confidence = geometry.get("confidence", 0)
+            axis_certainty = geometry.get("axis_certainty", [0, 0, 0])
             margin = geometry.get("alternative_margin_m", 0)
             self.canvas.create_text(
                 16, 18,
-                text="visual certainty {:.0%} | 2sigma {:.2f} x {:.2f} m | alternate gap {:.3f} m".format(
-                    confidence, major, minor, margin),
+                text="visual X/Y/yaw {:.0%}/{:.0%}/{:.0%} | legacy {:.0%} | 2sigma {:.2f} x {:.2f} m | gap {:.3f} m".format(
+                    *axis_certainty, confidence, major, minor, margin),
                 fill="#5f197b", anchor="nw")
         object_colours = ("#d5a000", "#d3342f", "#333333", "#666666")
         object_names = ("cylinder", "cube", "home", "opponent")

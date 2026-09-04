@@ -20,6 +20,9 @@ constexpr double kWheelRadiusM = .023;
 constexpr double kMecanumRadiusM = .190;
 constexpr double kFieldLengthM = 3.0;
 constexpr double kFieldWidthM = 1.985;
+constexpr double kHomeLengthM = .20;
+constexpr double kHomeWidthM = .30;
+constexpr double kRangeWeightScaleM = .75;
 
 double wrap_angle(double value) {
     while (value > CV_PI) value -= 2.0 * CV_PI;
@@ -27,19 +30,24 @@ double wrap_angle(double value) {
     return value;
 }
 
-double segment_distance(double x, double y, double ax, double ay, double bx, double by) {
-    const double dx = bx - ax;
-    const double dy = by - ay;
-    const double length2 = dx * dx + dy * dy;
-    const double t = length2 == 0 ? 0 : std::clamp(((x - ax) * dx + (y - ay) * dy) / length2, 0.0, 1.0);
-    return std::hypot(x - (ax + t * dx), y - (ay + t * dy));
+double rectangle_edge_distance(double x, double y, double width, double height) {
+    const double nearest_x = std::clamp(x, 0.0, width);
+    const double nearest_y = std::clamp(y, 0.0, height);
+    if (x < 0 || x > width || y < 0 || y > height) {
+        return std::hypot(x - nearest_x, y - nearest_y);
+    }
+    return std::min({x, width - x, y, height - y});
 }
 
 double field_wall_distance(double x, double y) {
-    return std::min({segment_distance(x, y, 0, 0, kFieldLengthM, 0),
-                     segment_distance(x, y, kFieldLengthM, 0, kFieldLengthM, kFieldWidthM),
-                     segment_distance(x, y, kFieldLengthM, kFieldWidthM, 0, kFieldWidthM),
-                     segment_distance(x, y, 0, kFieldWidthM, 0, 0)});
+    return std::min(rectangle_edge_distance(x, y, kFieldLengthM, kFieldWidthM),
+                    rectangle_edge_distance(x, y, kHomeLengthM, kHomeWidthM));
+}
+
+double range_weight(double range_m) {
+    const double ratio = range_m / kRangeWeightScaleM;
+    const double squared = ratio * ratio;
+    return 1.0 / (1.0 + squared * squared);
 }
 }  // namespace
 
@@ -165,7 +173,7 @@ void FenceParticleFilter::update(const std::vector<cv::Point2d>& observations) {
             const double y = particle.y + sine * point.x + cosine * point.y;
             const double range = std::hypot(point.x, point.y);
             distances.push_back({field_wall_distance(x, y),
-                                 1.0 / ((.20 + range) * (.20 + range))});
+                                 range_weight(range)});
         }
         std::sort(distances.begin(), distances.end(), [](const auto& left, const auto& right) {
             return left.first < right.first;
@@ -218,6 +226,33 @@ void FenceParticleFilter::correct_toward(const Pose2& target, double gain,
         particle.x = std::clamp(particle.x + dx, 0.0, kFieldLengthM);
         particle.y = std::clamp(particle.y + dy, 0.0, kFieldWidthM);
         particle.yaw = wrap_angle(particle.yaw + yaw_step);
+    }
+}
+
+void FenceParticleFilter::correct_toward_axes(
+    const Pose2& target, const std::array<double, 3>& certainty,
+    double minimum_gain, double maximum_gain, double maximum_axis_distance_m,
+    double maximum_yaw_rad) {
+    if (particles_.empty() || minimum_gain < 0 || maximum_gain < minimum_gain ||
+        maximum_axis_distance_m <= 0 || maximum_yaw_rad <= 0) return;
+    const PoseEstimate current = estimate();
+    const auto step = [&](double error, double axis_certainty, double maximum) {
+        const double bounded_certainty = std::clamp(axis_certainty, 0.0, 1.0);
+        if (bounded_certainty == 0) return 0.0;
+        const double gain = minimum_gain + (maximum_gain - minimum_gain) * bounded_certainty;
+        return std::clamp(gain * error, -maximum * bounded_certainty,
+                          maximum * bounded_certainty);
+    };
+    const double dx = step(target.x_m - current.x_m, certainty[0],
+                           maximum_axis_distance_m);
+    const double dy = step(target.y_m - current.y_m, certainty[1],
+                           maximum_axis_distance_m);
+    const double dyaw = step(wrap_angle(target.yaw_rad - current.yaw_rad), certainty[2],
+                             maximum_yaw_rad);
+    for (auto& particle : particles_) {
+        particle.x = std::clamp(particle.x + dx, 0.0, kFieldLengthM);
+        particle.y = std::clamp(particle.y + dy, 0.0, kFieldWidthM);
+        particle.yaw = wrap_angle(particle.yaw + dyaw);
     }
 }
 
@@ -284,20 +319,41 @@ VisualGeometryEstimate estimate_fence_geometry(
     constexpr double kPositionStepM = .05;
     constexpr double kYawSpanRad = 25.0 * CV_PI / 180.0;
     constexpr double kYawStepRad = 5.0 * CV_PI / 180.0;
+    constexpr std::size_t kGridSize = 11 * 61 * 40;
+    struct WeightedPoint {
+        double x;
+        double y;
+        double weight;
+    };
+    evaluated.reserve(kGridSize);
     std::vector<std::pair<double, double>> weighted_distances(observations.size());
+    std::vector<WeightedPoint> rotated(observations.size());
+    std::vector<double> observation_weights(observations.size());
+    double point_support = 0;
+    for (std::size_t index = 0; index < observations.size(); ++index) {
+        observation_weights[index] = range_weight(
+            std::hypot(observations[index].x, observations[index].y));
+        point_support += observation_weights[index];
+    }
+    result.point_support = point_support / observations.size();
     for (double yaw = yaw_prior_rad - kYawSpanRad; yaw <= yaw_prior_rad + kYawSpanRad + 1e-9;
          yaw += kYawStepRad) {
         const double cosine = std::cos(yaw);
         const double sine = std::sin(yaw);
+        for (std::size_t index = 0; index < observations.size(); ++index) {
+            const auto& point = observations[index];
+            rotated[index] = {
+                cosine * point.x - sine * point.y,
+                sine * point.x + cosine * point.y,
+                observation_weights[index],
+            };
+        }
         for (double x = 0; x <= kFieldLengthM + 1e-9; x += kPositionStepM) {
             for (double y = 0; y <= kFieldWidthM + 1e-9; y += kPositionStepM) {
                 for (std::size_t index = 0; index < observations.size(); ++index) {
-                    const auto& point = observations[index];
-                    const double range = std::hypot(point.x, point.y);
+                    const auto& point = rotated[index];
                     weighted_distances[index] = {field_wall_distance(
-                        x + cosine * point.x - sine * point.y,
-                        y + sine * point.x + cosine * point.y),
-                        1.0 / ((.20 + range) * (.20 + range))};
+                        x + point.x, y + point.y), point.weight};
                 }
                 const std::size_t keep = std::max<std::size_t>(10, weighted_distances.size() * 2 / 3);
                 std::nth_element(weighted_distances.begin(), weighted_distances.begin() +
@@ -386,6 +442,9 @@ VisualGeometryEstimate estimate_fence_geometry(
     covariance_xy /= total_weight;
     covariance_yy /= total_weight;
     result.yaw_sigma_rad = std::sqrt(yaw_variance / total_weight);
+    result.axis_sigma = {std::sqrt(std::max(0.0, covariance_xx)),
+                         std::sqrt(std::max(0.0, covariance_yy)),
+                         result.yaw_sigma_rad};
     const double trace = covariance_xx + covariance_yy;
     const double discriminant = std::sqrt(std::max(0.0,
         (covariance_xx - covariance_yy) * (covariance_xx - covariance_yy) +

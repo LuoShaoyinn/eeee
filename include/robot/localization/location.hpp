@@ -35,6 +35,9 @@ struct VisualPoseCandidate {
 
 struct VisualGeometryEstimate {
     std::vector<VisualPoseCandidate> candidates;
+    std::array<double, 3> axis_certainty{};
+    std::array<double, 3> axis_sigma{};
+    double point_support = 0;
     double confidence = 0;
     double alternative_margin_m = 0;
     double sigma_major_m = 0;
@@ -77,6 +80,11 @@ public:
     void correct_toward(const Pose2& target, double gain, double max_distance_m,
                         double max_yaw_rad, double major_axis_rad = 0,
                         double major_axis_gain = 1);
+    void correct_toward_axes(const Pose2& target,
+                             const std::array<double, 3>& certainty,
+                             double minimum_gain, double maximum_gain,
+                             double maximum_axis_distance_m,
+                             double maximum_yaw_rad);
     PoseEstimate estimate() const;
 
 private:

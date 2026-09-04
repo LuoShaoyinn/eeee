@@ -47,13 +47,14 @@ void validate(const RuntimeConfig& config) {
         throw std::runtime_error("invalid blue-fence HSV range");
     }
     if (config.visual_pull_gain <= 0 || config.visual_pull_gain > 1 ||
-        config.visual_certain_pull_gain <= 0 || config.visual_certain_pull_gain > 1 ||
-        config.visual_max_correction_m <= 0 || config.visual_certain_max_correction_m <= 0 ||
-        config.visual_max_correction_deg <= 0 || config.visual_certain_max_correction_deg <= 0 ||
-        config.visual_certain_confidence < 0 || config.visual_certain_confidence > 1 ||
-        config.visual_precise_residual_m <= 0 || config.visual_dominant_residual_m <= 0 ||
-        config.visual_certain_margin_m < 0 || config.visual_min_lower_edge_points < 1 ||
-        config.visual_yaw_reset_max_error_deg <= 0 || config.visual_yaw_reset_max_error_deg > 90) {
+        config.visual_precise_residual_m <= 0 ||
+        config.visual_residual_limit_m <= config.visual_precise_residual_m ||
+        config.visual_yaw_reset_max_error_deg <= 0 || config.visual_yaw_reset_max_error_deg > 90 ||
+        config.visual_axis_certainty_min < 0 || config.visual_axis_certainty_min >= 1 ||
+        config.visual_axis_sigma_m <= 0 || config.visual_yaw_sigma_deg <= 0 ||
+        config.visual_axis_max_correction_m <= 0 ||
+        config.visual_axis_max_correction_deg <= 0 ||
+        config.visual_axis_max_pull_gain <= 0 || config.visual_axis_max_pull_gain > 1) {
         throw std::runtime_error("invalid visual correction limits");
     }
 }
@@ -91,17 +92,15 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(localization, "initial_y_m", config.initial_y_m);
     read(localization, "initial_yaw_deg", config.initial_yaw_deg);
     read(localization, "visual_pull_gain", config.visual_pull_gain);
-    read(localization, "visual_max_correction_m", config.visual_max_correction_m);
-    read(localization, "visual_max_correction_deg", config.visual_max_correction_deg);
-    read(localization, "visual_certain_pull_gain", config.visual_certain_pull_gain);
-    read(localization, "visual_certain_max_correction_m", config.visual_certain_max_correction_m);
-    read(localization, "visual_certain_max_correction_deg", config.visual_certain_max_correction_deg);
-    read(localization, "visual_certain_confidence", config.visual_certain_confidence);
     read(localization, "visual_precise_residual_m", config.visual_precise_residual_m);
-    read(localization, "visual_dominant_residual_m", config.visual_dominant_residual_m);
-    read(localization, "visual_certain_margin_m", config.visual_certain_margin_m);
-    read(localization, "visual_min_lower_edge_points", config.visual_min_lower_edge_points);
+    read(localization, "visual_residual_limit_m", config.visual_residual_limit_m);
     read(localization, "visual_yaw_reset_max_error_deg", config.visual_yaw_reset_max_error_deg);
+    read(localization, "visual_axis_certainty_min", config.visual_axis_certainty_min);
+    read(localization, "visual_axis_sigma_m", config.visual_axis_sigma_m);
+    read(localization, "visual_yaw_sigma_deg", config.visual_yaw_sigma_deg);
+    read(localization, "visual_axis_max_correction_m", config.visual_axis_max_correction_m);
+    read(localization, "visual_axis_max_correction_deg", config.visual_axis_max_correction_deg);
+    read(localization, "visual_axis_max_pull_gain", config.visual_axis_max_pull_gain);
     const cv::FileNode arena = file["arena"];
     read(arena, "length_m", config.arena_length_m);
     read(arena, "width_m", config.arena_width_m);

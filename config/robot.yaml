@@ -25,17 +25,15 @@ localization:
   initial_y_m: 1.0000000000000001e-01
   initial_yaw_deg: 0.
   visual_pull_gain: 1.2000000000000000e-01
-  visual_max_correction_m: 4.0000000000000001e-02
-  visual_max_correction_deg: 1.5
-  visual_certain_pull_gain: 5.0000000000000000e-01
-  visual_certain_max_correction_m: 1.4999999999999999e-01
-  visual_certain_max_correction_deg: 6.
-  visual_certain_confidence: 6.5000000000000002e-01
   visual_precise_residual_m: 1.0000000000000000e-02
-  visual_dominant_residual_m: 2.9999999999999999e-02
-  visual_certain_margin_m: 1.4999999999999999e-02
-  visual_min_lower_edge_points: 60
+  visual_residual_limit_m: 4.4999999999999998e-02
   visual_yaw_reset_max_error_deg: 15.
+  visual_axis_certainty_min: 5.0000000000000003e-02
+  visual_axis_sigma_m: 1.4999999999999999e-01
+  visual_yaw_sigma_deg: 5.
+  visual_axis_max_correction_m: 1.
+  visual_axis_max_correction_deg: 30.
+  visual_axis_max_pull_gain: 8.0000000000000004e-01
 arena:
   length_m: 3.
   width_m: 1.985
