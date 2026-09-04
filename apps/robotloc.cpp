@@ -21,10 +21,10 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include <opencv2/calib3d.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/videoio.hpp>
 
+#include "robot/fisheye.hpp"
 #include "robot/location.hpp"
 
 namespace {
@@ -125,18 +125,6 @@ bool parse_telemetry_targets(const std::string& reply, std::array<double, 4>& ta
         std::getline(input, ignored);
     }
     return false;
-}
-
-cv::Mat scaled_camera_matrix(const cv::Mat& matrix, int width, int height) {
-    cv::Mat result;
-    matrix.convertTo(result, CV_64F);
-    const double sx = static_cast<double>(width) / 1280.0;
-    const double sy = static_cast<double>(height) / 720.0;
-    result.at<double>(0, 0) *= sx;
-    result.at<double>(0, 2) *= sx;
-    result.at<double>(1, 1) *= sy;
-    result.at<double>(1, 2) *= sy;
-    return result;
 }
 
 std::vector<cv::Point2d> lower_fence_points(const cv::Mat& rectified, const robot::GroundProjector& projector) {
@@ -245,20 +233,9 @@ void write_record(std::ofstream& log, int frame_index, std::uint64_t time_ns, co
 int main(int argc, char** argv) {
     try {
         const Options options = parse_options(argc, argv);
-        cv::FileStorage calibration(options.calibration, cv::FileStorage::READ);
-        if (!calibration.isOpened()) throw std::runtime_error("cannot open calibration: " + options.calibration);
-        cv::Mat camera_matrix, distortion, rectified_matrix;
-        calibration["K"] >> camera_matrix;
-        calibration["D"] >> distortion;
-        calibration["rectified_K"] >> rectified_matrix;
-        if (camera_matrix.empty() || distortion.empty() || rectified_matrix.empty()) {
-            throw std::runtime_error("calibration lacks K, D, or rectified_K");
-        }
-        const cv::Mat visual_matrix = scaled_camera_matrix(rectified_matrix, options.visual_width, options.visual_height);
+        robot::FisheyeRectifier rectifier(options.calibration);
+        const cv::Mat visual_matrix = rectifier.rectified_camera_matrix(options.visual_width, options.visual_height);
         robot::GroundProjector projector(visual_matrix, options.height_m, options.pitch_deg, options.roll_deg);
-        cv::Mat map_x, map_y;
-        cv::fisheye::initUndistortRectifyMap(camera_matrix, distortion, cv::Mat::eye(3, 3, CV_64F),
-                                             rectified_matrix, cv::Size(1280, 720), CV_16SC2, map_x, map_y);
         cv::VideoCapture capture(options.camera, cv::CAP_V4L2);
         if (!capture.isOpened()) throw std::runtime_error("cannot open camera: " + options.camera);
         capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
@@ -296,7 +273,7 @@ int main(int argc, char** argv) {
             cv::Mat raw, rectified, small, gray;
             if (!capture.read(raw) || raw.empty()) throw std::runtime_error("camera capture failed");
             const auto capture_time = std::chrono::steady_clock::now();
-            cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
+            rectified = rectifier.rectify(raw);
             if (options.record_raw_video) raw_video.write(raw);
             if (options.record_video) video.write(rectified);
             cv::resize(rectified, small, cv::Size(options.visual_width, options.visual_height), 0, 0, cv::INTER_AREA);

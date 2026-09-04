@@ -33,12 +33,17 @@ target_include_directories(robot_location PUBLIC include)
 target_link_libraries(robot_location PUBLIC ${OpenCV_LIBS})
 target_compile_options(robot_location PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
+add_library(robot_camera src/fisheye.cpp)
+target_include_directories(robot_camera PUBLIC include)
+target_link_libraries(robot_camera PUBLIC ${OpenCV_LIBS})
+target_compile_options(robot_camera PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
 add_library(robot_mission src/mission.cpp)
 target_include_directories(robot_mission PUBLIC include)
 target_compile_options(robot_mission PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(robotloc apps/robotloc.cpp)
-target_link_libraries(robotloc PRIVATE robot_location)
+target_link_libraries(robotloc PRIVATE robot_location robot_camera)
 target_compile_options(robotloc PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_executable(mission_sim apps/mission_sim.cpp)
