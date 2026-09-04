@@ -6,6 +6,7 @@ import json
 import socket
 import threading
 import time
+from urllib.parse import urlsplit
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -187,19 +188,21 @@ def handler_factory(dashboard: RobotDashboard):
             return
 
         def do_GET(self):
-            if self.path == "/":
+            path = urlsplit(self.path).path
+            if path == "/":
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store, max-age=0")
                 self.end_headers()
                 self.wfile.write(PAGE.encode())
-            elif self.path == "/api/status":
+            elif path == "/api/status":
                 payload = json.dumps(dashboard.status()).encode()
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(payload)
-            elif self.path == "/stream.mjpg":
+            elif path == "/stream.mjpg":
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
                 self.send_header("Cache-Control", "no-store")
@@ -219,11 +222,12 @@ def handler_factory(dashboard: RobotDashboard):
                 self.send_error(HTTPStatus.NOT_FOUND)
 
         def do_POST(self):
-            if self.path == "/api/estop":
+            path = urlsplit(self.path).path
+            if path == "/api/estop":
                 dashboard.emergency_stop()
-            elif self.path == "/api/release-estop":
+            elif path == "/api/release-estop":
                 dashboard.release_emergency_stop()
-            elif self.path == "/api/start":
+            elif path == "/api/start":
                 dashboard.start_preview()
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
