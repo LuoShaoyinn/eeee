@@ -1,0 +1,20 @@
+# LOCALIZATION_OK COLLECTION_SENSOR [CLASS CONFIDENCE CENTER_X BOTTOM_Y]...
+1 0
+1 0 yellow .95 .58 .88
+1 0
+1 0
+1 0
+1 0
+1 0 red .95 .45 .88
+1 0
+1 0
+1 0
+1 0
+1 0 home .95 .50 .90
+1 0 home .95 .50 .90
+1 0 home .95 .50 .90
+1 0 home .95 .50 .90
+1 0 home .95 .50 .90
+1 0 home .95 .50 .90
+1 0 home .95 .50 .90
+1 0 home .95 .50 .90

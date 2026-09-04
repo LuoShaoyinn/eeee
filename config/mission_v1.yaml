@@ -1,0 +1,12 @@
+%YAML:1.0
+# Values requiring mechanical calibration are deliberately versioned here.
+expected_collectibles: 0 # Set only when the field inventory is known.
+min_confidence: 0.55
+collector_percent: 100
+collect_bottom_y: 0.82
+home_dock_bottom_y: 0.86
+obstacle_bottom_y: 0.36
+cruise_mps: 0.18
+final_approach_mps: 0.07
+dump_servo_pulse_us: 2000 # Confirm this direction on the physical robot.
+stow_servo_pulse_us: 1600 # Confirm this direction on the physical robot.

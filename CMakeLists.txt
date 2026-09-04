@@ -33,9 +33,32 @@ target_include_directories(robot_location PUBLIC include)
 target_link_libraries(robot_location PUBLIC ${OpenCV_LIBS})
 target_compile_options(robot_location PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
+add_library(robot_mission src/mission.cpp)
+target_include_directories(robot_mission PUBLIC include)
+target_compile_options(robot_mission PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
 add_executable(robotloc apps/robotloc.cpp)
 target_link_libraries(robotloc PRIVATE robot_location)
 target_compile_options(robotloc PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-install(TARGETS robotd robotctl robotloc RUNTIME DESTINATION bin)
-install(FILES config/camera_fisheye_1280x720.yaml DESTINATION config)
+add_executable(mission_sim apps/mission_sim.cpp)
+target_link_libraries(mission_sim PRIVATE robot_mission)
+target_compile_options(mission_sim PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+add_executable(robotbrain apps/robotbrain.cpp)
+target_link_libraries(robotbrain PRIVATE robot_mission)
+target_compile_options(robotbrain PRIVATE -Wall -Wextra -Wpedantic -Werror)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(mission_test tests/mission_test.cpp)
+    target_link_libraries(mission_test PRIVATE robot_mission)
+    target_compile_options(mission_test PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    add_test(NAME mission_test COMMAND mission_test)
+endif()
+
+install(TARGETS robotd robotctl robotloc mission_sim robotbrain RUNTIME DESTINATION bin)
+install(FILES
+    config/camera_fisheye_1280x720.yaml
+    config/mission_v1.yaml
+    DESTINATION config)

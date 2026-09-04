@@ -99,6 +99,39 @@ Full-resolution rectification and MJPEG logging reduce the observed Cubie loop
 rate to about 6.4 Hz. Use `--no-video` when localization throughput matters.
 The ESP32 continues its control loop independently at all times.
 
+## Autonomous-mission decision test
+
+`robotbrain` is the V1 decision-to-actuator bridge. It owns neither the UART
+nor the motor safety loop: in `--live` mode it sends its output only through
+`robotd`'s Unix socket. It is deliberately a frame-input interface so the
+A733 YOLO process can be validated independently before it is wired into the
+robot's motion controller.
+
+The input format is one detection frame per line:
+
+```text
+LOCALIZATION_OK COLLECTION_SENSOR [CLASS CONFIDENCE CENTER_X BOTTOM_Y]...
+```
+
+`CLASS` is one of `yellow`, `red`, `other_robot`, and `home`; all coordinates
+are normalized to 0--1. Feed the supplied replay without moving hardware:
+
+```sh
+./build/robotbrain --expected-objects 2 < tests/mission_replay.txt
+```
+
+Only after verifying the replay and servo calibration, enable motion on the
+Cubie. The frame producer must keep supplying frames at least 4 Hz while
+moving; `robotd` stops stale twist commands after 250 ms.
+
+```sh
+./build/robotbrain --live --expected-objects 2 < live-yolo-frames.txt
+```
+
+During all active mission states, the bridge refreshes `ga25 100` for the
+front collector. It sends `ga25 0` and `stop` on exit, a fault, or Ctrl-C.
+`--dump-pulse` must be set only after confirming the physical dump direction.
+
 ## Camera Tools
 
 The Python environment is managed independently from the C++ build:
