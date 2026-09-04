@@ -14,7 +14,7 @@ import numpy as np
 
 
 class RobotDashboard:
-    def __init__(self, calibration_path: str, socket_path: str, camera: str):
+    def __init__(self, calibration_path: str, socket_path: str, camera: str, preview_file):
         calibration = cv2.FileStorage(calibration_path, cv2.FILE_STORAGE_READ)
         if not calibration.isOpened():
             raise RuntimeError(f"cannot open calibration: {calibration_path}")
@@ -26,6 +26,7 @@ class RobotDashboard:
             raise RuntimeError("calibration must contain K, D, and rectified_K")
         self.socket_path = socket_path
         self.camera = camera
+        self.preview_file = preview_file
         self.e_stop_latched = False
         self.last_error = ""
         self._latest_jpeg = b""
@@ -68,6 +69,9 @@ class RobotDashboard:
         }
 
     def camera_loop(self) -> None:
+        if self.preview_file:
+            self.preview_file_loop()
+            return
         capture = cv2.VideoCapture(self.camera, cv2.CAP_V4L2)
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -110,6 +114,27 @@ class RobotDashboard:
                 self._frame_time = time.monotonic()
                 self._condition.notify_all()
         capture.release()
+
+    def preview_file_loop(self) -> None:
+        while self._running:
+            preview = cv2.imread(self.preview_file, cv2.IMREAD_COLOR)
+            if preview is None:
+                self.last_error = f"waiting for vision frame: {self.preview_file}"
+                time.sleep(.1)
+                continue
+            label = "E-STOP LATCHED" if self.e_stop_latched else "RECTIFIED VISION PREVIEW"
+            color = (20, 20, 230) if self.e_stop_latched else (20, 190, 20)
+            cv2.rectangle(preview, (12, 12), (440, 54), (15, 15, 15), -1)
+            cv2.putText(preview, label, (24, 42), cv2.FONT_HERSHEY_SIMPLEX, .72, color, 2)
+            ok, encoded = cv2.imencode(".jpg", preview, [cv2.IMWRITE_JPEG_QUALITY, 82])
+            if ok:
+                with self._condition:
+                    self._latest_jpeg = encoded.tobytes()
+                    self._frame_time = time.monotonic()
+                    self._condition.notify_all()
+            else:
+                self.last_error = "cannot encode vision preview"
+            time.sleep(.08)
 
     def next_frame(self, previous: bytes) -> bytes:
         with self._condition:
@@ -183,8 +208,9 @@ def main() -> None:
     parser.add_argument("--camera", default="/dev/video0")
     parser.add_argument("--socket", default="/tmp/robotd.sock")
     parser.add_argument("--calibration", default="config/camera_fisheye_1280x720.yaml")
+    parser.add_argument("--preview-file", help="use a rectified vision frame written by robotvision_bridge")
     args = parser.parse_args()
-    dashboard = RobotDashboard(args.calibration, args.socket, args.camera)
+    dashboard = RobotDashboard(args.calibration, args.socket, args.camera, args.preview_file)
     threading.Thread(target=dashboard.camera_loop, daemon=True).start()
     server = ThreadingHTTPServer((args.host, args.port), handler_factory(dashboard))
     print(f"dashboard: http://{args.host}:{args.port}", flush=True)

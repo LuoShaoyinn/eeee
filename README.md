@@ -148,6 +148,21 @@ ssh -N -L 8080:127.0.0.1:8080 radxa@CUBIE_IP
 Open `http://127.0.0.1:8080`. This is a software e-stop and does not replace a
 physical emergency-stop circuit.
 
+## Calibrated YOLO bridge
+
+`tools/robotvision_bridge.py` captures one raw camera stream, rectifies every
+frame with the versioned fisheye calibration, runs the existing A733 YOLO26
+payload, and writes the detection-frame protocol understood by `robotbrain`.
+It never drives the robot on its own. First verify its output without `--live`:
+
+```sh
+python3 tools/robotvision_bridge.py --max-frames 10
+```
+
+After reviewing that output and setting the expected object count, it can be
+connected to `robotbrain`. Keep the operator dashboard and physical e-stop
+available for any live test.
+
 ## Camera Tools
 
 The Python environment is managed independently from the C++ build:
