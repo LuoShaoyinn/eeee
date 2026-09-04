@@ -142,6 +142,8 @@ uv sync --project tools
 
 - `tools/capture_video.py`: continuous local video segments, rectified by
   default.
+- `tools/rectify_fisheye_frame.py`: rectify a single raw frame before an NPU
+  inference or visual inspection.
 - `tools/camera_preview.py`: host-side SSH preview and frame capture.
 - `tools/capture_fisheye_calibration.py`: collect diverse raw checkerboard
   views.
