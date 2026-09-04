@@ -153,6 +153,12 @@ class V1PoseTracker:
                                                     math.cos(self.yaw_rad) * left_mps) * dt))
         self.yaw_rad = (self.yaw_rad + yaw_radps * dt + math.pi) % (2.0 * math.pi) - math.pi
 
+    def reset(self, x_m: float, y_m: float, yaw_deg: float) -> None:
+        self.x_m = x_m
+        self.y_m = y_m
+        self.yaw_rad = math.radians(yaw_deg)
+        self.last_time = time.monotonic()
+
     def render(self, path: str, localization_valid: bool, blue_pixels: int) -> None:
         width, height, margin = 720, 500, 40
         canvas = np.full((height, width, 3), (22, 30, 34), dtype=np.uint8)
@@ -206,6 +212,7 @@ def main() -> None:
     parser.add_argument("--initial-x", type=float, default=.10)
     parser.add_argument("--initial-y", type=float, default=.10)
     parser.add_argument("--initial-yaw", type=float, default=0.0)
+    parser.add_argument("--localization-reset-file", default="/tmp/robot-localization-reset.json")
     args = parser.parse_args()
     if not 0.0 <= args.initial_x <= 3.0 or not 0.0 <= args.initial_y <= 1.985:
         raise SystemExit("initial pose must lie inside the 3.0m x 1.985m arena")
@@ -219,6 +226,7 @@ def main() -> None:
     maps = None
     frames = 0
     pose = V1PoseTracker(args.initial_x, args.initial_y, args.initial_yaw)
+    reset_timestamp_ns = None
     try:
         while not args.max_frames or frames < args.max_frames:
             ok, raw = capture.read()
@@ -230,6 +238,18 @@ def main() -> None:
             hsv = cv2.cvtColor(rectified, cv2.COLOR_BGR2HSV)
             blue_pixels = int(cv2.countNonZero(cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))))
             localization_valid = blue_pixels >= args.minimum_blue_pixels
+            try:
+                reset_stat = os.stat(args.localization_reset_file)
+                if reset_stat.st_mtime_ns != reset_timestamp_ns:
+                    with open(args.localization_reset_file, encoding="utf-8") as reset_input:
+                        reset = json.load(reset_input)
+                    x_m, y_m, yaw_deg = float(reset["x_m"]), float(reset["y_m"]), float(reset["yaw_deg"])
+                    if not 0.0 <= x_m <= 3.0 or not 0.0 <= y_m <= 1.985:
+                        raise ValueError("reset pose is outside the arena")
+                    pose.reset(x_m, y_m, yaw_deg)
+                    reset_timestamp_ns = reset_stat.st_mtime_ns
+            except FileNotFoundError:
+                pass
             try:
                 pose.update(*parse_motion(robotd_request(args.robotd_socket, "state"),
                                           robotd_request(args.robotd_socket, "telemetry")))
