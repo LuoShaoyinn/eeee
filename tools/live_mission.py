@@ -9,6 +9,7 @@ live-mode exit path commands ``ga25 0`` and ``stop`` through robotd.
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -66,6 +67,15 @@ def robotd_request(socket_path: str, command: str) -> None:
         raise RuntimeError(reply)
 
 
+def ramp_toward(current: float, target: float, step: float) -> float:
+    """Smooth increases, while applying braking and sign reversals promptly."""
+    if current * target < 0:
+        return current - math.copysign(min(abs(current), step), current)
+    if abs(target) <= abs(current):
+        return target
+    return current + max(-step, min(step, target - current))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--robotbrain", required=True)
@@ -75,10 +85,13 @@ def main() -> int:
     parser.add_argument("--socket", default="/tmp/robotd.sock")
     parser.add_argument("--max-frame-age", type=float, default=1.50)
     parser.add_argument("--heartbeat-seconds", type=float, default=.08)
+    parser.add_argument("--linear-rise-step", type=float, default=.030)
+    parser.add_argument("--yaw-rise-step", type=float, default=.120)
     parser.add_argument("--poll-seconds", type=float, default=.04)
     args = parser.parse_args()
-    if min(args.expected_objects, args.max_frame_age, args.poll_seconds, args.heartbeat_seconds) <= 0:
-        raise SystemExit("expected-objects, max-frame-age, poll-seconds, and heartbeat-seconds must be positive")
+    if min(args.expected_objects, args.max_frame_age, args.poll_seconds, args.heartbeat_seconds,
+           args.linear_rise_step, args.yaw_rise_step) <= 0:
+        raise SystemExit("mission timing and smoothing values must be positive")
 
     protocol_file = Path(args.protocol_file)
     status_file = Path(args.status_file)
@@ -111,6 +124,7 @@ def main() -> int:
     reader.start()
     last_timestamp_ns: int | None = None
     last_heartbeat = 0.0
+    applied_forward = applied_left = applied_yaw = 0.0
     error = ""
     try:
         while process.poll() is None:
@@ -135,7 +149,10 @@ def main() -> int:
                     command = last_command
                 if command is not None:
                     forward, left, yaw, collector = command
-                    robotd_request(args.socket, f"twist {forward:.3f} {left:.3f} {yaw:.3f}")
+                    applied_forward = ramp_toward(applied_forward, forward, args.linear_rise_step)
+                    applied_left = ramp_toward(applied_left, left, args.linear_rise_step)
+                    applied_yaw = ramp_toward(applied_yaw, yaw, args.yaw_rise_step)
+                    robotd_request(args.socket, f"twist {applied_forward:.3f} {applied_left:.3f} {applied_yaw:.3f}")
                     robotd_request(args.socket, f"ga25 {collector}")
                 last_heartbeat = now
             write_status(status_file, running=True, state=state, frame_age_ms=round(frame_age * 1000),

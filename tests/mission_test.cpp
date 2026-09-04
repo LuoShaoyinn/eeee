@@ -4,7 +4,7 @@
 
 namespace {
 
-robot::Detection object(robot::ObjectClass type, double bottom, double centre = .56) {
+robot::Detection object(robot::ObjectClass type, double bottom, double centre = .51) {
     return {.object_class = type, .confidence = .9, .center_x = centre, .bottom_y = bottom};
 }
 

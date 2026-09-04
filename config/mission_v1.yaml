@@ -9,7 +9,9 @@ obstacle_bottom_y: 0.36
 cruise_mps: 0.35
 final_approach_mps: 0.18
 search_yaw_radps: 0.75
-target_center_x: 0.56 # Camera is left of the collection centreline.
+target_center_x: 0.51 # Calibrated collector centreline in image coordinates.
+alignment_deadband: 0.035
+target_filter_alpha: 0.30
 steering_gain: 2.60
 max_yaw_radps: 1.80
 turn_in_place_error: 0.22

@@ -44,9 +44,10 @@ struct MissionConfig {
     double final_approach_mps = 0.18;
     double avoid_left_mps = 0.16;
     double avoid_yaw_radps = 0.70;
-    // The camera is mounted left of the collector centreline, so a target
-    // entering the collector appears slightly right of image centre.
-    double target_center_x = 0.56;
+    // Calibrated image set-point for the collector centreline.
+    double target_center_x = 0.51;
+    double alignment_deadband = 0.035;
+    double target_filter_alpha = 0.30;
     double steering_gain = 2.60;
     double max_yaw_radps = 1.80;
     double turn_in_place_error = 0.22;
@@ -91,11 +92,13 @@ private:
     [[nodiscard]] MissionOutput drive_to(const Detection& detection, bool home) const;
     [[nodiscard]] MissionOutput output_for_state() const;
     [[nodiscard]] bool already_collected(ObjectClass object_class) const;
+    [[nodiscard]] Detection stabilize_target(const Detection& detection);
     void begin_collection_wait();
 
     MissionConfig config_;
     MissionState state_ = MissionState::initializing;
     std::optional<ObjectClass> active_target_;
+    std::optional<Detection> filtered_target_;
     bool awaiting_collection_ = false;
     int collected_count_ = 0;
     std::array<bool, 2> collected_types_{};

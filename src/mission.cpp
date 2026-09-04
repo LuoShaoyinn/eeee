@@ -18,6 +18,7 @@ MissionController::MissionController(MissionConfig config) : config_(config) {
         config_.frames_to_confirm_dock < 1 || config_.max_lost_target_frames < 1 ||
         config_.collector_percent < -100 || config_.collector_percent > 100 ||
         config_.target_center_x < 0 || config_.target_center_x > 1 ||
+        config_.alignment_deadband < 0 || config_.target_filter_alpha <= 0 || config_.target_filter_alpha > 1 ||
         config_.steering_gain <= 0 || config_.max_yaw_radps <= 0 || config_.turn_in_place_error <= 0) {
         throw std::invalid_argument("invalid mission configuration");
     }
@@ -56,9 +57,22 @@ bool MissionController::already_collected(ObjectClass object_class) const {
     return false;
 }
 
+Detection MissionController::stabilize_target(const Detection& detection) {
+    if (!filtered_target_ || filtered_target_->object_class != detection.object_class) {
+        filtered_target_ = detection;
+        return detection;
+    }
+    const double alpha = config_.target_filter_alpha;
+    filtered_target_->confidence = detection.confidence;
+    filtered_target_->center_x = (1.0 - alpha) * filtered_target_->center_x + alpha * detection.center_x;
+    filtered_target_->bottom_y = (1.0 - alpha) * filtered_target_->bottom_y + alpha * detection.bottom_y;
+    return *filtered_target_;
+}
+
 MissionOutput MissionController::drive_to(const Detection& detection, bool home) const {
     MissionOutput output = output_for_state();
-    const double horizontal_error = std::clamp(detection.center_x, 0.0, 1.0) - config_.target_center_x;
+    double horizontal_error = std::clamp(detection.center_x, 0.0, 1.0) - config_.target_center_x;
+    if (std::abs(horizontal_error) <= config_.alignment_deadband) horizontal_error = 0.0;
     output.yaw_radps = std::clamp(-config_.steering_gain * horizontal_error,
                                   -config_.max_yaw_radps, config_.max_yaw_radps);
     const double nominal_speed = detection.bottom_y >= (home ? config_.home_dock_bottom_y : config_.collect_bottom_y)
@@ -118,10 +132,12 @@ MissionOutput MissionController::update(const MissionInput& input) {
     if (state_ == MissionState::searching || state_ == MissionState::approaching_target) {
         const auto target = best_collectible(input.detections);
         if (target) {
+            if (active_target_ != target->object_class) filtered_target_.reset();
             active_target_ = target->object_class;
             state_ = MissionState::approaching_target;
-            if (target->bottom_y >= config_.collect_bottom_y) begin_collection_wait();
-            return drive_to(*target, false);
+            const Detection stabilized = stabilize_target(*target);
+            if (stabilized.bottom_y >= config_.collect_bottom_y) begin_collection_wait();
+            return drive_to(stabilized, false);
         }
 
         if (awaiting_collection_) {
@@ -133,6 +149,7 @@ MissionOutput MissionController::update(const MissionInput& input) {
                 }
                 awaiting_collection_ = false;
                 active_target_.reset();
+                filtered_target_.reset();
                 missing_target_frames_ = 0;
             }
         }
@@ -154,8 +171,11 @@ MissionOutput MissionController::update(const MissionInput& input) {
             output.yaw_radps = config_.search_yaw_radps;
             return output;
         }
+        if (!active_target_ || *active_target_ != ObjectClass::home) filtered_target_.reset();
+        active_target_ = ObjectClass::home;
+        const Detection stabilized_home = stabilize_target(*home);
         state_ = MissionState::docking_home;
-        if (home->bottom_y >= config_.home_dock_bottom_y) ++dock_frames_;
+        if (stabilized_home.bottom_y >= config_.home_dock_bottom_y) ++dock_frames_;
         else dock_frames_ = 0;
         if (dock_frames_ >= config_.frames_to_confirm_dock) {
             state_ = MissionState::dumping;
@@ -163,7 +183,7 @@ MissionOutput MissionController::update(const MissionInput& input) {
             output.servo_pulse_us = config_.dump_servo_pulse_us;
             return output;
         }
-        return drive_to(*home, true);
+        return drive_to(stabilized_home, true);
     }
 
     if (state_ == MissionState::dumping) {
