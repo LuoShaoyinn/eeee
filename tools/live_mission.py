@@ -17,6 +17,7 @@ import sys
 import tempfile
 import threading
 import time
+import socket
 
 
 def write_status(path: Path, **fields) -> None:
@@ -55,17 +56,29 @@ def terminate(process: subprocess.Popen[str]) -> None:
         process.wait(timeout=2)
 
 
+def robotd_request(socket_path: str, command: str) -> None:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(.3)
+        client.connect(socket_path)
+        client.sendall((command + "\n").encode())
+        reply = client.recv(1024).decode(errors="replace")
+    if reply.startswith("error:"):
+        raise RuntimeError(reply)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--robotbrain", required=True)
     parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt")
     parser.add_argument("--status-file", default="/tmp/robot-mission-status.json")
     parser.add_argument("--expected-objects", type=int, default=2)
-    parser.add_argument("--max-frame-age", type=float, default=.40)
+    parser.add_argument("--socket", default="/tmp/robotd.sock")
+    parser.add_argument("--max-frame-age", type=float, default=1.50)
+    parser.add_argument("--heartbeat-seconds", type=float, default=.08)
     parser.add_argument("--poll-seconds", type=float, default=.04)
     args = parser.parse_args()
-    if args.expected_objects < 1 or args.max_frame_age <= 0 or args.poll_seconds <= 0:
-        raise SystemExit("expected-objects, max-frame-age, and poll-seconds must be positive")
+    if min(args.expected_objects, args.max_frame_age, args.poll_seconds, args.heartbeat_seconds) <= 0:
+        raise SystemExit("expected-objects, max-frame-age, poll-seconds, and heartbeat-seconds must be positive")
 
     protocol_file = Path(args.protocol_file)
     status_file = Path(args.status_file)
@@ -74,18 +87,30 @@ def main() -> int:
                                stderr=subprocess.STDOUT, text=True, bufsize=1)
     state = "starting"
     last_output = ""
+    last_command = None
+    command_lock = threading.Lock()
 
     def read_output() -> None:
-        nonlocal state, last_output
+        nonlocal state, last_output, last_command
         assert process.stdout is not None
         for line in process.stdout:
             last_output = line.strip()
             if last_output.startswith("state="):
                 state = last_output.split()[0].removeprefix("state=")
+                fields = dict(token.split("=", 1) for token in last_output.split() if "=" in token)
+                twist = fields.get("twist", "").split(",")
+                if len(twist) == 3 and "ga25" in fields:
+                    try:
+                        command = (float(twist[0]), float(twist[1]), float(twist[2]), int(fields["ga25"]))
+                    except ValueError:
+                        continue
+                    with command_lock:
+                        last_command = command
 
     reader = threading.Thread(target=read_output, daemon=True)
     reader.start()
     last_timestamp_ns: int | None = None
+    last_heartbeat = 0.0
     error = ""
     try:
         while process.poll() is None:
@@ -104,6 +129,15 @@ def main() -> int:
                 process.stdin.write(line + "\n")
                 process.stdin.flush()
                 last_timestamp_ns = stat.st_mtime_ns
+            now = time.monotonic()
+            if now - last_heartbeat >= args.heartbeat_seconds:
+                with command_lock:
+                    command = last_command
+                if command is not None:
+                    forward, left, yaw, collector = command
+                    robotd_request(args.socket, f"twist {forward:.3f} {left:.3f} {yaw:.3f}")
+                    robotd_request(args.socket, f"ga25 {collector}")
+                last_heartbeat = now
             write_status(status_file, running=True, state=state, frame_age_ms=round(frame_age * 1000),
                          last_output=last_output, error="")
             time.sleep(args.poll_seconds)
