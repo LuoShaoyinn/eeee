@@ -39,12 +39,17 @@ struct MissionConfig {
     double obstacle_bottom_y = 0.36;
     double collect_bottom_y = 0.82;
     double home_dock_bottom_y = 0.86;
-    double search_yaw_radps = 0.45;
-    double cruise_mps = 0.30;
-    double final_approach_mps = 0.15;
+    double search_yaw_radps = 0.75;
+    double cruise_mps = 0.35;
+    double final_approach_mps = 0.18;
     double avoid_left_mps = 0.16;
     double avoid_yaw_radps = 0.70;
-    double steering_gain = 1.35;
+    // The camera is mounted left of the collector centreline, so a target
+    // entering the collector appears slightly right of image centre.
+    double target_center_x = 0.56;
+    double steering_gain = 2.60;
+    double max_yaw_radps = 1.80;
+    double turn_in_place_error = 0.22;
     // The installed front GA25 motor is wired so negative power rotates in
     // the collecting direction.
     int collector_percent = -100;

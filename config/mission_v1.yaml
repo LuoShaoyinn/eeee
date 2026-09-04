@@ -6,7 +6,12 @@ collector_percent: -100 # Installed motor: negative is the collecting direction.
 collect_bottom_y: 0.82
 home_dock_bottom_y: 0.86
 obstacle_bottom_y: 0.36
-cruise_mps: 0.30
-final_approach_mps: 0.15
+cruise_mps: 0.35
+final_approach_mps: 0.18
+search_yaw_radps: 0.75
+target_center_x: 0.56 # Camera is left of the collection centreline.
+steering_gain: 2.60
+max_yaw_radps: 1.80
+turn_in_place_error: 0.22
 dump_servo_pulse_us: 2000 # Confirm this direction on the physical robot.
 stow_servo_pulse_us: 1600 # Confirm this direction on the physical robot.

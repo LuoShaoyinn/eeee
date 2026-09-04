@@ -4,8 +4,8 @@
 
 namespace {
 
-robot::Detection object(robot::ObjectClass type, double bottom) {
-    return {.object_class = type, .confidence = .9, .center_x = .5, .bottom_y = bottom};
+robot::Detection object(robot::ObjectClass type, double bottom, double centre = .56) {
+    return {.object_class = type, .confidence = .9, .center_x = centre, .bottom_y = bottom};
 }
 
 }  // namespace
@@ -22,11 +22,14 @@ int main() {
                                   .detections = {object(robot::ObjectClass::yellow, .9)}});
     assert(output.state == robot::MissionState::approaching_target);
     assert(output.collector_percent == -100);
-    assert(output.forward_mps == .15);
+    assert(output.forward_mps == .18);
 
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::yellow, .7)}});
-    assert(output.forward_mps == .30);
+    assert(output.forward_mps == .35);
+    output = mission.update({.localization_valid = true,
+                             .detections = {object(robot::ObjectClass::yellow, .7, .20)}});
+    assert(output.forward_mps == 0.0);
 
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::other_robot, .7)}});

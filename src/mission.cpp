@@ -16,7 +16,9 @@ bool is_collectible(ObjectClass object_class) {
 MissionController::MissionController(MissionConfig config) : config_(config) {
     if (config_.expected_collectibles < 0 || config_.frames_to_confirm_collection < 1 ||
         config_.frames_to_confirm_dock < 1 || config_.max_lost_target_frames < 1 ||
-        config_.collector_percent < -100 || config_.collector_percent > 100) {
+        config_.collector_percent < -100 || config_.collector_percent > 100 ||
+        config_.target_center_x < 0 || config_.target_center_x > 1 ||
+        config_.steering_gain <= 0 || config_.max_yaw_radps <= 0 || config_.turn_in_place_error <= 0) {
         throw std::invalid_argument("invalid mission configuration");
     }
 }
@@ -56,11 +58,18 @@ bool MissionController::already_collected(ObjectClass object_class) const {
 
 MissionOutput MissionController::drive_to(const Detection& detection, bool home) const {
     MissionOutput output = output_for_state();
-    const double horizontal_error = std::clamp(detection.center_x, 0.0, 1.0) - .5;
-    output.yaw_radps = std::clamp(-config_.steering_gain * horizontal_error, -1.2, 1.2);
-    output.forward_mps = detection.bottom_y >= (home ? config_.home_dock_bottom_y : config_.collect_bottom_y)
-                             ? config_.final_approach_mps
-                             : config_.cruise_mps;
+    const double horizontal_error = std::clamp(detection.center_x, 0.0, 1.0) - config_.target_center_x;
+    output.yaw_radps = std::clamp(-config_.steering_gain * horizontal_error,
+                                  -config_.max_yaw_radps, config_.max_yaw_radps);
+    const double nominal_speed = detection.bottom_y >= (home ? config_.home_dock_bottom_y : config_.collect_bottom_y)
+                                     ? config_.final_approach_mps
+                                     : config_.cruise_mps;
+    // Prevent the camera's lateral offset from producing a pass-by: rotate
+    // first for a large error, then progressively release forward motion.
+    const double alignment = std::abs(horizontal_error);
+    output.forward_mps = alignment >= config_.turn_in_place_error
+                             ? 0.0
+                             : nominal_speed * std::clamp(1.0 - alignment / config_.turn_in_place_error, .20, 1.0);
     return output;
 }
 
