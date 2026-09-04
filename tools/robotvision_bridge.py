@@ -68,6 +68,8 @@ def main() -> None:
     parser.add_argument("--camera", default="/dev/video0")
     parser.add_argument("--calibration", default="config/camera_fisheye_1280x720.yaml")
     parser.add_argument("--yolo-dir", default="/home/radxa/yolo26n-a733")
+    parser.add_argument("--yolo-bin", default="./yolo26_demo_a733",
+                        help="A733 executable matching the selected model's decoder")
     parser.add_argument("--model", default="official_yolo26n_split_pcq_a733.nb")
     parser.add_argument("--minimum-blue-pixels", type=int, default=60)
     parser.add_argument("--max-frames", type=int, default=0, help="0 means stream until interrupted")
@@ -94,8 +96,13 @@ def main() -> None:
             blue_pixels = int(cv2.countNonZero(cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))))
             environment = os.environ.copy()
             environment["LD_LIBRARY_PATH"] = args.yolo_dir + ":" + environment.get("LD_LIBRARY_PATH", "")
+            # The NPU runner accepts a file path.  Write the corrected, unannotated
+            # image first: otherwise it would consume the preceding annotated frame.
+            inference_path = args.frame_path + ".inference.jpg"
+            if not cv2.imwrite(inference_path, rectified):
+                raise RuntimeError(f"cannot write corrected inference frame: {inference_path}")
             result = subprocess.run(
-                ["./yolo26_demo_a733", "-nb", args.model, "-i", args.frame_path, "-l", "1"],
+                [args.yolo_bin, "-nb", args.model, "-i", inference_path, "-l", "1"],
                 cwd=args.yolo_dir, env=environment, text=True, stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT, check=False)
             if result.returncode != 0:
