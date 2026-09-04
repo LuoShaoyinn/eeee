@@ -264,8 +264,8 @@ def main() -> None:
                         help="camera optical centre left of the chassis origin (measure this; left is positive)")
     parser.add_argument("--collector-forward-m", type=float, default=0.0,
                         help="intake centre forward of the chassis origin (measure this)")
-    parser.add_argument("--collector-left-m", type=float, default=0.0,
-                        help="intake centre left of the chassis origin (usually zero)")
+    parser.add_argument("--collector-left-m", type=float, default=-.20,
+                        help="calibrated intake centre: 0.20 m to the camera's right (left is positive)")
     args = parser.parse_args()
     if not 0.0 <= args.initial_x <= 3.0 or not 0.0 <= args.initial_y <= 1.985:
         raise SystemExit("initial pose must lie inside the 3.0m x 1.985m arena")
