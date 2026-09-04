@@ -37,7 +37,8 @@ std::optional<Detection> MissionController::best_detection(
 std::optional<Detection> MissionController::best_collectible(const std::vector<Detection>& detections) const {
     std::optional<Detection> best;
     for (const Detection& detection : detections) {
-        if (!is_collectible(detection.object_class) || detection.confidence < config_.min_confidence) continue;
+        if (!is_collectible(detection.object_class) || already_collected(detection.object_class) ||
+            detection.confidence < config_.min_confidence) continue;
         // Prefer closer objects; confidence breaks ties.
         if (!best || detection.bottom_y > best->bottom_y ||
             (detection.bottom_y == best->bottom_y && detection.confidence > best->confidence)) {
@@ -45,6 +46,12 @@ std::optional<Detection> MissionController::best_collectible(const std::vector<D
         }
     }
     return best;
+}
+
+bool MissionController::already_collected(ObjectClass object_class) const {
+    if (object_class == ObjectClass::yellow) return collected_types_[0];
+    if (object_class == ObjectClass::red) return collected_types_[1];
+    return false;
 }
 
 MissionOutput MissionController::drive_to(const Detection& detection, bool home) const {
@@ -111,7 +118,10 @@ MissionOutput MissionController::update(const MissionInput& input) {
         if (awaiting_collection_) {
             ++missing_target_frames_;
             if (input.collection_sensor_triggered || missing_target_frames_ >= config_.frames_to_confirm_collection) {
-                ++collected_count_;
+                if (active_target_ && !already_collected(*active_target_)) {
+                    collected_types_[*active_target_ == ObjectClass::yellow ? 0 : 1] = true;
+                    ++collected_count_;
+                }
                 awaiting_collection_ = false;
                 active_target_.reset();
                 missing_target_frames_ = 0;

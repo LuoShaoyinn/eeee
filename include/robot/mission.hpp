@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <vector>
@@ -84,6 +85,7 @@ private:
         const std::vector<Detection>& detections) const;
     [[nodiscard]] MissionOutput drive_to(const Detection& detection, bool home) const;
     [[nodiscard]] MissionOutput output_for_state() const;
+    [[nodiscard]] bool already_collected(ObjectClass object_class) const;
     void begin_collection_wait();
 
     MissionConfig config_;
@@ -91,6 +93,7 @@ private:
     std::optional<ObjectClass> active_target_;
     bool awaiting_collection_ = false;
     int collected_count_ = 0;
+    std::array<bool, 2> collected_types_{};
     int missing_target_frames_ = 0;
     int dock_frames_ = 0;
 };

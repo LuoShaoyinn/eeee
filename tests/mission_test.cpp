@@ -43,6 +43,22 @@ int main() {
     assert(output.state == robot::MissionState::done);
     assert(output.collector_percent == 0);
 
+    robot::MissionConfig distinct_config;
+    distinct_config.expected_collectibles = 2;
+    distinct_config.frames_to_confirm_collection = 1;
+    robot::MissionController distinct_mission(distinct_config);
+    (void)distinct_mission.update({.localization_valid = true, .detections = {}});
+    (void)distinct_mission.update({.localization_valid = true,
+                                   .detections = {object(robot::ObjectClass::yellow, .9)}});
+    (void)distinct_mission.update({.localization_valid = true, .detections = {}});
+    output = distinct_mission.update({.localization_valid = true,
+                                      .detections = {object(robot::ObjectClass::yellow, .9)}});
+    assert(output.state == robot::MissionState::searching);
+    (void)distinct_mission.update({.localization_valid = true,
+                                   .detections = {object(robot::ObjectClass::red, .9)}});
+    output = distinct_mission.update({.localization_valid = true, .detections = {}});
+    assert(output.state == robot::MissionState::returning_home);
+
     robot::MissionController fault_mission(config);
     (void)fault_mission.update({.localization_valid = true, .detections = {}});
     output = fault_mission.update({.localization_valid = false, .detections = {}});
