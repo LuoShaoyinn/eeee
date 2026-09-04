@@ -30,19 +30,19 @@ int main() {
         config.frames_to_confirm_collection = 2;
         config.frames_to_confirm_dock = 2;
         robot::MissionController controller(config);
-        print_step("init", controller, {.localization_valid = true});
+        print_step("init", controller, {.localization_valid = true, .detections = {}});
         print_step("yellow", controller, {.localization_valid = true,
                                              .detections = {detection(robot::ObjectClass::yellow, .60, .45)}});
         print_step("avoid", controller, {.localization_valid = true,
                                             .detections = {detection(robot::ObjectClass::other_robot, .30, .60)}});
         print_step("collect-yellow", controller, {.localization_valid = true,
                                                      .detections = {detection(robot::ObjectClass::yellow, .50, .90)}});
-        print_step("yellow-gone-1", controller, {.localization_valid = true});
-        print_step("yellow-gone-2", controller, {.localization_valid = true});
+        print_step("yellow-gone-1", controller, {.localization_valid = true, .detections = {}});
+        print_step("yellow-gone-2", controller, {.localization_valid = true, .detections = {}});
         print_step("red", controller, {.localization_valid = true,
                                           .detections = {detection(robot::ObjectClass::red, .42, .90)}});
-        print_step("red-gone-1", controller, {.localization_valid = true});
-        print_step("red-gone-2", controller, {.localization_valid = true});
+        print_step("red-gone-1", controller, {.localization_valid = true, .detections = {}});
+        print_step("red-gone-2", controller, {.localization_valid = true, .detections = {}});
         print_step("home-1", controller, {.localization_valid = true,
                                              .detections = {detection(robot::ObjectClass::home, .50, .90)}});
         print_step("home-2", controller, {.localization_valid = true,
