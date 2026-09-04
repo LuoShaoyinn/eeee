@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Supervise robotbrain with fresh calibrated YOLO frames.
+
+This process is deliberately separate from the dashboard.  It sends frames to
+robotbrain only while the bridge keeps atomically updating a protocol file.
+On a stale frame, malformed frame, or termination it stops robotbrain, whose
+live-mode exit path commands ``ga25 0`` and ``stop`` through robotd.
+"""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+
+
+def write_status(path: Path, **fields) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=".robot-mission-", dir=path.parent, text=True)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            json.dump(fields, output, ensure_ascii=False)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def valid_frame(line: str) -> bool:
+    fields = line.split()
+    if len(fields) < 2 or fields[0] not in {"0", "1"} or fields[1] not in {"0", "1"}:
+        return False
+    return (len(fields) - 2) % 4 == 0
+
+
+def terminate(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    process.send_signal(signal.SIGTERM)
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=2)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--robotbrain", required=True)
+    parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt")
+    parser.add_argument("--status-file", default="/tmp/robot-mission-status.json")
+    parser.add_argument("--expected-objects", type=int, default=2)
+    parser.add_argument("--max-frame-age", type=float, default=.40)
+    parser.add_argument("--poll-seconds", type=float, default=.04)
+    args = parser.parse_args()
+    if args.expected_objects < 1 or args.max_frame_age <= 0 or args.poll_seconds <= 0:
+        raise SystemExit("expected-objects, max-frame-age, and poll-seconds must be positive")
+
+    protocol_file = Path(args.protocol_file)
+    status_file = Path(args.status_file)
+    command = [args.robotbrain, "--live", "--expected-objects", str(args.expected_objects)]
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True, bufsize=1)
+    state = "starting"
+    last_output = ""
+
+    def read_output() -> None:
+        nonlocal state, last_output
+        assert process.stdout is not None
+        for line in process.stdout:
+            last_output = line.strip()
+            if last_output.startswith("state="):
+                state = last_output.split()[0].removeprefix("state=")
+
+    reader = threading.Thread(target=read_output, daemon=True)
+    reader.start()
+    last_timestamp_ns: int | None = None
+    error = ""
+    try:
+        while process.poll() is None:
+            try:
+                stat = protocol_file.stat()
+                frame_age = time.time() - stat.st_mtime
+            except FileNotFoundError:
+                raise RuntimeError(f"waiting for vision frame: {protocol_file}")
+            if frame_age > args.max_frame_age:
+                raise RuntimeError(f"vision frame stale for {frame_age:.2f}s")
+            if stat.st_mtime_ns != last_timestamp_ns:
+                line = protocol_file.read_text(encoding="utf-8").strip()
+                if not valid_frame(line):
+                    raise RuntimeError("invalid vision protocol frame")
+                assert process.stdin is not None
+                process.stdin.write(line + "\n")
+                process.stdin.flush()
+                last_timestamp_ns = stat.st_mtime_ns
+            write_status(status_file, running=True, state=state, frame_age_ms=round(frame_age * 1000),
+                         last_output=last_output, error="")
+            time.sleep(args.poll_seconds)
+        if process.returncode:
+            error = last_output or f"robotbrain exited with {process.returncode}"
+    except (OSError, RuntimeError, ValueError) as exception:
+        error = str(exception)
+    finally:
+        terminate(process)
+        reader.join(timeout=.2)
+        write_status(status_file, running=False, state=state, frame_age_ms=None,
+                     last_output=last_output, error=error)
+    return 1 if error else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

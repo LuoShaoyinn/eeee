@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 
 import cv2
@@ -63,6 +64,24 @@ def parse_detections(output: str, width: int, height: int):
     return detections
 
 
+def write_protocol_frame(path: str, frame: str) -> None:
+    """Atomically publish the newest V1 frame for the live mission runner."""
+    directory = os.path.dirname(path) or "."
+    descriptor, temporary_path = tempfile.mkstemp(prefix=".robotvision-", dir=directory, text=True)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            output.write(frame + "\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        try:
+            os.unlink(temporary_path)
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera", default="/dev/video0")
@@ -75,6 +94,8 @@ def main() -> None:
     parser.add_argument("--minimum-blue-pixels", type=int, default=60)
     parser.add_argument("--max-frames", type=int, default=0, help="0 means stream until interrupted")
     parser.add_argument("--frame-path", default="/tmp/robotvision-rectified.jpg")
+    parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt",
+                        help="atomically updated latest frame for the supervised mission runner")
     args = parser.parse_args()
 
     capture = cv2.VideoCapture(args.camera, cv2.CAP_V4L2)
@@ -122,7 +143,9 @@ def main() -> None:
             if not cv2.imwrite(temporary_path, annotated):
                 raise RuntimeError(f"cannot write rectified frame: {temporary_path}")
             os.replace(temporary_path, args.frame_path)
-            print(" ".join(frame), flush=True)
+            protocol_frame = " ".join(frame)
+            write_protocol_frame(args.protocol_file, protocol_frame)
+            print(protocol_frame, flush=True)
             print(f"robotvision: frame={frames} blue={blue_pixels} detections={len(detections)}",
                   file=sys.stderr, flush=True)
             frames += 1

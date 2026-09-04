@@ -4,8 +4,11 @@
 import argparse
 import json
 import socket
+import subprocess
+import sys
 import threading
 import time
+from pathlib import Path
 from urllib.parse import urlsplit
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,7 +18,9 @@ import numpy as np
 
 
 class RobotDashboard:
-    def __init__(self, calibration_path: str, socket_path: str, camera: str, preview_file):
+    def __init__(self, calibration_path: str, socket_path: str, camera: str, preview_file,
+                 mission_runner: str, robotbrain: str, protocol_file: str,
+                 mission_status_file: str, expected_collectibles: int):
         calibration = cv2.FileStorage(calibration_path, cv2.FILE_STORAGE_READ)
         if not calibration.isOpened():
             raise RuntimeError(f"cannot open calibration: {calibration_path}")
@@ -28,6 +33,12 @@ class RobotDashboard:
         self.socket_path = socket_path
         self.camera = camera
         self.preview_file = preview_file
+        self.mission_runner = mission_runner
+        self.robotbrain = robotbrain
+        self.protocol_file = Path(protocol_file)
+        self.mission_status_file = Path(mission_status_file)
+        self.expected_collectibles = expected_collectibles
+        self._mission_process = None
         self.e_stop_latched = False
         self.mode = "standby"
         self.last_error = ""
@@ -49,6 +60,7 @@ class RobotDashboard:
     def emergency_stop(self) -> None:
         self.e_stop_latched = True
         self.mode = "stopped"
+        self.stop_auto_collect()
         errors = []
         for command in ("ga25 0", "stop"):
             try:
@@ -77,6 +89,54 @@ class RobotDashboard:
         if not self.e_stop_latched:
             self.mode = "decision_preview"
 
+    def stop_auto_collect(self) -> None:
+        if self._mission_process is None or self._mission_process.poll() is not None:
+            return
+        self._mission_process.terminate()
+        try:
+            self._mission_process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            self._mission_process.kill()
+            self._mission_process.wait(timeout=2)
+
+    def start_auto_collect(self) -> None:
+        """Launch the supervised V1 mission only after the operator clicks it."""
+        if self.e_stop_latched:
+            self.last_error = "release the emergency-stop lock before auto collection"
+            return
+        if self._mission_process is not None and self._mission_process.poll() is None:
+            self.mode = "auto_collect"
+            return
+        try:
+            age = time.time() - self.protocol_file.stat().st_mtime
+            if age > .4:
+                raise RuntimeError(f"vision/localization frame is stale ({age:.2f}s)")
+            self.robotd("ga25 0")
+            self.robotd("stop")
+            self._mission_process = subprocess.Popen(
+                [sys.executable, self.mission_runner, "--robotbrain", self.robotbrain,
+                 "--protocol-file", str(self.protocol_file), "--status-file", str(self.mission_status_file),
+                 "--expected-objects", str(self.expected_collectibles)],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.mode = "auto_collect"
+            self.last_error = ""
+        except (OSError, RuntimeError) as error:
+            self._mission_process = None
+            self.mode = "standby"
+            self.last_error = str(error)
+
+    def mission_status(self) -> dict:
+        status = {"running": False, "state": "idle", "error": ""}
+        try:
+            status.update(json.loads(self.mission_status_file.read_text(encoding="utf-8")))
+        except FileNotFoundError:
+            pass
+        except (OSError, json.JSONDecodeError) as error:
+            status["error"] = str(error)
+        if self._mission_process is not None and self._mission_process.poll() is not None and self.mode == "auto_collect":
+            self.mode = "mission_finished" if not status.get("error") else "mission_fault"
+        return status
+
     def status(self) -> dict:
         state = "unavailable"
         try:
@@ -88,6 +148,7 @@ class RobotDashboard:
             "mode": self.mode,
             "frame_age_ms": round((time.monotonic() - self._frame_time) * 1000) if self._frame_time else None,
             "robot_state": state,
+            "mission": self.mission_status(),
             "error": self.last_error,
         }
 
@@ -175,10 +236,10 @@ PAGE = """<!doctype html><html lang='zh-CN'><meta charset='utf-8'>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#081116;color:#e7f0ef;font:16px system-ui,sans-serif}
 main{max-width:1280px;margin:auto;padding:20px;display:grid;gap:16px;grid-template-columns:minmax(0,2fr) minmax(270px,1fr)}
-h1{grid-column:1/-1;font-size:1.35rem;margin:0;color:#80e6b5}.camera{background:#101c21;border:1px solid #25434b;border-radius:12px;overflow:hidden}.camera img{display:block;width:100%;min-height:300px;object-fit:contain;background:#000}.panel{background:#101c21;border:1px solid #25434b;border-radius:12px;padding:18px}.state{white-space:pre-wrap;word-break:break-word;font:13px ui-monospace,monospace;color:#b8d8d4}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#1f4d40;color:#9bf0c5;font-weight:700}.fault{background:#631d27;color:#ffb9bd}button{width:100%;margin-top:16px;padding:18px;border:0;border-radius:10px;background:#d93543;color:white;font-weight:800;font-size:1.2rem;cursor:pointer}.start{background:#16885c}button:active{transform:scale(.98)}.note{font-size:.87rem;color:#a4bbb8;line-height:1.5}
+h1{grid-column:1/-1;font-size:1.35rem;margin:0;color:#80e6b5}.camera{background:#101c21;border:1px solid #25434b;border-radius:12px;overflow:hidden}.camera img{display:block;width:100%;min-height:300px;object-fit:contain;background:#000}.panel{background:#101c21;border:1px solid #25434b;border-radius:12px;padding:18px}.state{white-space:pre-wrap;word-break:break-word;font:13px ui-monospace,monospace;color:#b8d8d4}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#1f4d40;color:#9bf0c5;font-weight:700}.fault{background:#631d27;color:#ffb9bd}button{width:100%;margin-top:16px;padding:18px;border:0;border-radius:10px;background:#d93543;color:white;font-weight:800;font-size:1.2rem;cursor:pointer}.start,.collect{background:#16885c}.collect{background:#2463c9}button:active{transform:scale(.98)}.note{font-size:.87rem;color:#a4bbb8;line-height:1.5}
 @media(max-width:780px){main{grid-template-columns:1fr;padding:12px}.camera img{min-height:220px}}
-</style><main><h1>Cubie 整机控制台</h1><section class='camera'><img src='/stream.mjpg' alt='校正后的实时相机画面与 YOLO 检测框'></section><section class='panel'><span id='tag' class='tag'>正在连接</span><h2>整机状态</h2><div id='state' class='state'>读取中…</div><button id='start' class='start'>开始决策预览</button><button id='release'>解除急停锁定</button><button id='stop'>停止并急停</button><p class='note'>解除锁定会再次停止底盘并关闭收集电机，不会驱动车体。开始仅启用决策预览。物理急停仍应始终可用。</p></section></main><script>
-async function status(){try{const r=await fetch('/api/status');const s=await r.json();document.querySelector('#tag').textContent=s.e_stop_latched?'急停已锁定':s.mode==='decision_preview'?'决策预览中':'系统就绪';document.querySelector('#tag').className='tag '+(s.e_stop_latched?'fault':'');document.querySelector('#state').textContent='模式: '+s.mode+'\\n图像延迟: '+(s.frame_age_ms??'—')+' ms\\n'+s.robot_state+(s.error?'\\n错误: '+s.error:'')}catch(e){document.querySelector('#state').textContent='状态读取失败: '+e}}document.querySelector('#start').onclick=async()=>{await fetch('/api/start',{method:'POST'});status()};document.querySelector('#release').onclick=async()=>{await fetch('/api/release-estop',{method:'POST'});status()};document.querySelector('#stop').onclick=async()=>{await fetch('/api/estop',{method:'POST'});status()};status();setInterval(status,1000)
+</style><main><h1>Cubie 整机控制台</h1><section class='camera'><img src='/stream.mjpg' alt='校正后的实时相机画面与 YOLO 检测框'></section><section class='panel'><span id='tag' class='tag'>正在连接</span><h2>整机状态</h2><div id='state' class='state'>读取中…</div><button id='start' class='start'>开始决策预览</button><button id='collect' class='collect'>开始自动收集（黄/红）</button><button id='release'>解除急停锁定</button><button id='stop'>停止并急停</button><p class='note'>自动收集会以 0.18 m/s 以下接近 yellow/red，依赖蓝色围栏定位和持续 YOLO 帧；检测中断会自动停止。物理急停仍应始终可用。</p></section></main><script>
+async function status(){try{const r=await fetch('/api/status');const s=await r.json();const m=s.mission||{};document.querySelector('#tag').textContent=s.e_stop_latched?'急停已锁定':s.mode==='auto_collect'?'自动收集中':s.mode==='decision_preview'?'决策预览中':'系统就绪';document.querySelector('#tag').className='tag '+(s.e_stop_latched?'fault':'');document.querySelector('#state').textContent='模式: '+s.mode+'\\n图像延迟: '+(s.frame_age_ms??'—')+' ms\\n任务: '+(m.state??'idle')+(m.error?'\\n任务错误: '+m.error:'')+'\\n'+s.robot_state+(s.error?'\\n错误: '+s.error:'')}catch(e){document.querySelector('#state').textContent='状态读取失败: '+e}}document.querySelector('#start').onclick=async()=>{await fetch('/api/start',{method:'POST'});status()};document.querySelector('#collect').onclick=async()=>{await fetch('/api/auto-collect',{method:'POST'});status()};document.querySelector('#release').onclick=async()=>{await fetch('/api/release-estop',{method:'POST'});status()};document.querySelector('#stop').onclick=async()=>{await fetch('/api/estop',{method:'POST'});status()};status();setInterval(status,500)
 </script></html>"""
 
 
@@ -229,6 +290,8 @@ def handler_factory(dashboard: RobotDashboard):
                 dashboard.release_emergency_stop()
             elif path == "/api/start":
                 dashboard.start_preview()
+            elif path == "/api/auto-collect":
+                dashboard.start_auto_collect()
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
@@ -245,8 +308,15 @@ def main() -> None:
     parser.add_argument("--socket", default="/tmp/robotd.sock")
     parser.add_argument("--calibration", default="config/camera_fisheye_1280x720.yaml")
     parser.add_argument("--preview-file", help="use a rectified vision frame written by robotvision_bridge")
+    parser.add_argument("--mission-runner", default="tools/live_mission.py")
+    parser.add_argument("--robotbrain", default="build/robotbrain")
+    parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt")
+    parser.add_argument("--mission-status-file", default="/tmp/robot-mission-status.json")
+    parser.add_argument("--expected-collectibles", type=int, default=2)
     args = parser.parse_args()
-    dashboard = RobotDashboard(args.calibration, args.socket, args.camera, args.preview_file)
+    dashboard = RobotDashboard(args.calibration, args.socket, args.camera, args.preview_file,
+                               args.mission_runner, args.robotbrain, args.protocol_file,
+                               args.mission_status_file, args.expected_collectibles)
     threading.Thread(target=dashboard.camera_loop, daemon=True).start()
     server = ThreadingHTTPServer((args.host, args.port), handler_factory(dashboard))
     print(f"dashboard: http://{args.host}:{args.port}", flush=True)

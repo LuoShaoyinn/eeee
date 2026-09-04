@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -121,6 +122,7 @@ void print_output(const robot::MissionOutput& output) {
 int main(int argc, char** argv) {
     bool live = false;
     std::string socket = "/tmp/robotd.sock";
+    std::optional<int> dump_pulse;
     robot::MissionConfig config;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
@@ -131,7 +133,10 @@ int main(int argc, char** argv) {
         if (argument == "--live") live = true;
         else if (argument == "--socket") socket = value("--socket");
         else if (argument == "--expected-objects") config.expected_collectibles = std::stoi(value("--expected-objects"));
-        else if (argument == "--dump-pulse") config.dump_servo_pulse_us = std::stoi(value("--dump-pulse"));
+        else if (argument == "--dump-pulse") {
+            config.dump_servo_pulse_us = std::stoi(value("--dump-pulse"));
+            dump_pulse = config.dump_servo_pulse_us;
+        }
         else if (argument == "--help") {
             std::cout << "robotbrain [--live] [--socket PATH] --expected-objects N [--dump-pulse US]\n"
                          "Read YOLO/localization frames from stdin. --live is required to command robotd.\n";
@@ -146,7 +151,10 @@ int main(int argc, char** argv) {
         std::string line;
         while (g_running && std::getline(std::cin, line)) {
             if (line.empty() || line.starts_with('#')) continue;
-            const robot::MissionOutput output = mission.update(parse_frame(line));
+            robot::MissionOutput output = mission.update(parse_frame(line));
+            // Dump direction is mechanical configuration.  Do not move the
+            // rear servo unless an operator explicitly supplied its pulse.
+            if (!dump_pulse) output.servo_pulse_us.reset();
             print_output(output);
             if (live) robotd.send(output);
             if (output.state == robot::MissionState::done || output.state == robot::MissionState::fault) break;
