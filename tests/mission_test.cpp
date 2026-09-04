@@ -8,6 +8,11 @@ robot::Detection object(robot::ObjectClass type, double bottom, double centre = 
     return {.object_class = type, .confidence = .9, .center_x = centre, .bottom_y = bottom};
 }
 
+robot::Detection ground_object(robot::ObjectClass type, double forward, double left) {
+    return {.object_class = type, .confidence = .9, .center_x = .51, .bottom_y = .5,
+            .ground_valid = true, .ground_forward_m = forward, .ground_left_m = left};
+}
+
 }  // namespace
 
 int main() {
@@ -30,6 +35,18 @@ int main() {
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::yellow, .7, .20)}});
     assert(output.forward_mps == 0.0);
+
+    // A calibrated ground point expresses the target relative to the intake,
+    // not relative to the (left-mounted) image centre.
+    robot::MissionController ground_mission(config);
+    (void)ground_mission.update({.localization_valid = true, .detections = {}});
+    output = ground_mission.update({.localization_valid = true,
+                                    .detections = {ground_object(robot::ObjectClass::yellow, .50, .20)}});
+    assert(output.state == robot::MissionState::approaching_target);
+    assert(output.forward_mps == 0.0);
+    output = ground_mission.update({.localization_valid = true,
+                                    .detections = {ground_object(robot::ObjectClass::yellow, .12, .01)}});
+    assert(output.forward_mps == .18);
 
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::other_robot, .7)}});
@@ -61,6 +78,23 @@ int main() {
                                    .detections = {object(robot::ObjectClass::red, .9)}});
     output = distinct_mission.update({.localization_valid = true, .detections = {}});
     assert(output.state == robot::MissionState::returning_home);
+
+    // Lock the acquired object: a nearer object of the same colour and an
+    // object of the other colour must not repeatedly steal the pursuit.
+    robot::MissionConfig lock_config;
+    lock_config.expected_collectibles = 0;
+    robot::MissionController lock_mission(lock_config);
+    (void)lock_mission.update({.localization_valid = true, .detections = {}});
+    output = lock_mission.update({.localization_valid = true,
+                                  .detections = {object(robot::ObjectClass::yellow, .70, .72),
+                                                 object(robot::ObjectClass::red, .65, .30)}});
+    assert(output.yaw_radps < 0.0);
+    output = lock_mission.update({.localization_valid = true,
+                                  .detections = {object(robot::ObjectClass::yellow, .50, .72),
+                                                 object(robot::ObjectClass::yellow, .92, .30),
+                                                 object(robot::ObjectClass::red, .95, .30)}});
+    assert(output.state == robot::MissionState::approaching_target);
+    assert(output.yaw_radps < 0.0);
 
     robot::MissionController fault_mission(config);
     (void)fault_mission.update({.localization_valid = true, .detections = {}});

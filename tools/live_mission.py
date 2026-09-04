@@ -43,7 +43,22 @@ def valid_frame(line: str) -> bool:
     fields = line.split()
     if len(fields) < 2 or fields[0] not in {"0", "1"} or fields[1] not in {"0", "1"}:
         return False
-    return (len(fields) - 2) % 4 == 0
+    index = 2
+    while index < len(fields):
+        if index + 4 > len(fields):
+            return False
+        # CLASS CONFIDENCE CENTER_X BOTTOM_Y
+        index += 4
+        if index < len(fields) and fields[index] == "@":
+            if index + 3 > len(fields):
+                return False
+            try:
+                float(fields[index + 1])
+                float(fields[index + 2])
+            except ValueError:
+                return False
+            index += 3
+    return True
 
 
 def terminate(process: subprocess.Popen[str]) -> None:

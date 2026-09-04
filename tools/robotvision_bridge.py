@@ -51,8 +51,48 @@ def load_maps(path: str, width: int, height: int):
         matrix[0, 2] *= scale_x
         matrix[1, 1] *= scale_y
         matrix[1, 2] *= scale_y
-    return cv2.fisheye.initUndistortRectifyMap(
+    maps = cv2.fisheye.initUndistortRectifyMap(
         source_k, distortion, np.eye(3), rectified_k, (width, height), cv2.CV_16SC2)
+    return maps, rectified_k
+
+
+class GroundProjector:
+    """Project a rectified pixel to the collector-centred ground plane.
+
+    The angular terms come from the physical camera mount calibration.  The
+    two camera translation values are deliberately separate command-line
+    settings: optical calibration alone cannot tell us where a left-mounted
+    camera sits relative to the collector intake.
+    """
+    def __init__(self, camera_matrix: np.ndarray, height_m: float, pitch_down_deg: float,
+                 roll_deg: float, camera_forward_m: float, camera_left_m: float,
+                 collector_forward_m: float, collector_left_m: float):
+        self.inverse = np.linalg.inv(camera_matrix)
+        pitch = math.radians(pitch_down_deg)
+        roll = math.radians(roll_deg)
+        pitch_rotation = np.array(((0.0, -math.sin(pitch), math.cos(pitch)),
+                                   (-1.0, 0.0, 0.0),
+                                   (0.0, -math.cos(pitch), -math.sin(pitch))), dtype=np.float64)
+        roll_rotation = np.array(((math.cos(roll), -math.sin(roll), 0.0),
+                                  (math.sin(roll), math.cos(roll), 0.0),
+                                  (0.0, 0.0, 1.0)), dtype=np.float64)
+        self.rotation = pitch_rotation @ roll_rotation
+        self.height_m = height_m
+        self.camera_forward_m = camera_forward_m
+        self.camera_left_m = camera_left_m
+        self.collector_forward_m = collector_forward_m
+        self.collector_left_m = collector_left_m
+
+    def project(self, pixel_x: float, pixel_y: float):
+        ray = self.rotation @ (self.inverse @ np.array((pixel_x, pixel_y, 1.0)))
+        if ray[2] >= -1e-6:
+            return None
+        scale = -self.height_m / ray[2]
+        forward_m = scale * ray[0] + self.camera_forward_m - self.collector_forward_m
+        left_m = scale * ray[1] + self.camera_left_m - self.collector_left_m
+        if not (math.isfinite(forward_m) and math.isfinite(left_m) and .02 < forward_m < 6.0 and abs(left_m) < 4.0):
+            return None
+        return forward_m, left_m
 
 
 def parse_detections(output: str, width: int, height: int):
@@ -213,6 +253,19 @@ def main() -> None:
     parser.add_argument("--initial-y", type=float, default=.10)
     parser.add_argument("--initial-yaw", type=float, default=0.0)
     parser.add_argument("--localization-reset-file", default="/tmp/robot-localization-reset.json")
+    parser.add_argument("--camera-height-m", type=float, default=.1311825723,
+                        help="optical-centre height from camera1_mount calibration")
+    parser.add_argument("--camera-pitch-deg", type=float, default=30.11324982,
+                        help="positive-down optical-axis pitch from camera1_mount calibration")
+    parser.add_argument("--camera-roll-deg", type=float, default=.2071)
+    parser.add_argument("--camera-forward-m", type=float, default=0.0,
+                        help="camera optical centre forward of the chassis origin (measure this)")
+    parser.add_argument("--camera-left-m", type=float, default=0.0,
+                        help="camera optical centre left of the chassis origin (measure this; left is positive)")
+    parser.add_argument("--collector-forward-m", type=float, default=0.0,
+                        help="intake centre forward of the chassis origin (measure this)")
+    parser.add_argument("--collector-left-m", type=float, default=0.0,
+                        help="intake centre left of the chassis origin (usually zero)")
     args = parser.parse_args()
     if not 0.0 <= args.initial_x <= 3.0 or not 0.0 <= args.initial_y <= 1.985:
         raise SystemExit("initial pose must lie inside the 3.0m x 1.985m arena")
@@ -224,6 +277,7 @@ def main() -> None:
     if not capture.isOpened():
         raise SystemExit(f"cannot open camera: {args.camera}")
     maps = None
+    projector = None
     frames = 0
     pose = V1PoseTracker(args.initial_x, args.initial_y, args.initial_yaw)
     reset_timestamp_ns = None
@@ -233,7 +287,10 @@ def main() -> None:
             if not ok or raw is None:
                 raise RuntimeError("camera capture failed")
             if maps is None:
-                maps = load_maps(args.calibration, raw.shape[1], raw.shape[0])
+                maps, rectified_k = load_maps(args.calibration, raw.shape[1], raw.shape[0])
+                projector = GroundProjector(rectified_k, args.camera_height_m, args.camera_pitch_deg,
+                                            args.camera_roll_deg, args.camera_forward_m, args.camera_left_m,
+                                            args.collector_forward_m, args.collector_left_m)
             rectified = cv2.remap(raw, maps[0], maps[1], cv2.INTER_LINEAR)
             hsv = cv2.cvtColor(rectified, cv2.COLOR_BGR2HSV)
             blue_pixels = int(cv2.countNonZero(cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))))
@@ -282,12 +339,25 @@ def main() -> None:
             detections = parse_detections(result.stdout, rectified.shape[1], rectified.shape[0])
             annotated = rectified.copy()
             frame = ["1" if localization_valid else "0", "0"]
+            ground_log = []
             for label, confidence, left, top, right, bottom in detections:
                 center_x = max(0.0, min(1.0, (left + right) * .5 / rectified.shape[1]))
                 bottom_y = max(0.0, min(1.0, bottom / rectified.shape[0]))
                 frame.extend((label, f"{confidence:.3f}", f"{center_x:.3f}", f"{bottom_y:.3f}"))
+                # The detection's bottom centre is the point most likely to
+                # touch the arena floor.  Send it in addition to legacy image
+                # coordinates, so robotbrain can fall back safely for old logs.
+                ground = projector.project((left + right) * .5, float(bottom)) if projector else None
+                if ground is not None:
+                    frame.extend(("@", f"{ground[0]:.3f}", f"{ground[1]:.3f}"))
+                    ground_log.append(f"{label} forward={ground[0]:.3f}m left={ground[1]:+.3f}m")
+                else:
+                    ground_log.append(f"{label} ground=invalid")
                 cv2.rectangle(annotated, (left, top), (right, bottom), (255, 170, 0), 2)
-                cv2.putText(annotated, f"{label} {confidence:.0%}", (left, max(18, top - 6)),
+                annotation = f"{label} {confidence:.0%}"
+                if ground is not None:
+                    annotation += f" {ground[0]:.2f}m/{ground[1]:+.2f}m"
+                cv2.putText(annotated, annotation, (left, max(18, top - 6)),
                             cv2.FONT_HERSHEY_SIMPLEX, .52, (255, 170, 0), 2)
             temporary_path = args.frame_path + ".tmp.jpg"
             if not cv2.imwrite(temporary_path, annotated):
@@ -298,6 +368,8 @@ def main() -> None:
             print(protocol_frame, flush=True)
             print(f"robotvision: frame={frames} blue={blue_pixels} detections={len(detections)}",
                   file=sys.stderr, flush=True)
+            if ground_log:
+                print("robotvision ground: " + "; ".join(ground_log), file=sys.stderr, flush=True)
             frames += 1
     finally:
         capture.release()

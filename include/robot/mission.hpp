@@ -16,6 +16,13 @@ struct Detection {
     // top edge. bottom is the normalized bottom edge of the detection box.
     double center_x = 0.5;
     double bottom_y = 0.0;
+    // Coordinates on the ground plane, expressed relative to the collector
+    // centreline.  They are derived from the rectified camera intrinsics and
+    // the camera-to-chassis extrinsics by robotvision_bridge.  Keeping these
+    // optional lets recorded legacy frames remain replayable.
+    bool ground_valid = false;
+    double ground_forward_m = 0.0;
+    double ground_left_m = 0.0;
 };
 
 enum class MissionState {
@@ -52,6 +59,16 @@ struct MissionConfig {
     double steering_gain = 2.60;
     double max_yaw_radps = 1.80;
     double turn_in_place_error = 0.22;
+    // Physical pursuit is preferred whenever a calibrated ground point is
+    // available.  These distances are measured from the collector intake.
+    double collect_forward_m = 0.15;
+    double home_dock_forward_m = 0.18;
+    double ground_lateral_deadband_m = 0.045;
+    double ground_turn_in_place_bearing_rad = 0.26;
+    double ground_steering_gain = 2.60;
+    // A target remains locked while its observed bearing stays within this
+    // gate.  This stops a nearer red/yellow object from stealing pursuit.
+    double target_bearing_jump_rad = 0.40;
     // The installed front GA25 motor is wired so negative power rotates in
     // the collecting direction.
     int collector_percent = -100;
@@ -90,6 +107,8 @@ private:
         const std::vector<Detection>& detections, ObjectClass object_class) const;
     [[nodiscard]] std::optional<Detection> best_collectible(
         const std::vector<Detection>& detections) const;
+    [[nodiscard]] std::optional<Detection> locked_collectible(
+        const std::vector<Detection>& detections) const;
     [[nodiscard]] MissionOutput drive_to(const Detection& detection, bool home) const;
     [[nodiscard]] MissionOutput output_for_state() const;
     [[nodiscard]] bool already_collected(ObjectClass object_class) const;
@@ -104,6 +123,7 @@ private:
     int collected_count_ = 0;
     std::array<bool, 2> collected_types_{};
     int missing_target_frames_ = 0;
+    int lost_target_frames_ = 0;
     int dock_frames_ = 0;
 };
 

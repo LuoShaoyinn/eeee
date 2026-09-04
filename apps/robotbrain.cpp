@@ -1,11 +1,12 @@
 // Decision-to-actuator bridge for Cubie replay and supervised field tests.
 // Input is one frame per line:
-//   LOCALIZATION_OK COLLECTION_SENSOR [CLASS CONFIDENCE CENTER_X BOTTOM_Y]...
+//   LOCALIZATION_OK COLLECTION_SENSOR [CLASS CONFIDENCE CENTER_X BOTTOM_Y [@ FORWARD_M LEFT_M]]...
 // Example: 1 0 yellow .91 .52 .63 other_robot .88 .20 .45
 // The process must receive frames at least four times per second while live,
 // because robotd deliberately stops a stale twist after 250 ms.
 
 #include <atomic>
+#include <cmath>
 #include <csignal>
 #include <cstring>
 #include <iomanip>
@@ -102,6 +103,14 @@ robot::MissionInput parse_frame(const std::string& line) {
         robot::Detection detection{.object_class = parse_class(object_name)};
         if (!(input >> detection.confidence >> detection.center_x >> detection.bottom_y)) {
             throw std::runtime_error("incomplete detection: " + object_name);
+        }
+        input >> std::ws;
+        if (input.peek() == '@') {
+            char marker = 0;
+            input >> marker >> detection.ground_forward_m >> detection.ground_left_m;
+            if (!input) throw std::runtime_error("incomplete ground point: " + object_name);
+            detection.ground_valid = std::isfinite(detection.ground_forward_m) &&
+                                     std::isfinite(detection.ground_left_m) && detection.ground_forward_m > 0.0;
         }
         frame.detections.push_back(detection);
     }
