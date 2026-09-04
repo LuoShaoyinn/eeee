@@ -47,7 +47,8 @@ struct MissionConfig {
     // Calibrated image set-point for the collector centreline.
     double target_center_x = 0.51;
     double alignment_deadband = 0.035;
-    double target_filter_alpha = 0.30;
+    double target_filter_alpha = 0.45;
+    double target_jump_threshold = 0.16;
     double steering_gain = 2.60;
     double max_yaw_radps = 1.80;
     double turn_in_place_error = 0.22;

@@ -19,6 +19,7 @@ MissionController::MissionController(MissionConfig config) : config_(config) {
         config_.collector_percent < -100 || config_.collector_percent > 100 ||
         config_.target_center_x < 0 || config_.target_center_x > 1 ||
         config_.alignment_deadband < 0 || config_.target_filter_alpha <= 0 || config_.target_filter_alpha > 1 ||
+        config_.target_jump_threshold <= 0 ||
         config_.steering_gain <= 0 || config_.max_yaw_radps <= 0 || config_.turn_in_place_error <= 0) {
         throw std::invalid_argument("invalid mission configuration");
     }
@@ -59,6 +60,10 @@ bool MissionController::already_collected(ObjectClass object_class) const {
 
 Detection MissionController::stabilize_target(const Detection& detection) {
     if (!filtered_target_ || filtered_target_->object_class != detection.object_class) {
+        filtered_target_ = detection;
+        return detection;
+    }
+    if (std::abs(detection.center_x - filtered_target_->center_x) >= config_.target_jump_threshold) {
         filtered_target_ = detection;
         return detection;
     }
