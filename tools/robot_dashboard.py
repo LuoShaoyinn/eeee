@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Loopback-only Cubie operator dashboard with rectified camera and e-stop."""
+
+import argparse
+import json
+import socket
+import threading
+import time
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import cv2
+import numpy as np
+
+
+class RobotDashboard:
+    def __init__(self, calibration_path: str, socket_path: str, camera: str):
+        calibration = cv2.FileStorage(calibration_path, cv2.FILE_STORAGE_READ)
+        if not calibration.isOpened():
+            raise RuntimeError(f"cannot open calibration: {calibration_path}")
+        self.k = calibration.getNode("K").mat()
+        self.d = calibration.getNode("D").mat()
+        self.rectified_k = calibration.getNode("rectified_K").mat()
+        calibration.release()
+        if self.k is None or self.d is None or self.rectified_k is None:
+            raise RuntimeError("calibration must contain K, D, and rectified_K")
+        self.socket_path = socket_path
+        self.camera = camera
+        self.e_stop_latched = False
+        self.last_error = ""
+        self._latest_jpeg = b""
+        self._frame_time = 0.0
+        self._condition = threading.Condition()
+        self._running = True
+
+    def robotd(self, command: str) -> str:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(.7)
+            client.connect(self.socket_path)
+            client.sendall((command + "\n").encode())
+            reply = client.recv(1024).decode(errors="replace").strip()
+        if reply.startswith("error:"):
+            raise RuntimeError(reply)
+        return reply
+
+    def emergency_stop(self) -> None:
+        self.e_stop_latched = True
+        errors = []
+        for command in ("ga25 0", "stop"):
+            try:
+                self.robotd(command)
+            except (OSError, RuntimeError) as error:
+                errors.append(str(error))
+        if errors:
+            self.last_error = "; ".join(errors)
+
+    def status(self) -> dict:
+        state = "unavailable"
+        try:
+            state = self.robotd("state")
+        except (OSError, RuntimeError) as error:
+            self.last_error = str(error)
+        return {
+            "e_stop_latched": self.e_stop_latched,
+            "frame_age_ms": round((time.monotonic() - self._frame_time) * 1000) if self._frame_time else None,
+            "robot_state": state,
+            "error": self.last_error,
+        }
+
+    def camera_loop(self) -> None:
+        capture = cv2.VideoCapture(self.camera, cv2.CAP_V4L2)
+        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        capture.set(cv2.CAP_PROP_FPS, 20)
+        if not capture.isOpened():
+            self.last_error = f"cannot open camera: {self.camera}"
+            return
+        map_size = None
+        map_x = map_y = None
+        while self._running:
+            ok, raw = capture.read()
+            if not ok or raw is None:
+                self.last_error = "camera capture failed"
+                time.sleep(.1)
+                continue
+            if map_size != raw.shape[:2]:
+                height, width = raw.shape[:2]
+                sx, sy = width / 1280.0, height / 720.0
+                source_k = self.k.astype(np.float64).copy()
+                output_k = self.rectified_k.astype(np.float64).copy()
+                for matrix in (source_k, output_k):
+                    matrix[0, 0] *= sx
+                    matrix[0, 2] *= sx
+                    matrix[1, 1] *= sy
+                    matrix[1, 2] *= sy
+                map_x, map_y = cv2.fisheye.initUndistortRectifyMap(
+                    source_k, self.d, np.eye(3), output_k, (width, height), cv2.CV_16SC2)
+                map_size = raw.shape[:2]
+            preview = cv2.remap(raw, map_x, map_y, cv2.INTER_LINEAR)
+            label = "E-STOP LATCHED" if self.e_stop_latched else "RECTIFIED PREVIEW"
+            color = (20, 20, 230) if self.e_stop_latched else (20, 190, 20)
+            cv2.rectangle(preview, (12, 12), (340, 54), (15, 15, 15), -1)
+            cv2.putText(preview, label, (24, 42), cv2.FONT_HERSHEY_SIMPLEX, .78, color, 2)
+            ok, encoded = cv2.imencode(".jpg", preview, [cv2.IMWRITE_JPEG_QUALITY, 82])
+            if not ok:
+                self.last_error = "cannot encode camera preview"
+                continue
+            with self._condition:
+                self._latest_jpeg = encoded.tobytes()
+                self._frame_time = time.monotonic()
+                self._condition.notify_all()
+        capture.release()
+
+    def next_frame(self, previous: bytes) -> bytes:
+        with self._condition:
+            self._condition.wait_for(lambda: self._latest_jpeg != previous or not self._running, timeout=1.0)
+            return self._latest_jpeg
+
+
+PAGE = """<!doctype html><html lang='zh-CN'><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'><title>Cubie 控制台</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#081116;color:#e7f0ef;font:16px system-ui,sans-serif}
+main{max-width:1280px;margin:auto;padding:20px;display:grid;gap:16px;grid-template-columns:minmax(0,2fr) minmax(270px,1fr)}
+h1{grid-column:1/-1;font-size:1.35rem;margin:0;color:#80e6b5}.camera{background:#101c21;border:1px solid #25434b;border-radius:12px;overflow:hidden}.camera img{display:block;width:100%;min-height:300px;object-fit:contain;background:#000}.panel{background:#101c21;border:1px solid #25434b;border-radius:12px;padding:18px}.state{white-space:pre-wrap;word-break:break-word;font:13px ui-monospace,monospace;color:#b8d8d4}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#1f4d40;color:#9bf0c5;font-weight:700}.fault{background:#631d27;color:#ffb9bd}button{width:100%;margin-top:16px;padding:18px;border:0;border-radius:10px;background:#d93543;color:white;font-weight:800;font-size:1.2rem;cursor:pointer}button:active{transform:scale(.98)}.note{font-size:.87rem;color:#a4bbb8;line-height:1.5}
+@media(max-width:780px){main{grid-template-columns:1fr;padding:12px}.camera img{min-height:220px}}
+</style><main><h1>Cubie 整机控制台</h1><section class='camera'><img src='/stream.mjpg' alt='校正后的实时相机画面'></section><section class='panel'><span id='tag' class='tag'>正在连接</span><h2>整机状态</h2><div id='state' class='state'>读取中…</div><button id='stop'>紧急停止</button><p class='note'>紧急停止会停止底盘并关闭收集电机。此按钮为软件急停，物理急停仍应始终可用。</p></section></main><script>
+async function status(){try{const r=await fetch('/api/status');const s=await r.json();document.querySelector('#tag').textContent=s.e_stop_latched?'急停已锁定':'系统就绪';document.querySelector('#tag').className='tag '+(s.e_stop_latched?'fault':'');document.querySelector('#state').textContent='图像延迟: '+(s.frame_age_ms??'—')+' ms\\n'+s.robot_state+(s.error?'\\n错误: '+s.error:'')}catch(e){document.querySelector('#state').textContent='状态读取失败: '+e}}document.querySelector('#stop').onclick=async()=>{await fetch('/api/estop',{method:'POST'});status()};status();setInterval(status,1000)
+</script></html>"""
+
+
+def handler_factory(dashboard: RobotDashboard):
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_args):
+            return
+
+        def do_GET(self):
+            if self.path == "/":
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(PAGE.encode())
+            elif self.path == "/api/status":
+                payload = json.dumps(dashboard.status()).encode()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(payload)
+            elif self.path == "/stream.mjpg":
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                previous = b""
+                try:
+                    while dashboard._running:
+                        frame = dashboard.next_frame(previous)
+                        if not frame:
+                            continue
+                        previous = frame
+                        self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " +
+                                         str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n")
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND)
+
+        def do_POST(self):
+            if self.path != "/api/estop":
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            dashboard.emergency_stop()
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self.end_headers()
+    return Handler
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host", default="127.0.0.1", help="keep 127.0.0.1 unless using a secured network")
+    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--camera", default="/dev/video0")
+    parser.add_argument("--socket", default="/tmp/robotd.sock")
+    parser.add_argument("--calibration", default="config/camera_fisheye_1280x720.yaml")
+    args = parser.parse_args()
+    dashboard = RobotDashboard(args.calibration, args.socket, args.camera)
+    threading.Thread(target=dashboard.camera_loop, daemon=True).start()
+    server = ThreadingHTTPServer((args.host, args.port), handler_factory(dashboard))
+    print(f"dashboard: http://{args.host}:{args.port}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        dashboard._running = False
+        dashboard.emergency_stop()
+        server.server_close()
+
+
+if __name__ == "__main__":
+    main()

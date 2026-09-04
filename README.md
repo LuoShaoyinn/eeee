@@ -132,6 +132,22 @@ During all active mission states, the bridge refreshes `ga25 100` for the
 front collector. It sends `ga25 0` and `stop` on exit, a fault, or Ctrl-C.
 `--dump-pulse` must be set only after confirming the physical dump direction.
 
+## Operator dashboard
+
+On the Cubie, the local-only dashboard shows a calibrated camera preview and
+the `robotd` state. Its red button sends `ga25 0` followed by `stop` and
+latches the software e-stop indicator. Run it bound to loopback, then view it
+through an SSH port forward rather than exposing motor controls on the LAN:
+
+```sh
+python3 tools/robot_dashboard.py
+# From the operator computer:
+ssh -N -L 8080:127.0.0.1:8080 radxa@CUBIE_IP
+```
+
+Open `http://127.0.0.1:8080`. This is a software e-stop and does not replace a
+physical emergency-stop circuit.
+
 ## Camera Tools
 
 The Python environment is managed independently from the C++ build:
