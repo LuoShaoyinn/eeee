@@ -10,7 +10,41 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from trajectory_planner_sim import Pose, draw_plan, fence_clearance, plan_collection
+from trajectory_planner_sim import (
+    Pose,
+    Target,
+    TargetLock,
+    draw_plan,
+    fence_clearance,
+    plan_collection,
+)
+
+
+def target_timeline() -> list[dict]:
+    lock = TargetLock()
+    events = [
+        (0.00, [Target(1, 1.4, 1.0, .8)], False, "acquire A"),
+        (0.10, [Target(1, 1.4, 1.0, .8), Target(2, .8, 1.0, .99)], False,
+         "nearer B emerges"),
+        (0.35, [Target(2, .8, 1.0, .99)], False, "A briefly hidden"),
+        (0.55, [Target(77, 1.43, .98, .75), Target(2, .8, 1.0, .99)], False,
+         "A returns with new detector id"),
+        (1.00, [Target(2, .8, 1.0, .99), Target(3, .6, .7, .9)], True,
+         "A hidden during terminal approach"),
+        (2.00, [Target(2, .8, 1.0, .99), Target(3, .6, .7, .9)], True,
+         "terminal grace still active"),
+        (2.06, [Target(2, .8, 1.0, .99), Target(3, .6, .7, .9)], True,
+         "A timeout; acquire nearest visible"),
+    ]
+    rows = []
+    for now, detections, terminal, description in events:
+        selected = lock.update(detections, now, terminal,
+                               selection_origin=(1.0, 1.0))
+        rows.append({"time_s": now, "event": description,
+                     "visible_ids": [item.track_id for item in detections],
+                     "terminal": terminal,
+                     "selected_id": None if selected is None else selected.track_id})
+    return rows
 
 
 def main() -> int:
@@ -56,6 +90,8 @@ def main() -> int:
                          for index in range(0, len(images), 2)])
     cv2.imwrite(str(output_dir / "montage.png"), montage)
     (output_dir / "report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (output_dir / "target-timeline.json").write_text(
+        json.dumps(target_timeline(), indent=2) + "\n")
     failures = [name for name, result in report.items()
                 if result["feasible"] != (result["expected"] == "feasible")]
     print(f"generated={len(report)} failures={len(failures)} output={output_dir}")

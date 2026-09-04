@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import random
 import sys
 import unittest
 from pathlib import Path
@@ -65,6 +66,13 @@ class TrajectoryCases(unittest.TestCase):
 
 
 class TargetLockCases(unittest.TestCase):
+    def test_nearest_initial_target_is_selected(self) -> None:
+        lock = TargetLock()
+        target = lock.update(
+            [Target(1, 2.0, 1.0, .99), Target(2, 1.1, 1.0, .70)], 0,
+            selection_origin=(1.0, 1.0))
+        self.assertEqual(target.track_id, 2)
+
     def test_challenger_does_not_interrupt(self) -> None:
         lock = TargetLock()
         self.assertEqual(lock.update([Target(1, 1, 1)], 0).track_id, 1)
@@ -95,6 +103,49 @@ class TargetLockCases(unittest.TestCase):
         lock.update([Target(1, 1, 1)], 0)
         lock.complete_or_abandon()
         self.assertEqual(lock.update([Target(2, .5, .5)], .1).track_id, 2)
+
+    def test_emerging_target_is_acquired_immediately_after_timeout(self) -> None:
+        lock = TargetLock()
+        lock.update([Target(1, 1, 1)], 0)
+        target = lock.update([Target(2, .5, .5)], .76)
+        self.assertEqual(target.track_id, 2)
+
+    def test_random_emerging_targets_never_preempt_live_lock(self) -> None:
+        randomizer = random.Random(20260905)
+        for _ in range(250):
+            lock = TargetLock()
+            active = Target(1, 1.2, .9, .8)
+            self.assertEqual(lock.update([active], 0).track_id, 1)
+            now = 0.0
+            for _ in range(20):
+                now += .03
+                detections = [] if randomizer.random() < .25 else [active]
+                if randomizer.random() < .8:
+                    detections.append(Target(2, randomizer.uniform(.2, 2.8),
+                                             randomizer.uniform(.2, 1.78), .99))
+                self.assertEqual(lock.update(detections, now).track_id, 1)
+
+    def test_new_target_during_motion_does_not_change_trajectory_goal(self) -> None:
+        lock = TargetLock()
+        active = Target(1, 2.4, .7, .8)
+        challenger = Target(2, 1.7, .9, .99)
+        selected = lock.update([active], 0, selection_origin=(1.0, 1.0))
+        car_poses = [Pose(1.0 + index * .12, 1.0 - index * .03, 0)
+                     for index in range(6)]
+        for index, car_pose in enumerate(car_poses):
+            visible = [active] if index < 2 else [active, challenger]
+            selected = lock.update(visible, index * .1,
+                                   selection_origin=(car_pose.x, car_pose.y))
+            self.assertEqual(selected.track_id, 1)
+            path = plan_collection(car_pose, np.array([selected.x, selected.y]), .10)
+            self.assertIsNotNone(path)
+            relative = rotation(path[-1].yaw).T @ (
+                np.array([active.x, active.y]) - (path[-1].x, path[-1].y))
+            np.testing.assert_allclose(relative, FRONT_MIDPOINT, atol=1e-9)
+        lock.complete_or_abandon()
+        selected = lock.update([challenger], .7,
+                               selection_origin=(car_poses[-1].x, car_poses[-1].y))
+        self.assertEqual(selected.track_id, 2)
 
 
 if __name__ == "__main__":

@@ -45,10 +45,16 @@ class TargetLock:
         self.last_seen_s = 0.0
 
     def update(self, detections: list[Target], now_s: float,
-               terminal_approach: bool = False) -> Target | None:
+               terminal_approach: bool = False,
+               selection_origin: tuple[float, float] = (0.0, 0.0)) -> Target | None:
         if self.target is None:
             if detections:
-                self.target = max(detections, key=lambda item: item.confidence)
+                self.target = min(
+                    detections,
+                    key=lambda item: (math.hypot(item.x - selection_origin[0],
+                                                 item.y - selection_origin[1]),
+                                      -item.confidence),
+                )
                 self.last_seen_s = now_s
             return self.target
 
@@ -67,6 +73,14 @@ class TargetLock:
                                          if terminal_approach
                                          else self.loss_timeout_s):
             self.target = None
+            if detections:
+                self.target = min(
+                    detections,
+                    key=lambda item: (math.hypot(item.x - selection_origin[0],
+                                                 item.y - selection_origin[1]),
+                                      -item.confidence),
+                )
+                self.last_seen_s = now_s
         return self.target
 
     def complete_or_abandon(self) -> None:
