@@ -137,6 +137,10 @@ class RobotDashboard:
 
     def mission_status(self) -> dict:
         status = {"running": False, "state": "idle", "error": ""}
+        # A status file can survive a dashboard restart or a power cycle. It
+        # is authoritative only while this dashboard owns a live runner.
+        if self._mission_process is None:
+            return status
         try:
             status.update(json.loads(self.mission_status_file.read_text(encoding="utf-8")))
         except FileNotFoundError:
