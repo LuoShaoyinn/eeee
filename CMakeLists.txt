@@ -45,6 +45,8 @@ add_library(robot_autonomy
     src/control/safety_supervisor.cpp
     src/perception/object_projection.cpp
     src/planning/approach_controller.cpp
+    src/planning/search_controller.cpp
+    src/planning/vehicle_geometry.cpp
     src/planning/mission.cpp
     src/planning/world_model.cpp)
 target_include_directories(robot_autonomy PUBLIC include)

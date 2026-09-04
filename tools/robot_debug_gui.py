@@ -173,11 +173,14 @@ class DebugGui:
                     valid = self.pose.get("telemetry_valid", False)
                     geometry = self.pose.get("visual_geometry", {})
                     axis_certainty = geometry.get("axis_certainty", [0, 0, 0])
+                    proposal = self.pose.get("auto_proposal", {})
                     self.status_label.configure(
-                        text="{}  frame {}  UART {} {:.0f} ms  visual X/Y/yaw {:.0%}/{:.0%}/{:.0%}".format(
+                        text="{}  frame {}  UART {} {:.0f} ms  visual X/Y/yaw {:.0%}/{:.0%}/{:.0%}  {} {:.1f}s".format(
                             event[2], self.pose.get("frame_index", "?"),
                             "OK" if valid else "STALE", age,
-                            *axis_certainty),
+                            *axis_certainty,
+                            proposal.get("phase", "tracking"),
+                            proposal.get("lost_seconds", 0)),
                         fg="#176b2c" if valid else "#a02b2b")
                     self.draw()
                 elif event[0] == "error":
@@ -253,6 +256,17 @@ class DebugGui:
         self.canvas.create_text(opx + 10, opy + 14,
                                 text="wheel+IMU ({:.2f}, {:.2f})".format(odom_x, odom_y),
                                 fill="#174a7d", anchor="w")
+        home = self.pose.get("home_box", {})
+        if home.get("detected", False):
+            home_x, home_y = home.get("position", [0, 0])
+            hpx, hpy, _ = self.transform(home_x, home_y)
+            colour = "#238b45" if home.get("consistent", False) else "#c7352b"
+            self.canvas.create_rectangle(hpx - 7, hpy - 7, hpx + 7, hpy + 7,
+                                         outline=colour, width=3)
+            self.canvas.create_text(
+                hpx + 10, hpy + 12,
+                text="home box {:.2f} m".format(home.get("error_m", 0)),
+                fill=colour, anchor="w")
         candidates = self.pose.get("visual_geometry_candidates", [])
         geometry = self.pose.get("visual_geometry", {})
         colours = ("#8b2db3", "#b15bc7", "#ca8ed9", "#dfb9e8")

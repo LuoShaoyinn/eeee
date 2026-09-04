@@ -38,6 +38,8 @@
 #include "robot/perception/object_projection.hpp"
 #include "robot/planning/approach_controller.hpp"
 #include "robot/planning/world_model.hpp"
+#include "robot/planning/search_controller.hpp"
+#include "robot/planning/vehicle_geometry.hpp"
 #ifdef ROBOT_A733_NPU
 #include "robot/perception/a733_detector.hpp"
 #endif
@@ -608,7 +610,9 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   bool visual_certain, bool visual_very_certain,
                   bool imu_yaw_reset, double gyro_bias_degps,
                   const std::vector<robot::TrackedObject>& objects,
-                  const robot::ApproachResult& approach) {
+                  const robot::ApproachResult& approach,
+                  const robot::SearchResult& search,
+                  const robot::HomeObservation& home) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
@@ -662,8 +666,15 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
             << objects[index].x_m << ',' << objects[index].y_m << ','
             << objects[index].confidence << ']';
     }
-    log << "],\"auto_proposal\":{\"valid\":" << (approach.target_valid ? "true" : "false")
+    log << "],\"home_box\":{\"detected\":" << (home.detected ? "true" : "false")
+        << ",\"consistent\":" << (home.consistent ? "true" : "false")
+        << ",\"position\":[" << home.x_m << ',' << home.y_m << "]"
+        << ",\"error_m\":" << home.distance_to_home_m
+        << ",\"confidence\":" << home.confidence << '}'
+        << ",\"auto_proposal\":{\"valid\":" << (approach.target_valid ? "true" : "false")
         << ",\"reached\":" << (approach.target_reached ? "true" : "false")
+        << ",\"phase\":\"" << robot::to_string(search.phase) << "\""
+        << ",\"lost_seconds\":" << search.lost_seconds
         << ",\"distance_m\":" << approach.distance_m << ",\"twist\":["
         << approach.command.forward_mps << ',' << approach.command.left_mps << ','
         << approach.command.yaw_radps << "]}}\n";
@@ -755,6 +766,9 @@ int main(int argc, char** argv) {
         robot::WorldModel world;
         robot::ApproachController approach_controller(options.approach);
         robot::ApproachResult approach_result;
+        robot::SearchController search_controller;
+        robot::SearchResult search_result;
+        robot::HomeObservation home_observation;
 #ifdef ROBOT_A733_NPU
         DetectorWorker detector_worker(robot::make_a733_detector(options.detector_model),
                                        options.detector_hz);
@@ -806,7 +820,14 @@ int main(int argc, char** argv) {
                 telemetry_age_ms = std::chrono::duration<double, std::milli>(capture_time - sample->timestamp).count();
                 telemetry_valid = telemetry_age_ms >= 0 && telemetry_age_ms <= 250;
             }
-            const robot::BodyVelocity wheel = robot::wheel_body_velocity(state.rpm, state.targets);
+            const robot::BodyVelocity wheel_center = robot::wheel_body_velocity(state.rpm, state.targets);
+            const robot::Twist2 wheel_at_camera = robot::camera_origin_twist(
+                {.forward_mps = wheel_center.forward_mps,
+                 .left_mps = wheel_center.left_mps,
+                 .yaw_radps = wheel_center.yaw_radps});
+            const robot::BodyVelocity wheel{.forward_mps = wheel_at_camera.forward_mps,
+                                            .left_mps = wheel_at_camera.left_mps,
+                                            .yaw_radps = wheel_at_camera.yaw_radps};
             const robot::VisualMotion visual = visual_odometry.update(gray, projector, dt_s);
             robot::BodyVelocity fused = wheel;
             const bool plausible_visual = visual.valid &&
@@ -914,19 +935,35 @@ int main(int argc, char** argv) {
             const robot::PoseEstimate pose = filter.estimate();
 #ifdef ROBOT_A733_NPU
             if (auto detections = detector_worker.take()) {
-                world.replace_objects(robot::project_collectibles(
+                home_observation = robot::check_home_box(
                     *detections, object_projector,
-                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad}));
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
+                world.update_objects(robot::project_collectibles(
+                    *detections, object_projector,
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad}),
+                    capture_time);
             }
 #endif
-            if (const auto target = world.nearest_collectible(
-                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad})) {
+            auto target = world.nearest_collectible(
+                {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
+            if (target && capture_time - target->last_seen > options.approach.target_timeout) {
+                target.reset();
+            }
+            if (target) {
+                search_result = search_controller.update(
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                    true, capture_time, std::min(dt_s, .2));
                 approach_result = approach_controller.update(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                     *target, capture_time, std::min(dt_s, .2));
             } else {
                 approach_controller.reset();
-                approach_result = {};
+                search_result = search_controller.update(
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                    false, capture_time, std::min(dt_s, .2));
+                approach_result = {.command = search_result.command,
+                                   .target_valid = search_result.phase != robot::SearchPhase::complete,
+                                   .target_reached = search_result.phase == robot::SearchPhase::complete};
             }
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
             std::ostringstream record;
@@ -934,7 +971,8 @@ int main(int argc, char** argv) {
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
                          visual_geometry, lower_fence_count, upper_fence_count,
                          visual_certain, visual_very_certain, imu_yaw_reset,
-                         gyro_bias_radps / kDegreesToRadians, world.objects(), approach_result);
+                         gyro_bias_radps / kDegreesToRadians, world.objects(), approach_result,
+                         search_result, home_observation);
             log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());

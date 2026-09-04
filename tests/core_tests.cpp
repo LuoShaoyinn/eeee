@@ -5,7 +5,9 @@
 #include "robot/perception/object_projection.hpp"
 #include "robot/planning/approach_controller.hpp"
 #include "robot/planning/mission.hpp"
+#include "robot/planning/search_controller.hpp"
 #include "robot/planning/world_model.hpp"
+#include "robot/planning/vehicle_geometry.hpp"
 
 namespace {
 
@@ -71,6 +73,31 @@ int main() {
     if (!require(nearest && nearest->id == 3,
                  "nearest collectible ignores opponent")) return 1;
 
+    const auto corners = robot::footprint_corners({.x_m = .38, .y_m = .25});
+    if (!require(std::abs(corners[0].x_m - .10) < 1e-9 &&
+                     std::abs(corners[0].y_m - .10) < 1e-9 &&
+                     std::abs(corners[2].x_m - .40) < 1e-9 &&
+                     std::abs(corners[2].y_m - .30) < 1e-9,
+                 "camera-centered footprint preserves physical corners") ||
+        !require(robot::footprint_inside_arena({.x_m = .38, .y_m = .25}),
+                 "footprint with margin is accepted") ||
+        !require(!robot::footprint_inside_arena({.x_m = .20, .y_m = .25}),
+                 "rear corner crossing margin is rejected")) return 1;
+    const robot::Twist2 camera_twist = robot::camera_origin_twist(
+        {.forward_mps = 0, .left_mps = 0, .yaw_radps = 1});
+    if (!require(std::abs(camera_twist.forward_mps + .05) < 1e-9 &&
+                     std::abs(camera_twist.left_mps - .13) < 1e-9,
+                 "turning applies camera lever-arm velocity")) return 1;
+
+    robot::WorldModel tracked_world;
+    tracked_world.update_objects({target}, now);
+    tracked_world.update_objects({}, now + 100ms);
+    if (!require(tracked_world.nearest_collectible({}).has_value(),
+                 "one missing detector frame keeps collectible track")) return 1;
+    tracked_world.update_objects({}, now + 600ms);
+    if (!require(!tracked_world.nearest_collectible({}).has_value(),
+                 "stale collectible track expires")) return 1;
+
     const cv::Mat camera_matrix = cv::Mat::eye(3, 3, CV_64F);
     const robot::GroundProjector projector(camera_matrix, 1.0, 45.0);
     robot::DetectionFrame detections{
@@ -86,6 +113,43 @@ int main() {
         !require(std::abs(projected[0].x_m - .5) < 1e-6 &&
                      std::abs(projected[0].y_m - 1.5) < 1e-6,
                  "camera-relative target transforms to arena frame")) return 1;
+
+    robot::SearchController search;
+    auto search_result = search.update({.x_m = .2, .y_m = .2}, false, now, .1);
+    if (!require(search_result.phase == robot::SearchPhase::rotate_local &&
+                     search_result.command.yaw_radps > 0,
+                 "lost target starts local rotation")) return 1;
+    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 6s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::navigate_center &&
+                     std::hypot(search_result.command.forward_mps,
+                                search_result.command.left_mps) > 0,
+                 "five-second loss navigates to center")) return 1;
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 7s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::rotate_center,
+                 "search rotates after reaching center")) return 1;
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 11s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::return_home,
+                 "ten-second loss returns home")) return 1;
+    search_result = search.update({.x_m = .25, .y_m = .2}, false, now + 12s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::complete &&
+                     search_result.command.forward_mps == 0,
+                 "home radius permanently stops search")) return 1;
+    search_result = search.update({.x_m = .25, .y_m = .2}, true, now + 13s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::complete &&
+                     search_result.command.forward_mps == 0,
+                 "completed search remains stopped after a detection")) return 1;
+
+    robot::DetectionFrame home_frame{
+        .timestamp = now,
+        .frame_sequence = 8,
+        .detections = {{.object_class = robot::ObjectClass::home,
+                        .confidence = .9F,
+                        .box = {.left = -.1F, .top = -.2F, .right = .1F, .bottom = 0}}},
+    };
+    const robot::GroundProjector near_projector(camera_matrix, .1, 45.0);
+    const auto home = robot::check_home_box(home_frame, near_projector, {});
+    if (!require(home.detected && home.consistent,
+                 "boxed home agrees with localized home rectangle")) return 1;
 
     robot::SoloMission mission;
     if (!require(mission.update({.hardware_ready = true}) == robot::MissionState::self_test,

@@ -170,6 +170,13 @@ Initial integration stops after approaching a target and returning home.
 Servo and GA25 actions remain disabled until navigation has passed logged
 replay and deliberate low-speed arena validation.
 
+When no collectible is visible, the runtime rotates locally for 5 seconds,
+then moves toward the arena center and rotates there. After 10 seconds of
+continuous loss it returns to the center of the home rectangle at `(0.10,
+0.15)` and latches a stop inside a 0.30 m radius. A detected `home` bounding
+box is projected from its center and logged as consistent only when it agrees
+with the known home rectangle.
+
 ## ESP32 UART OTA
 
 The firmware on the `esp32` branch has two OTA application partitions. The
