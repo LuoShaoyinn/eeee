@@ -28,6 +28,7 @@ class RobotDashboard:
         self.camera = camera
         self.preview_file = preview_file
         self.e_stop_latched = False
+        self.mode = "standby"
         self.last_error = ""
         self._latest_jpeg = b""
         self._frame_time = 0.0
@@ -46,6 +47,7 @@ class RobotDashboard:
 
     def emergency_stop(self) -> None:
         self.e_stop_latched = True
+        self.mode = "stopped"
         errors = []
         for command in ("ga25 0", "stop"):
             try:
@@ -55,6 +57,10 @@ class RobotDashboard:
         if errors:
             self.last_error = "; ".join(errors)
 
+    def start_preview(self) -> None:
+        if not self.e_stop_latched:
+            self.mode = "decision_preview"
+
     def status(self) -> dict:
         state = "unavailable"
         try:
@@ -63,6 +69,7 @@ class RobotDashboard:
             self.last_error = str(error)
         return {
             "e_stop_latched": self.e_stop_latched,
+            "mode": self.mode,
             "frame_age_ms": round((time.monotonic() - self._frame_time) * 1000) if self._frame_time else None,
             "robot_state": state,
             "error": self.last_error,
@@ -147,10 +154,10 @@ PAGE = """<!doctype html><html lang='zh-CN'><meta charset='utf-8'>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#081116;color:#e7f0ef;font:16px system-ui,sans-serif}
 main{max-width:1280px;margin:auto;padding:20px;display:grid;gap:16px;grid-template-columns:minmax(0,2fr) minmax(270px,1fr)}
-h1{grid-column:1/-1;font-size:1.35rem;margin:0;color:#80e6b5}.camera{background:#101c21;border:1px solid #25434b;border-radius:12px;overflow:hidden}.camera img{display:block;width:100%;min-height:300px;object-fit:contain;background:#000}.panel{background:#101c21;border:1px solid #25434b;border-radius:12px;padding:18px}.state{white-space:pre-wrap;word-break:break-word;font:13px ui-monospace,monospace;color:#b8d8d4}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#1f4d40;color:#9bf0c5;font-weight:700}.fault{background:#631d27;color:#ffb9bd}button{width:100%;margin-top:16px;padding:18px;border:0;border-radius:10px;background:#d93543;color:white;font-weight:800;font-size:1.2rem;cursor:pointer}button:active{transform:scale(.98)}.note{font-size:.87rem;color:#a4bbb8;line-height:1.5}
+h1{grid-column:1/-1;font-size:1.35rem;margin:0;color:#80e6b5}.camera{background:#101c21;border:1px solid #25434b;border-radius:12px;overflow:hidden}.camera img{display:block;width:100%;min-height:300px;object-fit:contain;background:#000}.panel{background:#101c21;border:1px solid #25434b;border-radius:12px;padding:18px}.state{white-space:pre-wrap;word-break:break-word;font:13px ui-monospace,monospace;color:#b8d8d4}.tag{display:inline-block;padding:5px 9px;border-radius:999px;background:#1f4d40;color:#9bf0c5;font-weight:700}.fault{background:#631d27;color:#ffb9bd}button{width:100%;margin-top:16px;padding:18px;border:0;border-radius:10px;background:#d93543;color:white;font-weight:800;font-size:1.2rem;cursor:pointer}.start{background:#16885c}button:active{transform:scale(.98)}.note{font-size:.87rem;color:#a4bbb8;line-height:1.5}
 @media(max-width:780px){main{grid-template-columns:1fr;padding:12px}.camera img{min-height:220px}}
-</style><main><h1>Cubie 整机控制台</h1><section class='camera'><img src='/stream.mjpg' alt='校正后的实时相机画面'></section><section class='panel'><span id='tag' class='tag'>正在连接</span><h2>整机状态</h2><div id='state' class='state'>读取中…</div><button id='stop'>紧急停止</button><p class='note'>紧急停止会停止底盘并关闭收集电机。此按钮为软件急停，物理急停仍应始终可用。</p></section></main><script>
-async function status(){try{const r=await fetch('/api/status');const s=await r.json();document.querySelector('#tag').textContent=s.e_stop_latched?'急停已锁定':'系统就绪';document.querySelector('#tag').className='tag '+(s.e_stop_latched?'fault':'');document.querySelector('#state').textContent='图像延迟: '+(s.frame_age_ms??'—')+' ms\\n'+s.robot_state+(s.error?'\\n错误: '+s.error:'')}catch(e){document.querySelector('#state').textContent='状态读取失败: '+e}}document.querySelector('#stop').onclick=async()=>{await fetch('/api/estop',{method:'POST'});status()};status();setInterval(status,1000)
+</style><main><h1>Cubie 整机控制台</h1><section class='camera'><img src='/stream.mjpg' alt='校正后的实时相机画面与 YOLO 检测框'></section><section class='panel'><span id='tag' class='tag'>正在连接</span><h2>整机状态</h2><div id='state' class='state'>读取中…</div><button id='start' class='start'>开始决策预览</button><button id='stop'>停止并急停</button><p class='note'>开始仅启用决策预览，不驱动车体。停止会停止底盘并关闭收集电机。物理急停仍应始终可用。</p></section></main><script>
+async function status(){try{const r=await fetch('/api/status');const s=await r.json();document.querySelector('#tag').textContent=s.e_stop_latched?'急停已锁定':s.mode==='decision_preview'?'决策预览中':'系统就绪';document.querySelector('#tag').className='tag '+(s.e_stop_latched?'fault':'');document.querySelector('#state').textContent='模式: '+s.mode+'\\n图像延迟: '+(s.frame_age_ms??'—')+' ms\\n'+s.robot_state+(s.error?'\\n错误: '+s.error:'')}catch(e){document.querySelector('#state').textContent='状态读取失败: '+e}}document.querySelector('#start').onclick=async()=>{await fetch('/api/start',{method:'POST'});status()};document.querySelector('#stop').onclick=async()=>{await fetch('/api/estop',{method:'POST'});status()};status();setInterval(status,1000)
 </script></html>"""
 
 
@@ -192,10 +199,13 @@ def handler_factory(dashboard: RobotDashboard):
                 self.send_error(HTTPStatus.NOT_FOUND)
 
         def do_POST(self):
-            if self.path != "/api/estop":
+            if self.path == "/api/estop":
+                dashboard.emergency_stop()
+            elif self.path == "/api/start":
+                dashboard.start_preview()
+            else:
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return
-            dashboard.emergency_stop()
             self.send_response(HTTPStatus.NO_CONTENT)
             self.end_headers()
     return Handler

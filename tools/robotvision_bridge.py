@@ -59,9 +59,7 @@ def parse_detections(output: str, width: int, height: int):
             continue
         label, score, left, top, right, bottom = match.groups()
         left, top, right, bottom = map(int, (left, top, right, bottom))
-        detections.append((LABELS[label], float(score) / 100.0,
-                           max(0.0, min(1.0, (left + right) * .5 / width)),
-                           max(0.0, min(1.0, bottom / height))))
+        detections.append((LABELS[label], float(score) / 100.0, left, top, right, bottom))
     return detections
 
 
@@ -94,8 +92,6 @@ def main() -> None:
             rectified = cv2.remap(raw, maps[0], maps[1], cv2.INTER_LINEAR)
             hsv = cv2.cvtColor(rectified, cv2.COLOR_BGR2HSV)
             blue_pixels = int(cv2.countNonZero(cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))))
-            if not cv2.imwrite(args.frame_path, rectified):
-                raise RuntimeError(f"cannot write rectified frame: {args.frame_path}")
             environment = os.environ.copy()
             environment["LD_LIBRARY_PATH"] = args.yolo_dir + ":" + environment.get("LD_LIBRARY_PATH", "")
             result = subprocess.run(
@@ -104,12 +100,22 @@ def main() -> None:
                 stderr=subprocess.STDOUT, check=False)
             if result.returncode != 0:
                 raise RuntimeError("A733 YOLO failed: " + result.stdout[-500:])
+            detections = parse_detections(result.stdout, rectified.shape[1], rectified.shape[0])
+            annotated = rectified.copy()
             frame = ["1" if blue_pixels >= args.minimum_blue_pixels else "0", "0"]
-            for label, confidence, center_x, bottom_y in parse_detections(
-                    result.stdout, rectified.shape[1], rectified.shape[0]):
+            for label, confidence, left, top, right, bottom in detections:
+                center_x = max(0.0, min(1.0, (left + right) * .5 / rectified.shape[1]))
+                bottom_y = max(0.0, min(1.0, bottom / rectified.shape[0]))
                 frame.extend((label, f"{confidence:.3f}", f"{center_x:.3f}", f"{bottom_y:.3f}"))
+                cv2.rectangle(annotated, (left, top), (right, bottom), (255, 170, 0), 2)
+                cv2.putText(annotated, f"{label} {confidence:.0%}", (left, max(18, top - 6)),
+                            cv2.FONT_HERSHEY_SIMPLEX, .52, (255, 170, 0), 2)
+            temporary_path = args.frame_path + ".tmp.jpg"
+            if not cv2.imwrite(temporary_path, annotated):
+                raise RuntimeError(f"cannot write rectified frame: {temporary_path}")
+            os.replace(temporary_path, args.frame_path)
             print(" ".join(frame), flush=True)
-            print(f"robotvision: frame={frames} blue={blue_pixels} detections={len(frame[2:]) // 4}",
+            print(f"robotvision: frame={frames} blue={blue_pixels} detections={len(detections)}",
                   file=sys.stderr, flush=True)
             frames += 1
     finally:
