@@ -129,6 +129,11 @@ class RobotDashboard:
                 self.last_error = f"waiting for vision frame: {self.preview_file}"
                 time.sleep(.1)
                 continue
+            # The bridge may start after the dashboard.  Once a valid preview
+            # arrives, discard only that transient status; do not hide real
+            # hardware or emergency-stop errors.
+            if self.last_error.startswith("waiting for vision frame:"):
+                self.last_error = ""
             label = "E-STOP LATCHED" if self.e_stop_latched else "RECTIFIED VISION PREVIEW"
             color = (20, 20, 230) if self.e_stop_latched else (20, 190, 20)
             cv2.rectangle(preview, (12, 12), (440, 54), (15, 15, 15), -1)
