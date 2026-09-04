@@ -68,9 +68,10 @@ def main() -> None:
     parser.add_argument("--camera", default="/dev/video0")
     parser.add_argument("--calibration", default="config/camera_fisheye_1280x720.yaml")
     parser.add_argument("--yolo-dir", default="/home/radxa/yolo26n-a733")
-    parser.add_argument("--yolo-bin", default="./yolo26_demo_a733",
+    parser.add_argument("--yolo-bin", default="./yolo26_demo_640_a733",
                         help="A733 executable matching the selected model's decoder")
-    parser.add_argument("--model", default="official_yolo26n_split_pcq_a733.nb")
+    parser.add_argument("--model", default="/home/radxa/cubie-robot/models/official_yolo26n_640x384_split_pcq_a733.nb",
+                        help="640x384 A733 INT8 model with two 4x5040 outputs")
     parser.add_argument("--minimum-blue-pixels", type=int, default=60)
     parser.add_argument("--max-frames", type=int, default=0, help="0 means stream until interrupted")
     parser.add_argument("--frame-path", default="/tmp/robotvision-rectified.jpg")
