@@ -50,6 +50,7 @@ target_link_libraries(robotbrain PRIVATE robot_mission)
 target_compile_options(robotbrain PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 include(CTest)
+enable_testing()
 if(BUILD_TESTING)
     add_executable(mission_test tests/mission_test.cpp)
     target_link_libraries(mission_test PRIVATE robot_mission)
