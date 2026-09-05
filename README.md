@@ -213,6 +213,11 @@ uv sync --project tools
 - `tools/capture_arena_poses.py`: collect measured arena poses for offline
   localization calibration.
 
+`tools/location/` contains the offline arena-calibration and fence-geometry
+workflow: checkerboard review, mount/IMU regression, HSV tuning, line tagging,
+projective fitting, and BEV diagnostics. It is intentionally separate from the
+production runtime and never controls actuators.
+
 Example arena capture on the Cubie:
 
 ```sh

@@ -7,4 +7,5 @@ dependencies = [
   "opencv-python>=4.10",
   "paramiko>=3.5",
   "pyserial>=3.5",
+  "scipy>=1.14",
 ]
