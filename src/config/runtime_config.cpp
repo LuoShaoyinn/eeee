@@ -79,6 +79,9 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(camera, "capture_fps", config.capture_fps);
     read(camera, "visual_width", config.visual_width);
     read(camera, "visual_height", config.visual_height);
+    int record_enabled = config.record_enabled ? 1 : 0;
+    read(camera, "record_enabled", record_enabled);
+    config.record_enabled = record_enabled != 0;
     read(camera, "record_fps", config.record_fps);
     read(camera, "visual_geometry_hz", config.visual_geometry_hz);
     const cv::FileNode localization = file["localization"];

@@ -19,6 +19,7 @@ struct RuntimeConfig {
     double capture_fps = 30;
     int visual_width = 320;
     int visual_height = 180;
+    bool record_enabled = true;
     double record_fps = 10;
     double visual_geometry_hz = 1;
 

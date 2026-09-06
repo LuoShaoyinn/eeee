@@ -127,6 +127,11 @@ host arena viewer after deploying and starting `robot-runtime` on the Cubie:
 uv run --project tools python tools/robot_debug_gui.py
 ```
 
+Runtime recording is enabled by `camera.record_enabled` and writes a JSONL
+telemetry/pose log plus a rectified MJPEG AVI under `run-log/`. Use
+`--no-video` to keep only the compact JSONL log, or `--no-log` to disable both
+outputs for a short live run.
+
 The GUI draws the fence particle filter in green/orange and independent
 wheel-plus-relative-IMU dead reckoning in blue. This comparison exposes a bad
 fence correction instead of hiding it inside a fused pose. Ranked visual-only fence matches are shown as

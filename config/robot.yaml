@@ -14,6 +14,7 @@ camera:
   capture_fps: 30.
   visual_width: 320
   visual_height: 180
+  record_enabled: 1
   record_fps: 10.
   visual_geometry_hz: 1.
 localization:

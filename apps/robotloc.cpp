@@ -57,6 +57,7 @@ struct Options {
     std::string video_path;
     std::string raw_video_path;
     std::string telemetry_replay_path;
+    bool record_log = true;
     bool record_video = true;
     bool record_raw_video = false;
     bool rectified_input = false;
@@ -509,6 +510,8 @@ Options parse_options(int argc, char** argv) {
     options.capture_width = config.capture_width;
     options.capture_height = config.capture_height;
     options.capture_fps = config.capture_fps;
+    options.record_log = config.record_enabled;
+    options.record_video = config.record_enabled;
     options.record_fps = config.record_fps;
     options.visual_geometry_hz = config.visual_geometry_hz;
     options.telemetry_hz = config.telemetry_hz;
@@ -555,8 +558,14 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--camera") options.camera = value("--camera");
         else if (argument == "--socket") options.socket = value("--socket");
         else if (argument == "--calibration") options.calibration = value("--calibration");
-        else if (argument == "--log") options.log_path = value("--log");
-        else if (argument == "--video") options.video_path = value("--video");
+        else if (argument == "--log") {
+            options.log_path = value("--log");
+            options.record_log = true;
+        }
+        else if (argument == "--video") {
+            options.video_path = value("--video");
+            options.record_video = true;
+        }
         else if (argument == "--raw-video") {
             options.raw_video_path = value("--raw-video");
             options.record_raw_video = true;
@@ -566,6 +575,11 @@ Options parse_options(int argc, char** argv) {
         }
         else if (argument == "--realtime-video") options.realtime_video = true;
         else if (argument == "--no-video") options.record_video = false;
+        else if (argument == "--no-log") {
+            options.record_log = false;
+            options.record_video = false;
+            options.record_raw_video = false;
+        }
         else if (argument == "--rectified-input") options.rectified_input = true;
         else if (argument == "--visual-width") options.visual_width = std::stoi(value("--visual-width"));
         else if (argument == "--visual-height") options.visual_height = std::stoi(value("--visual-height"));
@@ -581,7 +595,7 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--stdout-json") options.stream_json = true;
         else if (argument == "--no-broadcast") options.broadcast_enabled = false;
         else if (argument == "--help") {
-            std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-video] [--telemetry-replay FILE] [--realtime-video] "
+            std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-log] [--no-video] [--telemetry-replay FILE] [--realtime-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
                          "[--initial-yaw DEG] [--global-initialize] [--rectified-input] "
@@ -595,7 +609,7 @@ Options parse_options(int argc, char** argv) {
     if (options.initial_x_m < 0 || options.initial_x_m > 3.0 || options.initial_y_m < 0 || options.initial_y_m > 1.985) {
         throw std::runtime_error("initial pose must lie inside the field");
     }
-    if (options.log_path.empty()) options.log_path = default_log_path();
+    if (options.record_log && options.log_path.empty()) options.log_path = default_log_path();
     if (options.video_path.empty() && options.record_video) options.video_path = default_video_path(options.log_path);
     return options;
 }
@@ -707,10 +721,13 @@ int main(int argc, char** argv) {
         capture.set(cv::CAP_PROP_FRAME_WIDTH, options.capture_width);
         capture.set(cv::CAP_PROP_FRAME_HEIGHT, options.capture_height);
         capture.set(cv::CAP_PROP_FPS, options.capture_fps);
-        const std::filesystem::path log_parent = std::filesystem::path(options.log_path).parent_path();
-        if (!log_parent.empty()) std::filesystem::create_directories(log_parent);
-        std::ofstream log(options.log_path);
-        if (!log) throw std::runtime_error("cannot write log: " + options.log_path);
+        std::ofstream log;
+        if (options.record_log) {
+            const std::filesystem::path log_parent = std::filesystem::path(options.log_path).parent_path();
+            if (!log_parent.empty()) std::filesystem::create_directories(log_parent);
+            log.open(options.log_path);
+            if (!log) throw std::runtime_error("cannot write log: " + options.log_path);
+        }
         cv::VideoWriter video;
         cv::VideoWriter raw_video;
         if (options.record_video) {
@@ -728,7 +745,8 @@ int main(int argc, char** argv) {
             if (!raw_video.isOpened()) throw std::runtime_error("cannot open raw video writer: " + options.raw_video_path);
         }
         std::cerr << "robot-runtime: PASSIVE config=" << options.config << " capture=" << options.camera
-                  << " robotd=" << options.socket << " log=" << options.log_path;
+                  << " robotd=" << options.socket;
+        if (options.record_log) std::cerr << " log=" << options.log_path;
         if (options.record_video) std::cerr << " video=" << options.video_path;
         if (options.record_raw_video) std::cerr << " raw_video=" << options.raw_video_path;
         std::cerr << '\n';
@@ -973,7 +991,7 @@ int main(int argc, char** argv) {
                          visual_certain, visual_very_certain, imu_yaw_reset,
                          gyro_bias_radps / kDegreesToRadians, world.objects(), approach_result,
                          search_result, home_observation);
-            log << record.str();
+            if (options.record_log) log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());
             if ((frame_count++ % 30) == 0) {
