@@ -15,7 +15,6 @@ RANGE_KEYS = {
     ord("4"): ("red_cube", 0),
     ord("5"): ("red_cube", 1),
     ord("6"): ("yellow_cylinder", 0),
-    ord("7"): ("home", 0),
 }
 COLORS = {
     "white_ground": (255, 255, 255),
@@ -23,7 +22,6 @@ COLORS = {
     "home_black": (255, 0, 255),
     "red_cube": (0, 0, 255),
     "yellow_cylinder": (0, 255, 255),
-    "home": (0, 165, 255),
 }
 
 
@@ -73,7 +71,7 @@ def main() -> int:
         cv2.createTrackbar(name, controls, 0, maximum, noop)
     set_trackbars(controls, *thresholds[selected][range_index])
     print("keys: 1 blue fence, 2 white ground, 3 black home, 4 red low-H, "
-          "5 red high-H, 6 yellow cylinder, 7 physical home pad; "
+          "5 red high-H, 6 yellow; "
           "s save profile, q quit")
 
     while True:
