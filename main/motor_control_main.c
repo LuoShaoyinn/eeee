@@ -279,10 +279,6 @@ static void collector_load_encoder_ppr(void) {
 static esp_err_t collector_start(void) {
     const int64_t now_us = esp_timer_get_time();
     portENTER_CRITICAL(&s_collector_lock);
-    if (s_collector_encoder_ppr == 0) {
-        portEXIT_CRITICAL(&s_collector_lock);
-        return ESP_ERR_INVALID_STATE;
-    }
     s_collector_state = COLLECTOR_REVERSE;
     s_collector_state_started_us = now_us;
     s_collector_last_motion_us = now_us;
@@ -361,10 +357,18 @@ static void collector_task(void *unused) {
             controls_ga25 = true;
             if (now_us - s_collector_state_started_us >=
                 (int64_t)COLLECTOR_RELEASE_TIME_MS * 1000) {
-                s_collector_state = COLLECTOR_FORWARD_CLEAR;
-                s_collector_state_started_us = now_us;
-                s_collector_clear_start_edges = encoder_total;
-                requested_duty = COLLECTOR_CLEAR_DUTY_PERCENT;
+                // Reverse collection does not require calibrated PPR.  The
+                // two-revolution jam-clear cycle does, so fail released when
+                // PPR is unavailable rather than estimate shaft travel.
+                if (s_collector_encoder_ppr == 0) {
+                    s_collector_state = COLLECTOR_FAULT;
+                    requested_duty = 0;
+                } else {
+                    s_collector_state = COLLECTOR_FORWARD_CLEAR;
+                    s_collector_state_started_us = now_us;
+                    s_collector_clear_start_edges = encoder_total;
+                    requested_duty = COLLECTOR_CLEAR_DUTY_PERCENT;
+                }
             }
             break;
         case COLLECTOR_FORWARD_CLEAR: {
@@ -502,8 +506,8 @@ static const char *process_command(const char *command, char *reply, size_t repl
     }
     if (!strcmp(command, "collector start")) {
         return collector_start() == ESP_OK ?
-            "collector started: reverse 90%, jam recovery enabled\n" :
-            "error: collector PPR uncalibrated; set collector ppr EDGES_PER_OUTPUT_REV\n";
+            "collector started: reverse 90%; jam clear requires calibrated PPR\n" :
+            "error: collector start failed\n";
     }
     if (!strcmp(command, "collector stop")) {
         collector_stop();

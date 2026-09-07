@@ -187,8 +187,9 @@ collector
 collector stop
 ```
 
-The value is stored in ESP32 NVS and survives reboot. `collector start` fails
-closed until it is configured; it never estimates shaft revolutions from motor
+The value is stored in ESP32 NVS and survives reboot. Without it, `collector
+start` still runs reverse collection at 90%, but after a two-second stall it
+releases and enters `fault`; it never estimates shaft revolutions from motor
 time. Positive `ga25` duty is forward (`IN1` PWM) and negative duty is reverse
 (`IN2` PWM).
 
