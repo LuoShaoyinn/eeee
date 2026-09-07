@@ -1228,7 +1228,7 @@ int main(int argc, char** argv) {
                     }
                 }
             }
-            const robot::PoseEstimate pose = filter.estimate();
+            robot::PoseEstimate pose = filter.estimate();
             // Center/home travel is driven by the fused particle-filter pose.
             // Requiring a very recent, high-certainty single fence update made
             // navigation flicker off even while the filter reported a stable
@@ -1237,6 +1237,21 @@ int main(int argc, char** argv) {
 #ifdef ROBOT_A733_NPU
             if (auto detections = detector_worker.take()) {
                 raw_detections = detections->frame.detections;
+                const auto landmark = robot::measure_home_landmark(detections->frame, object_projector);
+                if (landmark.valid) {
+                    const double cosine = std::cos(detections->odometry_pose.yaw_rad);
+                    const double sine = std::sin(detections->odometry_pose.yaw_rad);
+                    const double arena_x = detections->odometry_pose.x_m + cosine * landmark.relative.x - sine * landmark.relative.y;
+                    const double arena_y = detections->odometry_pose.y_m + sine * landmark.relative.x + cosine * landmark.relative.y;
+                    // A detection can only constrain pose when capture-time odometry puts
+                    // it inside the physical arena. This rejects background black regions.
+                    if (arena_x >= 0 && arena_x <= 3.0 && arena_y >= 0 && arena_y <= 1.985) {
+                        (void)filter.update_landmark(landmark.relative,
+                                                     {options.search.home_x_m, options.search.home_y_m},
+                                                     .30, 1.20);
+                        pose = filter.estimate();
+                    }
+                }
                 home_observation = robot::check_home_box(
                     detections->frame, object_projector,
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
