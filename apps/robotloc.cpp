@@ -1246,7 +1246,7 @@ int main(int argc, char** argv) {
                 raw_detections = detections->frame.detections;
                 const auto landmark = robot::measure_home_landmark(detections->frame, object_projector);
                 const bool landmark_due = !last_home_landmark_update ||
-                    detections->frame.timestamp - *last_home_landmark_update >= 1s;
+                    detections->frame.timestamp - *last_home_landmark_update >= std::chrono::seconds(1);
                 if (landmark.valid && landmark_due) {
                     const double cosine = std::cos(detections->odometry_pose.yaw_rad);
                     const double sine = std::sin(detections->odometry_pose.yaw_rad);
