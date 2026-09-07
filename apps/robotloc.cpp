@@ -615,12 +615,13 @@ Options parse_options(int argc, char** argv) {
     options.approach.maximum_yaw_radps = config.approach_maximum_yaw_radps;
     options.approach.maximum_linear_accel_mps2 = config.approach_maximum_linear_accel_mps2;
     options.approach.maximum_yaw_accel_radps2 = config.approach_maximum_yaw_accel_radps2;
-    options.approach.stopping_distance_m = config.approach_stopping_distance_m;
+    options.approach.target_forward_m = config.approach_target_forward_m;
+    options.approach.target_left_m = config.approach_target_left_m;
+    options.approach.target_tolerance_m = config.approach_target_tolerance_m;
     options.approach.capture_finish_distance_m = config.approach_capture_finish_distance_m;
     options.approach.capture_finish_speed_mps = config.approach_capture_finish_speed_mps;
     options.approach.capture_finish_timeout =
         std::chrono::milliseconds(config.approach_capture_finish_timeout_ms);
-    options.approach.target_left_offset_m = config.approach_target_left_offset_m;
     options.approach.target_timeout = std::chrono::milliseconds(config.approach_target_timeout_ms);
     options.search.local_rotate_seconds = config.search_local_rotate_seconds;
     options.search.center_search_seconds = config.search_center_rotate_seconds;
@@ -706,6 +707,7 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   bool visual_certain, bool visual_very_certain,
                   bool navigation_allowed,
                   bool imu_yaw_reset, double gyro_bias_degps,
+                  const std::vector<robot::Detection>& raw_detections,
                   const std::vector<robot::TrackedObject>& objects,
                   const robot::ApproachResult& approach,
                   const robot::SearchResult& search,
@@ -758,7 +760,15 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
     }
     log << "]"
         << ",\"lower_fence_points\":" << lower_fence_count
-        << ",\"upper_fence_points\":" << upper_fence_count << ",\"objects\":[";
+        << ",\"upper_fence_points\":" << upper_fence_count << ",\"raw_detections\":[";
+    for (std::size_t index = 0; index < raw_detections.size(); ++index) {
+        if (index) log << ',';
+        const auto& detection = raw_detections[index];
+        log << '[' << static_cast<int>(detection.object_class) << ',' << detection.confidence << ','
+            << detection.box.left << ',' << detection.box.top << ',' << detection.box.right << ','
+            << detection.box.bottom << ']';
+    }
+    log << "],\"objects\":[";
     for (std::size_t index = 0; index < objects.size(); ++index) {
         if (index) log << ',';
         log << "[" << static_cast<int>(objects[index].object_class) << ','
@@ -867,6 +877,7 @@ int main(int argc, char** argv) {
         std::size_t lower_fence_count = 0;
         std::size_t upper_fence_count = 0;
         robot::WorldModel world;
+        std::vector<robot::Detection> raw_detections;
         robot::ApproachController approach_controller(options.approach);
         robot::ApproachResult approach_result;
         robot::SearchController search_controller(options.search);
@@ -1089,6 +1100,7 @@ int main(int argc, char** argv) {
                 pose.position_sigma_m <= .25;
 #ifdef ROBOT_A733_NPU
             if (auto detections = detector_worker.take()) {
+                raw_detections = detections->detections;
                 home_observation = robot::check_home_box(
                     *detections, object_projector,
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
@@ -1120,14 +1132,14 @@ int main(int argc, char** argv) {
                 // not let a particle-filter correction rotate/translate the
                 // target error below the camera between detector frames.
                 robot::TrackedObject camera_target = *target;
-                const double cosine = std::cos(pose.yaw_rad);
-                const double sine = std::sin(pose.yaw_rad);
-                camera_target.x_m = pose.x_m + cosine * target->camera_forward_m -
+                const double cosine = std::cos(odometry_pose.yaw_rad);
+                const double sine = std::sin(odometry_pose.yaw_rad);
+                camera_target.x_m = odometry_pose.x_m + cosine * target->camera_forward_m -
                                     sine * target->camera_left_m;
-                camera_target.y_m = pose.y_m + sine * target->camera_forward_m +
+                camera_target.y_m = odometry_pose.y_m + sine * target->camera_forward_m +
                                     cosine * target->camera_left_m;
                 approach_result = approach_controller.update(
-                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                    odometry_pose,
                     camera_target, capture_time, std::min(dt_s, .2));
             } else {
                 approach_result = approach_controller.continue_capture(
@@ -1179,7 +1191,7 @@ int main(int argc, char** argv) {
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
                          visual_geometry, lower_fence_count, upper_fence_count,
                          visual_certain, visual_very_certain, navigation_allowed, imu_yaw_reset,
-                         gyro_bias_radps / kDegreesToRadians, world.objects(), approach_result,
+                         gyro_bias_radps / kDegreesToRadians, raw_detections, world.objects(), approach_result,
                          search_result, home_observation, mission_active);
             if (options.record_log) log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }

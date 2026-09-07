@@ -11,9 +11,6 @@ struct ObjectProjectionLimits {
     float minimum_confidence = .35F;
     double minimum_range_m = .08;
     double maximum_range_m = 3.5;
-    double arena_length_m = 3.0;
-    double arena_width_m = 1.985;
-    double arena_margin_m = .03;
 };
 
 struct HomeObservation {

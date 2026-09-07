@@ -69,11 +69,14 @@ approach:
   maximum_yaw_radps: 1.4
   maximum_linear_accel_mps2: 1.2
   maximum_yaw_accel_radps2: 3.
-  stopping_distance_m: 1.7999999999999999e-01
+  # PID ends when the object contact reaches this robot-relative point;
+  # collection then immediately performs the intake dash.
+  target_forward_m: .20
+  target_left_m: .01
+  target_tolerance_m: .06
   capture_finish_distance_m: 3.0000000000000000e-01
   capture_finish_speed_mps: 3.5000000000000000e-01
   capture_finish_timeout_ms: 1800
-  target_left_offset_m: -.05
   target_timeout_ms: 300
 search:
   local_rotate_seconds: 5.

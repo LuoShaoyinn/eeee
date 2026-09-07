@@ -36,9 +36,9 @@ int main() {
             return 1;
         }
         if (config.approach_translation_kp != 1. || config.approach_lateral_kp != 1.5 ||
-            config.approach_yaw_kp != 2.4 || config.approach_target_left_offset_m != -.05 ||
+            config.approach_yaw_kp != 2.4 || config.approach_target_forward_m != .20 ||
+            config.approach_target_left_m != .01 || config.approach_target_tolerance_m != .06 ||
             config.approach_maximum_linear_mps != .45 ||
-            config.approach_stopping_distance_m != .18 ||
             config.approach_capture_finish_distance_m != .30 ||
             config.approach_target_timeout_ms != 300) {
             std::cerr << "unexpected approach controller configuration\n";

@@ -39,8 +39,8 @@ int main() {
     if (!require(approach_result.target_valid, "fresh approach target accepted") ||
         !require(approach_result.command.forward_mps > 0,
                  "target ahead commands forward motion") ||
-        !require(approach_result.command.left_mps == 0,
-                 "target ahead does not command strafe")) return 1;
+        !require(approach_result.command.left_mps < 0,
+                 "target ahead corrects toward the configured 1cm-left intake target")) return 1;
     approach.reset();
     target.x_m = 0;
     target.y_m = 1;
@@ -54,24 +54,17 @@ int main() {
                      approach_result.command.forward_mps == 0 &&
                      approach_result.command.left_mps == 0,
                  "stale target stops approach")) return 1;
-    robot::ApproachController offset_approach({.target_left_offset_m = -.05});
-    target.x_m = 1;
-    target.y_m = 0;
-    target.last_seen = now;
-    const auto offset_result = offset_approach.update({}, target, now, .1);
-    if (!require(offset_result.command.left_mps < 0,
-                 "left-mounted camera offsets intake target right by 5cm")) return 1;
-    target.x_m = .1;
-    target.y_m = 0;
+    target.x_m = .2;
+    target.y_m = .01;
     target.last_seen = now;
     approach_result = approach.update({}, target, now, .1);
     if (!require(approach_result.target_valid && !approach_result.target_reached &&
                  approach_result.command.forward_mps > 0,
-                 "pickup-distance target advances into collector")) return 1;
+                 "target at intake position immediately begins capture dash")) return 1;
     target.last_seen = now + 100ms;
     approach_result = approach.update({}, target, now + 100ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
-                 "repeated close detection keeps capture-entry advance")) return 1;
+                 "continued detection does not delay capture dash")) return 1;
     approach_result = approach.continue_capture({}, now + 401ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
                  "lost close target drives capture finish")) return 1;

@@ -37,7 +37,8 @@ void validate(const RuntimeConfig& config) {
         config.approach_maximum_yaw_radps <= 0 ||
         config.approach_maximum_linear_accel_mps2 <= 0 ||
         config.approach_maximum_yaw_accel_radps2 <= 0 ||
-        config.approach_stopping_distance_m <= 0 || config.approach_capture_finish_distance_m <= 0 ||
+        config.approach_target_forward_m <= 0 || config.approach_target_tolerance_m <= 0 ||
+        config.approach_capture_finish_distance_m <= 0 ||
         config.approach_capture_finish_speed_mps <= 0 || config.approach_capture_finish_timeout_ms <= 0 ||
         config.approach_target_timeout_ms <= 0) {
         throw std::runtime_error("approach controller configuration is invalid");
@@ -149,11 +150,12 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(approach, "maximum_yaw_radps", config.approach_maximum_yaw_radps);
     read(approach, "maximum_linear_accel_mps2", config.approach_maximum_linear_accel_mps2);
     read(approach, "maximum_yaw_accel_radps2", config.approach_maximum_yaw_accel_radps2);
-    read(approach, "stopping_distance_m", config.approach_stopping_distance_m);
+    read(approach, "target_forward_m", config.approach_target_forward_m);
+    read(approach, "target_left_m", config.approach_target_left_m);
+    read(approach, "target_tolerance_m", config.approach_target_tolerance_m);
     read(approach, "capture_finish_distance_m", config.approach_capture_finish_distance_m);
     read(approach, "capture_finish_speed_mps", config.approach_capture_finish_speed_mps);
     read(approach, "capture_finish_timeout_ms", config.approach_capture_finish_timeout_ms);
-    read(approach, "target_left_offset_m", config.approach_target_left_offset_m);
     read(approach, "target_timeout_ms", config.approach_target_timeout_ms);
     const cv::FileNode search = file["search"];
     read(search, "local_rotate_seconds", config.search_local_rotate_seconds);

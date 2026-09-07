@@ -20,13 +20,15 @@ struct ApproachControllerConfig {
     double maximum_yaw_radps = .8;
     double maximum_linear_accel_mps2 = .5;
     double maximum_yaw_accel_radps2 = 1.5;
-    double stopping_distance_m = .18;
+    // Desired object contact position in robot coordinates before the intake
+    // dash: forward, then left.
+    double target_forward_m = .20;
+    double target_left_m = .01;
+    double target_tolerance_m = .06;
     double capture_finish_distance_m = .30;
     double capture_finish_speed_mps = .22;
     std::chrono::milliseconds capture_finish_timeout{3000};
     double integral_limit_m_s = .25;
-    // Positive means left of the camera-derived object position.
-    double target_left_offset_m = 0;
     std::chrono::milliseconds target_timeout{300};
 };
 

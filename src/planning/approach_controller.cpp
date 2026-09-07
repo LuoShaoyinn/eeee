@@ -21,6 +21,7 @@ ApproachController::ApproachController(ApproachControllerConfig config) : config
 
 ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject& target,
                                           Timestamp now, double dt_s) {
+    if (capture_finish_active_) return continue_capture(pose, now, dt_s);
     ApproachResult result;
     if (target.last_seen == Timestamp{} || now < target.last_seen ||
         now - target.last_seen > config_.target_timeout || dt_s <= 0 || dt_s > .25) {
@@ -32,30 +33,29 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
     const double cosine = std::cos(pose.yaw_rad);
     const double sine = std::sin(pose.yaw_rad);
     const double forward_error = cosine * dx + sine * dy;
-    // The target originates at the camera optical center. A camera mounted
-    // left of the collector needs a negative robot-left target offset.
-    const double left_error = -sine * dx + cosine * dy + config_.target_left_offset_m;
-    result.distance_m = std::hypot(forward_error, left_error);
+    const double left_error = -sine * dx + cosine * dy - config_.target_left_m;
+    const double forward_control_error = forward_error - config_.target_forward_m;
+    result.distance_m = std::hypot(forward_control_error, left_error);
     result.target_valid = true;
-    if (result.distance_m <= config_.stopping_distance_m) {
-        // The cylinder may remain visible until it is physically under the
-        // collector.  Keep a straight capture-entry advance until detection
-        // disappears; only then begin the measured 0.3 m finish pass.
+    if (result.distance_m <= config_.target_tolerance_m) {
+        // Do not wait for the model to lose the object. The intake sequence
+        // starts on this same control frame, while the target is still valid.
         capture_finish_pending_ = true;
-        capture_finish_active_ = false;
+        capture_finish_active_ = true;
+        capture_finish_origin_ = pose;
+        capture_finish_started_ = now;
         forward_integral_ = left_integral_ = 0;
         previous_forward_error_ = previous_left_error_ = previous_yaw_error_ = 0;
-        result.command.forward_mps = slew(config_.capture_finish_speed_mps,
-                                          previous_command_.forward_mps,
-                                          config_.maximum_linear_accel_mps2 * dt_s);
-        previous_command_ = result.command;
+        // Start the dash from a neutral command instead of decelerating a
+        // potentially lateral/reverse PID command through zero first.
+        previous_command_ = {};
         initialized_ = false;
-        return result;
+        return continue_capture(pose, now, dt_s);
     }
 
     const double yaw_error = std::atan2(left_error, forward_error);
     if (!initialized_) {
-        previous_forward_error_ = forward_error;
+        previous_forward_error_ = forward_control_error;
         previous_left_error_ = left_error;
         previous_yaw_error_ = yaw_error;
         initialized_ = true;
@@ -63,19 +63,19 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
 
     // A reacquired target on the other side of the intake must not inherit
     // accumulated lateral/forward correction from the old target lock.
-    if (forward_error * previous_forward_error_ < 0) forward_integral_ = 0;
+    if (forward_control_error * previous_forward_error_ < 0) forward_integral_ = 0;
     if (left_error * previous_left_error_ < 0) left_integral_ = 0;
 
-    forward_integral_ = std::clamp(forward_integral_ + forward_error * dt_s,
+    forward_integral_ = std::clamp(forward_integral_ + forward_control_error * dt_s,
                                    -config_.integral_limit_m_s, config_.integral_limit_m_s);
     left_integral_ = std::clamp(left_integral_ + left_error * dt_s,
                                 -config_.integral_limit_m_s, config_.integral_limit_m_s);
-    const double forward_derivative = (forward_error - previous_forward_error_) / dt_s;
+    const double forward_derivative = (forward_control_error - previous_forward_error_) / dt_s;
     const double left_derivative = (left_error - previous_left_error_) / dt_s;
     const double yaw_derivative = wrap_angle(yaw_error - previous_yaw_error_) / dt_s;
 
     Twist2 requested{
-        .forward_mps = config_.translation_kp * forward_error +
+        .forward_mps = config_.translation_kp * forward_control_error +
                        config_.translation_ki * forward_integral_ +
                        config_.translation_kd * forward_derivative,
         .left_mps = config_.lateral_kp * left_error +
@@ -96,7 +96,7 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
                                    config_.maximum_linear_accel_mps2 * dt_s);
     result.command.yaw_radps = slew(requested.yaw_radps, previous_command_.yaw_radps,
                                     config_.maximum_yaw_accel_radps2 * dt_s);
-    previous_forward_error_ = forward_error;
+    previous_forward_error_ = forward_control_error;
     previous_left_error_ = left_error;
     previous_yaw_error_ = yaw_error;
     previous_command_ = result.command;

@@ -65,9 +65,6 @@ std::vector<TrackedObject> project_collectibles(
         const double sine = std::sin(robot_pose.yaw_rad);
         const double x = robot_pose.x_m + cosine * relative.x - sine * relative.y;
         const double y = robot_pose.y_m + sine * relative.x + cosine * relative.y;
-        if (x < limits.arena_margin_m || x > limits.arena_length_m - limits.arena_margin_m ||
-            y < limits.arena_margin_m || y > limits.arena_width_m - limits.arena_margin_m) continue;
-
         objects.push_back({
             .id = (frame.frame_sequence << 16U) | static_cast<std::uint64_t>(index),
             .object_class = detection.object_class,
