@@ -145,9 +145,9 @@ int main() {
                      search_result.command.forward_mps == 0,
                  "home radius permanently stops search")) return 1;
     search_result = search.update({.x_m = .25, .y_m = .2}, true, now + 13s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::complete &&
+    if (!require(search_result.phase == robot::SearchPhase::tracking &&
                      search_result.command.forward_mps == 0,
-                 "completed search remains stopped after a detection")) return 1;
+                 "a target detection re-arms a completed search")) return 1;
 
     robot::DetectionFrame home_frame{
         .timestamp = now,

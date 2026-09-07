@@ -16,11 +16,11 @@ SearchController::SearchController(SearchConfig config) : config_(config) {}
 
 SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                                       Timestamp now, double dt_s, bool navigation_allowed) {
-    if (complete_) return {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
     if (target_visible) {
         reset();
         return {};
     }
+    if (complete_) return {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
     if (lost_since_ == Timestamp{}) lost_since_ = now;
     const double lost = std::chrono::duration<double>(now - lost_since_).count();
     SearchResult result{.command = {}, .phase = SearchPhase::tracking, .lost_seconds = lost};
