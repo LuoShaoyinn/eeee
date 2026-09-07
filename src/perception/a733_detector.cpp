@@ -1,5 +1,6 @@
 #include "robot/perception/a733_detector.hpp"
 
+#include <cstdlib>
 #include <stdexcept>
 #include <vector>
 
@@ -17,8 +18,11 @@ public:
             throw std::runtime_error("cannot initialize A733 NPU model: " + model_path);
         }
         network_.get_network_input_buff_info(0, &input_, &input_size_);
-        output_info_.resize(network_.get_output_cnt());
-        output_.resize(output_info_.size());
+        output_.resize(network_.get_output_cnt(), nullptr);
+    }
+
+    ~A733Detector() override {
+        for (float* output : output_) std::free(output);
     }
 
     DetectionFrame detect(const cv::Mat& image, Timestamp timestamp,
@@ -27,9 +31,11 @@ public:
             network_.network_input_output_set() != 0 || network_.network_run() != 0) {
             throw std::runtime_error("A733 NPU inference failed");
         }
-        network_.get_output_fp_nocopy(output_info_.data());
-        for (std::size_t index = 0; index < output_.size(); ++index) {
-            output_[index] = output_info_[index].ptr;
+        // The 640x384 model exports INT8 tensors. get_output() converts them
+        // through the NPU quantization metadata; the no-copy API supports only
+        // native FP32 buffers and otherwise leaves null output pointers.
+        if (network_.get_output(output_.data()) == nullptr) {
+            throw std::runtime_error("cannot dequantize A733 NPU outputs");
         }
         DetectionFrame frame{.timestamp = timestamp, .frame_sequence = frame_sequence};
         for (const Yolo26Detection& detection : yolo26_decode_frame(image.size(), output_.data())) {
@@ -59,7 +65,6 @@ private:
     std::string model_path_;
     void* input_ = nullptr;
     unsigned int input_size_ = 0;
-    std::vector<output_info_s> output_info_;
     std::vector<float*> output_;
 };
 
