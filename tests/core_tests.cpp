@@ -135,6 +135,10 @@ int main() {
         !require(std::abs(projected[0].camera_forward_m - 1.0) < 1e-6 &&
                      std::abs(projected[0].camera_left_m) < 1e-6,
                  "collectible retains direct camera-relative control vector")) return 1;
+    const auto beyond_navigation_envelope = robot::project_collectibles(
+        detections, projector, {.x_m = 20.0, .y_m = -20.0, .yaw_rad = 0});
+    if (!require(beyond_navigation_envelope.size() == 1,
+                 "collectible outside arena and navigation envelope remains accepted")) return 1;
     detections.detections.push_back({.object_class = robot::ObjectClass::opponent_robot,
                                      .confidence = .9F,
                                      .box = {.left = -.05F, .top = -.1F,

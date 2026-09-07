@@ -9,8 +9,6 @@ namespace robot {
 
 struct ObjectProjectionLimits {
     float minimum_confidence = .35F;
-    double minimum_range_m = .08;
-    double maximum_range_m = 3.5;
 };
 
 struct HomeObservation {

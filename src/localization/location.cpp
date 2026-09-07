@@ -75,6 +75,16 @@ bool GroundProjector::project(const cv::Point2f& pixel, cv::Point2d& ground) con
     return project_to_height(pixel, 0, ground);
 }
 
+bool GroundProjector::project_unbounded(const cv::Point2f& pixel, cv::Point2d& ground) const {
+    const cv::Vec3d ray = rotation_car_from_camera_ *
+        (camera_inverse_ * cv::Vec3d(pixel.x, pixel.y, 1));
+    if (std::abs(ray[2]) < 1e-6) return false;
+    const double scale = -camera_height_m_ / ray[2];
+    if (scale <= 0) return false;
+    ground = {scale * ray[0], scale * ray[1]};
+    return std::isfinite(ground.x) && std::isfinite(ground.y);
+}
+
 bool GroundProjector::project_to_height(const cv::Point2f& pixel, double height_m,
                                         cv::Point2d& ground) const {
     const cv::Vec3d ray = rotation_car_from_camera_ * (camera_inverse_ * cv::Vec3d(pixel.x, pixel.y, 1));

@@ -57,9 +57,8 @@ std::vector<TrackedObject> project_collectibles(
         const cv::Point2f contact_pixel{
             .5F * (detection.box.left + detection.box.right), detection.box.bottom};
         cv::Point2d relative;
-        if (!projector.project(contact_pixel, relative)) continue;
+        if (!projector.project_unbounded(contact_pixel, relative)) continue;
         const double range = std::hypot(relative.x, relative.y);
-        if (range < limits.minimum_range_m || range > limits.maximum_range_m) continue;
 
         const double cosine = std::cos(robot_pose.yaw_rad);
         const double sine = std::sin(robot_pose.yaw_rad);

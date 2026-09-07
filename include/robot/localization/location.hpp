@@ -52,6 +52,10 @@ public:
     GroundProjector(cv::Mat camera_matrix, double camera_height_m, double pitch_down_deg,
                     double roll_deg = 0);
     bool project(const cv::Point2f& pixel, cv::Point2d& ground) const;
+    // Physical ground intersection without the normal navigation envelope.
+    // Object detection uses this so a real object is not discarded merely
+    // because its inferred contact lies outside the mapped arena.
+    bool project_unbounded(const cv::Point2f& pixel, cv::Point2d& ground) const;
     bool project_to_height(const cv::Point2f& pixel, double height_m,
                            cv::Point2d& ground) const;
 
