@@ -35,8 +35,8 @@ int main() {
             std::cerr << "unexpected visual correction limits\n";
             return 1;
         }
-        if (config.approach_translation_kp != .75 ||
-            config.approach_maximum_linear_mps != .38 ||
+        if (config.approach_translation_kp != 1. ||
+            config.approach_maximum_linear_mps != .45 ||
             config.approach_stopping_distance_m != .18 ||
             config.approach_capture_finish_distance_m != .30 ||
             config.approach_target_timeout_ms != 300) {

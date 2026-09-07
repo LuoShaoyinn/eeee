@@ -32,13 +32,17 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
     result.distance_m = std::hypot(dx, dy);
     result.target_valid = true;
     if (result.distance_m <= config_.stopping_distance_m) {
-        // Continue a short distance only after the close target disappears
-        // under the collector.
+        // The cylinder may remain visible until it is physically under the
+        // collector.  Keep a straight capture-entry advance until detection
+        // disappears; only then begin the measured 0.3 m finish pass.
         capture_finish_pending_ = true;
         capture_finish_active_ = false;
         forward_integral_ = left_integral_ = 0;
         previous_forward_error_ = previous_left_error_ = previous_yaw_error_ = 0;
-        previous_command_ = {};
+        result.command.forward_mps = slew(config_.capture_finish_speed_mps,
+                                          previous_command_.forward_mps,
+                                          config_.maximum_linear_accel_mps2 * dt_s);
+        previous_command_ = result.command;
         initialized_ = false;
         return result;
     }

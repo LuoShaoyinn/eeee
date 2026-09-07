@@ -58,8 +58,8 @@ int main() {
     target.last_seen = now;
     approach_result = approach.update({}, target, now, .1);
     if (!require(approach_result.target_valid && !approach_result.target_reached &&
-                 approach_result.command.forward_mps == 0,
-                 "pickup-distance target arms capture finish")) return 1;
+                 approach_result.command.forward_mps > 0,
+                 "pickup-distance target advances into collector")) return 1;
     approach_result = approach.continue_capture({}, now + 301ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
                  "lost close target drives capture finish")) return 1;
