@@ -20,6 +20,16 @@ struct HomeObservation {
     float confidence = 0;
 };
 
+struct HomeLandmarkMeasurement {
+    bool valid = false;
+    cv::Point2d relative;
+    float confidence = 0;
+};
+
+HomeLandmarkMeasurement measure_home_landmark(const DetectionFrame& frame,
+                                              const GroundProjector& projector,
+                                              float minimum_confidence = .60F);
+
 std::vector<TrackedObject> project_collectibles(
     const DetectionFrame& frame, const GroundProjector& projector,
     const Pose2& robot_pose, ObjectProjectionLimits limits = {});

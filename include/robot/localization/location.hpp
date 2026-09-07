@@ -81,6 +81,10 @@ public:
                         std::uint32_t seed = 1);
     void predict(const BodyVelocity& body_velocity, double dt_s);
     void update(const std::vector<cv::Point2d>& lower_fence_points);
+    // Reweight against a known landmark observed in robot-relative ground coordinates.
+    // Returns false when no particle can plausibly explain the observation.
+    bool update_landmark(const cv::Point2d& observed_relative, const cv::Point2d& landmark_arena,
+                         double sigma_m, double maximum_error_m);
     void correct_toward(const Pose2& target, double gain, double max_distance_m,
                         double max_yaw_rad, double major_axis_rad = 0,
                         double major_axis_gain = 1);

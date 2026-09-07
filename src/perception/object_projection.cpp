@@ -41,6 +41,22 @@ bool overlaps_opponent(const Detection& candidate, const DetectionFrame& frame) 
 
 }  // namespace
 
+HomeLandmarkMeasurement measure_home_landmark(const DetectionFrame& frame,
+                                              const GroundProjector& projector,
+                                              float minimum_confidence) {
+    HomeLandmarkMeasurement best;
+    for (const Detection& detection : frame.detections) {
+        if (detection.object_class != ObjectClass::home || detection.confidence < minimum_confidence ||
+            detection.confidence < best.confidence || detection.box.right - detection.box.left < 16 ||
+            detection.box.bottom - detection.box.top < 16) continue;
+        cv::Point2d relative;
+        if (!projector.project({.5F * (detection.box.left + detection.box.right), detection.box.bottom}, relative)) continue;
+        if (relative.x <= 0 || std::hypot(relative.x, relative.y) > 4.0) continue;
+        best = {.valid = true, .relative = relative, .confidence = detection.confidence};
+    }
+    return best;
+}
+
 std::vector<TrackedObject> project_collectibles(
     const DetectionFrame& frame, const GroundProjector& projector,
     const Pose2& robot_pose, ObjectProjectionLimits limits) {

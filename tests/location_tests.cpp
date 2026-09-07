@@ -55,4 +55,16 @@ int main() {
         std::cerr << "geometry uncertainty metadata is invalid\n";
         return 1;
     }
+    robot::FenceParticleFilter landmark_filter(1500, .8, .6, .1, true, 8);
+    const auto landmark_before = landmark_filter.estimate();
+    if (!landmark_filter.update_landmark({.9, -.2}, {.1, .15}, .18, 1.5)) {
+        std::cerr << "valid landmark update rejected\n";
+        return 1;
+    }
+    const auto landmark_after = landmark_filter.estimate();
+    if (std::hypot(landmark_after.x_m - landmark_before.x_m,
+                   landmark_after.y_m - landmark_before.y_m) < .03) {
+        std::cerr << "landmark did not constrain particle estimate\n";
+        return 1;
+    }
 }

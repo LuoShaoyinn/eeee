@@ -211,6 +211,36 @@ void FenceParticleFilter::update(const std::vector<cv::Point2d>& observations) {
     if (1.0 / ess_inverse < particles_.size() * .55) resample();
 }
 
+bool FenceParticleFilter::update_landmark(const cv::Point2d& observed_relative,
+                                          const cv::Point2d& landmark_arena,
+                                          double sigma_m, double maximum_error_m) {
+    if (particles_.empty() || sigma_m <= 0 || maximum_error_m <= 0) return false;
+    double smallest_error = std::numeric_limits<double>::infinity();
+    for (const auto& particle : particles_) {
+        const double dx = landmark_arena.x - particle.x;
+        const double dy = landmark_arena.y - particle.y;
+        const double forward = std::cos(particle.yaw) * dx + std::sin(particle.yaw) * dy;
+        const double left = -std::sin(particle.yaw) * dx + std::cos(particle.yaw) * dy;
+        smallest_error = std::min(smallest_error, std::hypot(forward - observed_relative.x,
+                                                             left - observed_relative.y));
+    }
+    if (smallest_error > maximum_error_m) return false;
+    double total = 0;
+    for (auto& particle : particles_) {
+        const double dx = landmark_arena.x - particle.x;
+        const double dy = landmark_arena.y - particle.y;
+        const double forward = std::cos(particle.yaw) * dx + std::sin(particle.yaw) * dy;
+        const double left = -std::sin(particle.yaw) * dx + std::cos(particle.yaw) * dy;
+        const double error = std::min(maximum_error_m,
+                                      std::hypot(forward - observed_relative.x, left - observed_relative.y));
+        particle.weight *= std::exp(-.5 * error * error / (sigma_m * sigma_m));
+        total += particle.weight;
+    }
+    if (total <= 1e-20) return false;
+    for (auto& particle : particles_) particle.weight /= total;
+    return true;
+}
+
 void FenceParticleFilter::correct_toward(const Pose2& target, double gain,
                                          double max_distance_m, double max_yaw_rad,
                                          double major_axis_rad, double major_axis_gain) {
