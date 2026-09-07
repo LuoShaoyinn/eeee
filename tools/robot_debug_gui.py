@@ -35,7 +35,7 @@ class DebugGui:
         self.auto_button = tk.Button(toolbar, text="Reload + Start", width=13,
                                      command=self.start_auto, bg="#b7d7b0")
         self.auto_button.pack(side=tk.LEFT)
-        tk.Button(toolbar, text="Return Home", width=12, command=self.return_home,
+        tk.Button(toolbar, text="Home + Exit", width=12, command=self.return_home,
                   bg="#b9d4ec").pack(side=tk.LEFT, padx=(8, 0))
         tk.Button(toolbar, text="STOP", width=10, command=self.stop_motion,
                   bg="#e8a4a4").pack(side=tk.LEFT, padx=(8, 0))
@@ -96,7 +96,7 @@ class DebugGui:
         try:
             self.runtime_command("return-home")
         except Exception as error:
-            self.events.put(("error", "cannot start return-home: {}".format(error)))
+            self.events.put(("error", "cannot start home-exit trajectory: {}".format(error)))
             return
         self.vx = self.vy = self.wz = 0.0
         self.auto_running = False
