@@ -60,9 +60,16 @@ int main() {
     if (!require(approach_result.target_valid && !approach_result.target_reached &&
                  approach_result.command.forward_mps > 0,
                  "pickup-distance target advances into collector")) return 1;
-    approach_result = approach.continue_capture({}, now + 301ms, .1);
+    target.last_seen = now + 100ms;
+    approach_result = approach.update({}, target, now + 100ms, .1);
+    if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
+                 "repeated close detection keeps capture-entry advance")) return 1;
+    approach_result = approach.continue_capture({}, now + 401ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
                  "lost close target drives capture finish")) return 1;
+    approach_result = approach.continue_capture({.x_m = .29}, now + 1s, .1);
+    if (!require(approach_result.target_valid && !approach_result.target_reached,
+                 "capture finish remains active below 0.3m")) return 1;
     approach_result = approach.continue_capture({.x_m = .31}, now + 2s, .1);
     if (!require(approach_result.target_reached && approach_result.command.forward_mps == 0,
                  "capture finish stops after 0.3m")) return 1;
@@ -97,7 +104,9 @@ int main() {
                  "turning applies camera lever-arm velocity")) return 1;
 
     robot::WorldModel tracked_world;
-    tracked_world.update_objects({target}, now);
+    auto tracked_target = target;
+    tracked_target.last_seen = now;
+    tracked_world.update_objects({tracked_target}, now);
     tracked_world.update_objects({}, now + 100ms);
     if (!require(tracked_world.nearest_collectible({}).has_value(),
                  "one missing detector frame keeps collectible track")) return 1;
