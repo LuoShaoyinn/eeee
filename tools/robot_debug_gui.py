@@ -363,6 +363,7 @@ class DebugGui:
         # forward/left from the current camera-centered odometry pose. Draw
         # them rather than the delayed global detector map.
         odom_x, odom_y, odom_yaw = self.pose.get("odometry_pose", [0, 0, 0])
+        opx, opy, _ = self.transform(odom_x, odom_y)
         for item in self.pose.get("local_objects", []):
             if len(item) < 4: continue
             class_id, forward_m, left_m, confidence = item
