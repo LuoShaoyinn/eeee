@@ -30,7 +30,9 @@ void validate(const RuntimeConfig& config) {
         throw std::runtime_error("configured initial pose lies outside the arena");
     }
     if (config.approach_translation_kp < 0 || config.approach_translation_ki < 0 ||
-        config.approach_translation_kd < 0 || config.approach_yaw_kp < 0 ||
+        config.approach_translation_kd < 0 || config.approach_lateral_kp < 0 ||
+        config.approach_lateral_ki < 0 || config.approach_lateral_kd < 0 ||
+        config.approach_yaw_kp < 0 ||
         config.approach_yaw_kd < 0 || config.approach_maximum_linear_mps <= 0 ||
         config.approach_maximum_yaw_radps <= 0 ||
         config.approach_maximum_linear_accel_mps2 <= 0 ||
@@ -138,6 +140,9 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(approach, "translation_kp", config.approach_translation_kp);
     read(approach, "translation_ki", config.approach_translation_ki);
     read(approach, "translation_kd", config.approach_translation_kd);
+    read(approach, "lateral_kp", config.approach_lateral_kp);
+    read(approach, "lateral_ki", config.approach_lateral_ki);
+    read(approach, "lateral_kd", config.approach_lateral_kd);
     read(approach, "yaw_kp", config.approach_yaw_kp);
     read(approach, "yaw_kd", config.approach_yaw_kd);
     read(approach, "maximum_linear_mps", config.approach_maximum_linear_mps);
@@ -148,6 +153,7 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(approach, "capture_finish_distance_m", config.approach_capture_finish_distance_m);
     read(approach, "capture_finish_speed_mps", config.approach_capture_finish_speed_mps);
     read(approach, "capture_finish_timeout_ms", config.approach_capture_finish_timeout_ms);
+    read(approach, "target_left_offset_m", config.approach_target_left_offset_m);
     read(approach, "target_timeout_ms", config.approach_target_timeout_ms);
     const cv::FileNode search = file["search"];
     read(search, "local_rotate_seconds", config.search_local_rotate_seconds);

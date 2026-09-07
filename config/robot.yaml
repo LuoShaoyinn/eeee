@@ -60,7 +60,10 @@ approach:
   translation_kp: 1.
   translation_ki: 4.0000000000000001e-02
   translation_kd: 5.9999999999999998e-02
-  yaw_kp: 1.8
+  lateral_kp: 1.5
+  lateral_ki: 4.0000000000000001e-02
+  lateral_kd: 5.9999999999999998e-02
+  yaw_kp: 2.4
   yaw_kd: 8.0000000000000002e-02
   maximum_linear_mps: 4.5000000000000001e-01
   maximum_yaw_radps: 1.4
@@ -70,6 +73,7 @@ approach:
   capture_finish_distance_m: 3.0000000000000000e-01
   capture_finish_speed_mps: 3.5000000000000000e-01
   capture_finish_timeout_ms: 1800
+  target_left_offset_m: -.05
   target_timeout_ms: 300
 search:
   local_rotate_seconds: 5.

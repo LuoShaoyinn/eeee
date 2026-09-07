@@ -606,6 +606,9 @@ Options parse_options(int argc, char** argv) {
     options.approach.translation_kp = config.approach_translation_kp;
     options.approach.translation_ki = config.approach_translation_ki;
     options.approach.translation_kd = config.approach_translation_kd;
+    options.approach.lateral_kp = config.approach_lateral_kp;
+    options.approach.lateral_ki = config.approach_lateral_ki;
+    options.approach.lateral_kd = config.approach_lateral_kd;
     options.approach.yaw_kp = config.approach_yaw_kp;
     options.approach.yaw_kd = config.approach_yaw_kd;
     options.approach.maximum_linear_mps = config.approach_maximum_linear_mps;
@@ -617,6 +620,7 @@ Options parse_options(int argc, char** argv) {
     options.approach.capture_finish_speed_mps = config.approach_capture_finish_speed_mps;
     options.approach.capture_finish_timeout =
         std::chrono::milliseconds(config.approach_capture_finish_timeout_ms);
+    options.approach.target_left_offset_m = config.approach_target_left_offset_m;
     options.approach.target_timeout = std::chrono::milliseconds(config.approach_target_timeout_ms);
     options.search.local_rotate_seconds = config.search_local_rotate_seconds;
     options.search.center_search_seconds = config.search_center_rotate_seconds;

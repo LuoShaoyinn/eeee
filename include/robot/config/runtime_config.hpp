@@ -64,6 +64,9 @@ struct RuntimeConfig {
     double approach_translation_kp = .75;
     double approach_translation_ki = .04;
     double approach_translation_kd = .06;
+    double approach_lateral_kp = .75;
+    double approach_lateral_ki = .04;
+    double approach_lateral_kd = .06;
     double approach_yaw_kp = 1.4;
     double approach_yaw_kd = .08;
     double approach_maximum_linear_mps = .28;
@@ -74,6 +77,7 @@ struct RuntimeConfig {
     double approach_capture_finish_distance_m = .30;
     double approach_capture_finish_speed_mps = .22;
     int approach_capture_finish_timeout_ms = 3000;
+    double approach_target_left_offset_m = 0;
     int approach_target_timeout_ms = 300;
 
     double search_local_rotate_seconds = 5;

@@ -29,7 +29,13 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
 
     const double dx = target.x_m - pose.x_m;
     const double dy = target.y_m - pose.y_m;
-    result.distance_m = std::hypot(dx, dy);
+    const double cosine = std::cos(pose.yaw_rad);
+    const double sine = std::sin(pose.yaw_rad);
+    const double forward_error = cosine * dx + sine * dy;
+    // The target originates at the camera optical center. A camera mounted
+    // left of the collector needs a negative robot-left target offset.
+    const double left_error = -sine * dx + cosine * dy + config_.target_left_offset_m;
+    result.distance_m = std::hypot(forward_error, left_error);
     result.target_valid = true;
     if (result.distance_m <= config_.stopping_distance_m) {
         // The cylinder may remain visible until it is physically under the
@@ -47,10 +53,6 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         return result;
     }
 
-    const double cosine = std::cos(pose.yaw_rad);
-    const double sine = std::sin(pose.yaw_rad);
-    const double forward_error = cosine * dx + sine * dy;
-    const double left_error = -sine * dx + cosine * dy;
     const double yaw_error = wrap_angle(std::atan2(dy, dx) - pose.yaw_rad);
     if (!initialized_) {
         previous_forward_error_ = forward_error;
@@ -76,9 +78,9 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         .forward_mps = config_.translation_kp * forward_error +
                        config_.translation_ki * forward_integral_ +
                        config_.translation_kd * forward_derivative,
-        .left_mps = config_.translation_kp * left_error +
-                    config_.translation_ki * left_integral_ +
-                    config_.translation_kd * left_derivative,
+        .left_mps = config_.lateral_kp * left_error +
+                    config_.lateral_ki * left_integral_ +
+                    config_.lateral_kd * left_derivative,
         .yaw_radps = config_.yaw_kp * yaw_error + config_.yaw_kd * yaw_derivative,
     };
     const double magnitude = std::hypot(requested.forward_mps, requested.left_mps);

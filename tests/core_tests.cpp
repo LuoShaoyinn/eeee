@@ -54,6 +54,13 @@ int main() {
                      approach_result.command.forward_mps == 0 &&
                      approach_result.command.left_mps == 0,
                  "stale target stops approach")) return 1;
+    robot::ApproachController offset_approach({.target_left_offset_m = -.05});
+    target.x_m = 1;
+    target.y_m = 0;
+    target.last_seen = now;
+    const auto offset_result = offset_approach.update({}, target, now, .1);
+    if (!require(offset_result.command.left_mps < 0,
+                 "left-mounted camera offsets intake target right by 5cm")) return 1;
     target.x_m = .1;
     target.y_m = 0;
     target.last_seen = now;

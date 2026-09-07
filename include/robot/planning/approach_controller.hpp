@@ -11,6 +11,9 @@ struct ApproachControllerConfig {
     double translation_kp = .75;
     double translation_ki = .04;
     double translation_kd = .06;
+    double lateral_kp = .75;
+    double lateral_ki = .04;
+    double lateral_kd = .06;
     double yaw_kp = 1.4;
     double yaw_kd = .08;
     double maximum_linear_mps = .28;
@@ -22,6 +25,8 @@ struct ApproachControllerConfig {
     double capture_finish_speed_mps = .22;
     std::chrono::milliseconds capture_finish_timeout{3000};
     double integral_limit_m_s = .25;
+    // Positive means left of the camera-derived object position.
+    double target_left_offset_m = 0;
     std::chrono::milliseconds target_timeout{300};
 };
 
