@@ -1,4 +1,8 @@
 build/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+managed_components/
 .cache/
 artifacts/
 __pycache__/
