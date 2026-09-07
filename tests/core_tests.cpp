@@ -57,8 +57,15 @@ int main() {
     target.y_m = 0;
     target.last_seen = now;
     approach_result = approach.update({}, target, now, .1);
-    if (!require(approach_result.target_reached,
-                 "pickup-distance target stops approach")) return 1;
+    if (!require(approach_result.target_valid && !approach_result.target_reached &&
+                 approach_result.command.forward_mps == 0,
+                 "pickup-distance target arms capture finish")) return 1;
+    approach_result = approach.continue_capture({}, now + 301ms, .1);
+    if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
+                 "lost close target drives capture finish")) return 1;
+    approach_result = approach.continue_capture({.x_m = .31}, now + 2s, .1);
+    if (!require(approach_result.target_reached && approach_result.command.forward_mps == 0,
+                 "capture finish stops after 0.3m")) return 1;
 
     robot::WorldModel world;
     world.replace_objects({

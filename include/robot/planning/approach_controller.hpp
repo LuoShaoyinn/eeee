@@ -18,6 +18,9 @@ struct ApproachControllerConfig {
     double maximum_linear_accel_mps2 = .5;
     double maximum_yaw_accel_radps2 = 1.5;
     double stopping_distance_m = .18;
+    double capture_finish_distance_m = .30;
+    double capture_finish_speed_mps = .22;
+    std::chrono::milliseconds capture_finish_timeout{3000};
     double integral_limit_m_s = .25;
     std::chrono::milliseconds target_timeout{300};
 };
@@ -34,6 +37,7 @@ public:
     explicit ApproachController(ApproachControllerConfig config = {});
     ApproachResult update(const Pose2& pose, const TrackedObject& target,
                           Timestamp now, double dt_s);
+    ApproachResult continue_capture(const Pose2& pose, Timestamp now, double dt_s);
     void reset();
 
 private:
@@ -45,6 +49,10 @@ private:
     double previous_yaw_error_ = 0;
     Twist2 previous_command_;
     bool initialized_ = false;
+    bool capture_finish_pending_ = false;
+    bool capture_finish_active_ = false;
+    Pose2 capture_finish_origin_;
+    Timestamp capture_finish_started_{};
 };
 
 }  // namespace robot

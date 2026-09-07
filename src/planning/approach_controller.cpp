@@ -24,8 +24,7 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
     ApproachResult result;
     if (target.last_seen == Timestamp{} || now < target.last_seen ||
         now - target.last_seen > config_.target_timeout || dt_s <= 0 || dt_s > .25) {
-        reset();
-        return result;
+        return continue_capture(pose, now, dt_s);
     }
 
     const double dx = target.x_m - pose.x_m;
@@ -33,10 +32,19 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
     result.distance_m = std::hypot(dx, dy);
     result.target_valid = true;
     if (result.distance_m <= config_.stopping_distance_m) {
-        result.target_reached = true;
-        reset();
+        // Continue a short distance only after the close target disappears
+        // under the collector.
+        capture_finish_pending_ = true;
+        capture_finish_active_ = false;
+        forward_integral_ = left_integral_ = 0;
+        previous_forward_error_ = previous_left_error_ = previous_yaw_error_ = 0;
+        previous_command_ = {};
+        initialized_ = false;
         return result;
     }
+
+    capture_finish_pending_ = false;
+    capture_finish_active_ = false;
 
     const double cosine = std::cos(pose.yaw_rad);
     const double sine = std::sin(pose.yaw_rad);
@@ -92,6 +100,30 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
     return result;
 }
 
+ApproachResult ApproachController::continue_capture(const Pose2& pose, Timestamp now, double dt_s) {
+    ApproachResult result;
+    if (!capture_finish_pending_ || dt_s <= 0 || dt_s > .25) return result;
+    if (!capture_finish_active_) {
+        capture_finish_active_ = true;
+        capture_finish_origin_ = pose;
+        capture_finish_started_ = now;
+    }
+    result.target_valid = true;
+    result.distance_m = std::hypot(pose.x_m - capture_finish_origin_.x_m,
+                                   pose.y_m - capture_finish_origin_.y_m);
+    if (result.distance_m >= config_.capture_finish_distance_m ||
+        now - capture_finish_started_ >= config_.capture_finish_timeout) {
+        result.target_reached = true;
+        reset();
+        return result;
+    }
+    result.command.forward_mps = slew(config_.capture_finish_speed_mps,
+                                      previous_command_.forward_mps,
+                                      config_.maximum_linear_accel_mps2 * dt_s);
+    previous_command_ = result.command;
+    return result;
+}
+
 void ApproachController::reset() {
     forward_integral_ = 0;
     left_integral_ = 0;
@@ -100,6 +132,10 @@ void ApproachController::reset() {
     previous_yaw_error_ = 0;
     previous_command_ = {};
     initialized_ = false;
+    capture_finish_pending_ = false;
+    capture_finish_active_ = false;
+    capture_finish_origin_ = {};
+    capture_finish_started_ = {};
 }
 
 }  // namespace robot

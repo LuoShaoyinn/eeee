@@ -62,11 +62,14 @@ approach:
   translation_kd: 5.9999999999999998e-02
   yaw_kp: 1.4
   yaw_kd: 8.0000000000000002e-02
-  maximum_linear_mps: 2.8000000000000003e-01
-  maximum_yaw_radps: 8.0000000000000004e-01
-  maximum_linear_accel_mps2: 5.0000000000000000e-01
-  maximum_yaw_accel_radps2: 1.5
+  maximum_linear_mps: 3.8000000000000000e-01
+  maximum_yaw_radps: 1.
+  maximum_linear_accel_mps2: 8.0000000000000004e-01
+  maximum_yaw_accel_radps2: 2.
   stopping_distance_m: 1.7999999999999999e-01
+  capture_finish_distance_m: 3.0000000000000000e-01
+  capture_finish_speed_mps: 2.2000000000000000e-01
+  capture_finish_timeout_ms: 3000
   target_timeout_ms: 300
 search:
   local_rotate_seconds: 5.

@@ -548,6 +548,10 @@ Options parse_options(int argc, char** argv) {
     options.approach.maximum_linear_accel_mps2 = config.approach_maximum_linear_accel_mps2;
     options.approach.maximum_yaw_accel_radps2 = config.approach_maximum_yaw_accel_radps2;
     options.approach.stopping_distance_m = config.approach_stopping_distance_m;
+    options.approach.capture_finish_distance_m = config.approach_capture_finish_distance_m;
+    options.approach.capture_finish_speed_mps = config.approach_capture_finish_speed_mps;
+    options.approach.capture_finish_timeout =
+        std::chrono::milliseconds(config.approach_capture_finish_timeout_ms);
     options.approach.target_timeout = std::chrono::milliseconds(config.approach_target_timeout_ms);
     options.search.local_rotate_seconds = config.search_local_rotate_seconds;
     options.search.center_search_seconds = config.search_center_rotate_seconds;
@@ -995,13 +999,22 @@ int main(int argc, char** argv) {
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                     *target, capture_time, std::min(dt_s, .2));
             } else {
-                approach_controller.reset();
-                search_result = search_controller.update(
+                approach_result = approach_controller.continue_capture(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
-                    false, capture_time, std::min(dt_s, .2), navigation_allowed);
-                approach_result = {.command = search_result.command,
-                                   .target_valid = search_result.phase != robot::SearchPhase::complete,
-                                   .target_reached = search_result.phase == robot::SearchPhase::complete};
+                    capture_time, std::min(dt_s, .2));
+                if (approach_result.target_valid) {
+                    search_result = search_controller.update(
+                        {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                        true, capture_time, std::min(dt_s, .2));
+                } else {
+                    approach_controller.reset();
+                    search_result = search_controller.update(
+                        {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                        false, capture_time, std::min(dt_s, .2), navigation_allowed);
+                    approach_result = {.command = search_result.command,
+                                       .target_valid = search_result.phase != robot::SearchPhase::complete,
+                                       .target_reached = search_result.phase == robot::SearchPhase::complete};
+                }
             }
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
             std::ostringstream record;

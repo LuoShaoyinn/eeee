@@ -84,6 +84,7 @@ class DebugGui:
             return
         self.vx = self.vy = self.wz = 0.0
         self.send("stop")
+        self.send("collector start")
         self.auto_running = True
         self.auto_button.configure(text="Auto Running", bg="#edc46f")
         self.update_motion_label()

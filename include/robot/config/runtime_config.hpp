@@ -71,6 +71,9 @@ struct RuntimeConfig {
     double approach_maximum_linear_accel_mps2 = .5;
     double approach_maximum_yaw_accel_radps2 = 1.5;
     double approach_stopping_distance_m = .18;
+    double approach_capture_finish_distance_m = .30;
+    double approach_capture_finish_speed_mps = .22;
+    int approach_capture_finish_timeout_ms = 3000;
     int approach_target_timeout_ms = 300;
 
     double search_local_rotate_seconds = 5;
