@@ -149,6 +149,9 @@ class DebugGui:
         try:
             for line in self.control_stdout:
                 self.events.put(("reply", line.strip()))
+            status = self.control_stdout.channel.recv_exit_status()
+            if not self.stopping.is_set():
+                self.events.put(("error", "robotctl control session exited with status {}".format(status)))
         except Exception as error:
             if not self.stopping.is_set():
                 self.events.put(("error", "SSH control: {}".format(error)))
@@ -347,7 +350,7 @@ def connect_control(args):
         password = os.environ.get("CUBIE_PASSWORD") or getpass.getpass("Cubie SSH password: ")
         options.update(password=password, look_for_keys=False, allow_agent=False)
     client.connect(**options)
-    command = "cd {} && exec ./build/robotctl --stream".format(args.remote_dir)
+    command = "cd {} && exec ./bin/robotctl --stream".format(args.remote_dir)
     stdin, stdout, stderr = client.exec_command(command, get_pty=False)
     if stdout.channel.exit_status_ready():
         raise RuntimeError(stderr.read().decode(errors="replace"))
