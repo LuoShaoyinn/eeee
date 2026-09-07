@@ -19,15 +19,18 @@
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
 #include "mecanum_drive.h"
+#include "nvs.h"
 #include "nvs_flash.h"
 #include "standard_servo.h"
+#define ROBOT_ENABLE_WIFI 0
+#if ROBOT_ENABLE_WIFI
 #include "wifi_credentials.h"
+#endif
 
 #define UDP_PORT 3333
 #define COMMAND_BUFFER_SIZE 96
 // Keep the radio off for Cubie UART integration. Set to 1 to restore the
 // existing AP+station and UDP control path without changing command handling.
-#define ROBOT_ENABLE_WIFI 0
 #define ROBOT_ENABLE_PERIODIC_UART_LOGS 0
 #define CUBIE_UART_NUM UART_NUM_0
 #define CUBIE_UART_BAUD_RATE 115200
@@ -59,6 +62,16 @@
 #define GA25_COMMAND_TIMEOUT_MS 500
 #define GA25_RAMP_PERCENT_PER_TICK 2
 #define GA25_ENCODER_GLITCH_FILTER_NS 10000
+#define COLLECTOR_REVERSE_DUTY_PERCENT -90
+#define COLLECTOR_CLEAR_DUTY_PERCENT 20
+#define COLLECTOR_STALL_TIMEOUT_MS 2000
+// 90% to zero ramps in 900 ms. Keep a further 300 ms with both bridge inputs
+// low before commanding the opposite direction.
+#define COLLECTOR_RELEASE_TIME_MS 1200
+#define COLLECTOR_CLEAR_REVOLUTIONS 2
+#define COLLECTOR_CLEAR_TIMEOUT_MS 30000
+#define COLLECTOR_NVS_NAMESPACE "collector"
+#define COLLECTOR_NVS_PPR_KEY "ppr"
 #define OTA_MAX_IMAGE_SIZE 0x1e0000U
 #define OTA_RECEIVE_TIMEOUT_MS 5000
 #define MECANUM_WHEEL_RADIUS_M 0.023f
@@ -98,6 +111,21 @@ static int64_t s_ga25_last_command_us;
 static pcnt_unit_handle_t s_ga25_encoder;
 static uint32_t s_ga25_encoder_edges;
 static uint64_t s_ga25_encoder_total_edges;
+
+typedef enum {
+    COLLECTOR_IDLE,
+    COLLECTOR_REVERSE,
+    COLLECTOR_RELEASE,
+    COLLECTOR_FORWARD_CLEAR,
+    COLLECTOR_FAULT,
+} collector_state_t;
+
+static portMUX_TYPE s_collector_lock = portMUX_INITIALIZER_UNLOCKED;
+static collector_state_t s_collector_state = COLLECTOR_IDLE;
+static uint32_t s_collector_encoder_ppr;
+static int64_t s_collector_state_started_us;
+static int64_t s_collector_last_motion_us;
+static uint64_t s_collector_clear_start_edges;
 
 static void cubie_ota_update(const char *command);
 
@@ -202,6 +230,66 @@ static esp_err_t ga25_request_duty(int duty_percent) {
     return ESP_OK;
 }
 
+static const char *collector_state_name(collector_state_t state) {
+    switch (state) {
+    case COLLECTOR_IDLE: return "idle";
+    case COLLECTOR_REVERSE: return "reverse_90";
+    case COLLECTOR_RELEASE: return "release";
+    case COLLECTOR_FORWARD_CLEAR: return "forward_clear_20";
+    case COLLECTOR_FAULT: return "fault";
+    }
+    return "unknown";
+}
+
+static void collector_stop(void) {
+    portENTER_CRITICAL(&s_collector_lock);
+    s_collector_state = COLLECTOR_IDLE;
+    s_collector_state_started_us = 0;
+    portEXIT_CRITICAL(&s_collector_lock);
+}
+
+static esp_err_t collector_store_encoder_ppr(uint32_t encoder_ppr) {
+    if (encoder_ppr == 0 || encoder_ppr > 1000000U) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open(COLLECTOR_NVS_NAMESPACE, NVS_READWRITE, &handle);
+    if (err != ESP_OK) return err;
+    err = nvs_set_u32(handle, COLLECTOR_NVS_PPR_KEY, encoder_ppr);
+    if (err == ESP_OK) err = nvs_commit(handle);
+    nvs_close(handle);
+    if (err == ESP_OK) {
+        portENTER_CRITICAL(&s_collector_lock);
+        s_collector_encoder_ppr = encoder_ppr;
+        portEXIT_CRITICAL(&s_collector_lock);
+    }
+    return err;
+}
+
+static void collector_load_encoder_ppr(void) {
+    nvs_handle_t handle;
+    uint32_t encoder_ppr = 0;
+    if (nvs_open(COLLECTOR_NVS_NAMESPACE, NVS_READONLY, &handle) == ESP_OK) {
+        (void)nvs_get_u32(handle, COLLECTOR_NVS_PPR_KEY, &encoder_ppr);
+        nvs_close(handle);
+    }
+    portENTER_CRITICAL(&s_collector_lock);
+    s_collector_encoder_ppr = encoder_ppr;
+    portEXIT_CRITICAL(&s_collector_lock);
+}
+
+static esp_err_t collector_start(void) {
+    const int64_t now_us = esp_timer_get_time();
+    portENTER_CRITICAL(&s_collector_lock);
+    if (s_collector_encoder_ppr == 0) {
+        portEXIT_CRITICAL(&s_collector_lock);
+        return ESP_ERR_INVALID_STATE;
+    }
+    s_collector_state = COLLECTOR_REVERSE;
+    s_collector_state_started_us = now_us;
+    s_collector_last_motion_us = now_us;
+    portEXIT_CRITICAL(&s_collector_lock);
+    return ESP_OK;
+}
+
 static void ga25_read_encoder(void) {
     int count = 0;
     ESP_ERROR_CHECK(pcnt_unit_get_count(s_ga25_encoder, &count));
@@ -235,6 +323,71 @@ static void ga25_task(void *unused) {
             if (s_ga25_current_duty < target) s_ga25_current_duty = target;
         }
         ga25_apply_duty(s_ga25_current_duty);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+static void collector_task(void *unused) {
+    (void)unused;
+    while (true) {
+        const int64_t now_us = esp_timer_get_time();
+        uint64_t encoder_total;
+        portENTER_CRITICAL(&s_ga25_lock);
+        encoder_total = s_ga25_encoder_total_edges;
+        portEXIT_CRITICAL(&s_ga25_lock);
+
+        int requested_duty = 0;
+        bool controls_ga25 = false;
+        portENTER_CRITICAL(&s_collector_lock);
+        switch (s_collector_state) {
+        case COLLECTOR_IDLE:
+        case COLLECTOR_FAULT:
+            break;
+        case COLLECTOR_REVERSE:
+            controls_ga25 = true;
+            requested_duty = COLLECTOR_REVERSE_DUTY_PERCENT;
+            if (encoder_total != s_collector_clear_start_edges) {
+                s_collector_clear_start_edges = encoder_total;
+                s_collector_last_motion_us = now_us;
+            }
+            if (now_us - s_collector_last_motion_us >=
+                (int64_t)COLLECTOR_STALL_TIMEOUT_MS * 1000) {
+                s_collector_state = COLLECTOR_RELEASE;
+                s_collector_state_started_us = now_us;
+                requested_duty = 0;
+            }
+            break;
+        case COLLECTOR_RELEASE:
+            controls_ga25 = true;
+            if (now_us - s_collector_state_started_us >=
+                (int64_t)COLLECTOR_RELEASE_TIME_MS * 1000) {
+                s_collector_state = COLLECTOR_FORWARD_CLEAR;
+                s_collector_state_started_us = now_us;
+                s_collector_clear_start_edges = encoder_total;
+                requested_duty = COLLECTOR_CLEAR_DUTY_PERCENT;
+            }
+            break;
+        case COLLECTOR_FORWARD_CLEAR: {
+            controls_ga25 = true;
+            requested_duty = COLLECTOR_CLEAR_DUTY_PERCENT;
+            const uint64_t required_edges =
+                (uint64_t)s_collector_encoder_ppr * COLLECTOR_CLEAR_REVOLUTIONS;
+            if (encoder_total - s_collector_clear_start_edges >= required_edges) {
+                s_collector_state = COLLECTOR_REVERSE;
+                s_collector_state_started_us = now_us;
+                s_collector_last_motion_us = now_us;
+                s_collector_clear_start_edges = encoder_total;
+                requested_duty = COLLECTOR_REVERSE_DUTY_PERCENT;
+            } else if (now_us - s_collector_state_started_us >=
+                       (int64_t)COLLECTOR_CLEAR_TIMEOUT_MS * 1000) {
+                s_collector_state = COLLECTOR_FAULT;
+                requested_duty = 0;
+            }
+            break;
+        }
+        }
+        portEXIT_CRITICAL(&s_collector_lock);
+        if (controls_ga25) (void)ga25_request_duty(requested_duty);
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
@@ -347,6 +500,42 @@ static const char *process_command(const char *command, char *reply, size_t repl
                  target_angle, (unsigned long)target_pulse_us, moving);
         return reply;
     }
+    if (!strcmp(command, "collector start")) {
+        return collector_start() == ESP_OK ?
+            "collector started: reverse 90%, jam recovery enabled\n" :
+            "error: collector PPR uncalibrated; set collector ppr EDGES_PER_OUTPUT_REV\n";
+    }
+    if (!strcmp(command, "collector stop")) {
+        collector_stop();
+        return ga25_request_duty(0) == ESP_OK ? "collector stopped and GA25 released\n" :
+                                                "error: collector stop failed\n";
+    }
+    unsigned collector_ppr;
+    char collector_extra;
+    if (sscanf(command, "collector ppr %u %c", &collector_ppr, &collector_extra) == 1) {
+        collector_stop();
+        (void)ga25_request_duty(0);
+        return collector_store_encoder_ppr(collector_ppr) == ESP_OK ?
+            "collector encoder PPR saved; collector remains stopped\n" :
+            "error: collector PPR must be 1..1000000\n";
+    }
+    if (!strcmp(command, "collector")) {
+        collector_state_t state;
+        uint32_t encoder_ppr;
+        int64_t state_started_us;
+        portENTER_CRITICAL(&s_collector_lock);
+        state = s_collector_state;
+        encoder_ppr = s_collector_encoder_ppr;
+        state_started_us = s_collector_state_started_us;
+        portEXIT_CRITICAL(&s_collector_lock);
+        const int64_t elapsed_ms = state_started_us == 0 ? 0 :
+            (esp_timer_get_time() - state_started_us) / 1000;
+        snprintf(reply, reply_size,
+                 "collector %s ppr %lu elapsed %lldms; commands: collector start|stop|ppr EDGES_PER_OUTPUT_REV\n",
+                 collector_state_name(state), (unsigned long)encoder_ppr,
+                 (long long)elapsed_ms);
+        return reply;
+    }
     if (!strcmp(command, "ga25")) {
         int target, current;
         uint32_t encoder_edges;
@@ -363,8 +552,10 @@ static const char *process_command(const char *command, char *reply, size_t repl
         return reply;
     }
     int ga25_duty; char ga25_extra;
-    if (sscanf(command, "ga25 %d %c", &ga25_duty, &ga25_extra) == 1)
+    if (sscanf(command, "ga25 %d %c", &ga25_duty, &ga25_extra) == 1) {
+        collector_stop();
         return ga25_request_duty(ga25_duty) == ESP_OK ? "ok: ga25 L298N open-loop PWM\n" : "error: GA25 duty must be -100..100\n";
+    }
     if (!strcmp(command, "imu")) {
         imu_telemetry_t imu;
         portENTER_CRITICAL(&s_imu_lock); imu = s_imu; portEXIT_CRITICAL(&s_imu_lock);
@@ -435,6 +626,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
     if (!strcmp(command,"stop")) {
         const esp_err_t motors = mecanum_drive_stop();
         const esp_err_t servo = s3_release();
+        collector_stop();
         const esp_err_t ga25 = ga25_request_duty(0);
         return motors == ESP_OK && servo == ESP_OK && ga25 == ESP_OK ? "ok\n" : "error: stop failed\n";
     }
@@ -467,7 +659,7 @@ static const char *process_command(const char *command, char *reply, size_t repl
         const float turn = (2.0f * MECANUM_HALF_WHEELBASE_M * wz) / wheel_max_mps;
         return mecanum_drive_set_twist(forward, strafe, turn) == ESP_OK ? "ok\n" : "error: twist failed\n";
     }
-    return "error: state, imu, s3 ANGLE [0..180]|center|release, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, twist VX_MPS VY_MPS WZ_RADPS, telemetry, or stop\n";
+    return "error: state, imu, s3 ANGLE [0..180]|center|release, collector, ga25 DUTY, raw M DUTY, pid [KP KI], wheel M SPEED, drive F S T, twist VX_MPS VY_MPS WZ_RADPS, telemetry, or stop\n";
 }
 #if ROBOT_ENABLE_WIFI
 static void udp_task(void *unused) {
@@ -532,7 +724,7 @@ static void cubie_ota_update(const char *command) {
         uart_write_bytes(CUBIE_UART_NUM, "@ OTA ERROR partition\n", 22);
         return;
     }
-    mecanum_drive_stop(); s3_release(); ga25_request_duty(0); ga25_apply_duty(0);
+    mecanum_drive_stop(); s3_release(); collector_stop(); ga25_request_duty(0); ga25_apply_duty(0);
     esp_ota_handle_t handle;
     esp_err_t err = esp_ota_begin(partition, image_size, &handle);
     if (err != ESP_OK) { uart_write_bytes(CUBIE_UART_NUM, "@ OTA ERROR begin\n", 18); return; }
@@ -609,6 +801,7 @@ void app_main(void) {
     ESP_ERROR_CHECK(pcnt_unit_enable(s_ga25_encoder));
     ESP_ERROR_CHECK(pcnt_unit_clear_count(s_ga25_encoder));
     ESP_ERROR_CHECK(pcnt_unit_start(s_ga25_encoder));
+    collector_load_encoder_ppr();
     ga25_apply_duty(0);
 #if ROBOT_ENABLE_WIFI
     start_wifi();
@@ -618,6 +811,7 @@ void app_main(void) {
     xTaskCreate(imu_task,"imu",3072,NULL,4,NULL);
     xTaskCreate(s3_task,"s3",2048,NULL,3,NULL);
     xTaskCreate(ga25_task,"ga25",2048,NULL,3,NULL);
+    xTaskCreate(collector_task,"collector",2048,NULL,3,NULL);
     xTaskCreate(cubie_uart_task,"cubie_uart",4096,NULL,4,NULL);
 #if ROBOT_ENABLE_WIFI
     xTaskCreate(udp_task,"udp_control",4096,NULL,5,NULL);

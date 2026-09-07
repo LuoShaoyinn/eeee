@@ -167,6 +167,31 @@ before converting these counts into speed or enabling closed-loop GA25 control.
 Always issue `ga25 0` or `stop` after a bench run; the command watchdog also
 ramps GA25 to zero after 500 ms without refreshes.
 
+### Collector recovery loop
+
+The GA25 collector is disabled at ESP32 boot. `collector start` enables a
+firmware-owned loop: it drives the collector reverse at 90%; if the GPIO14
+encoder reports no edge for two seconds, it releases the L298N for 1.2 seconds,
+then drives forward at 20% for exactly two output-shaft revolutions before
+returning to reverse. This loop repeats until `collector stop`, `stop`, a
+manual `ga25` command, or OTA update. A forward-clear phase taking more than
+30 seconds enters a released `fault` state.
+
+Before the first start, measure GPIO14 edges over a known number of output
+shaft rotations and save the resulting edges-per-output-revolution value:
+
+```sh
+collector ppr EDGES_PER_OUTPUT_REV
+collector start
+collector
+collector stop
+```
+
+The value is stored in ESP32 NVS and survives reboot. `collector start` fails
+closed until it is configured; it never estimates shaft revolutions from motor
+time. Positive `ga25` duty is forward (`IN1` PWM) and negative duty is reverse
+(`IN2` PWM).
+
 ## UART application updates
 
 `partitions.csv` reserves two 1.875 MiB application slots. This enables updates
