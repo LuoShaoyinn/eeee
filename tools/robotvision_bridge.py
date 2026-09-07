@@ -57,7 +57,7 @@ def load_maps(path: str, width: int, height: int):
 
 
 class GroundProjector:
-    """Project a rectified pixel to the collector-centred ground plane.
+    """Project a rectified pixel to chassis or collector-centred ground plane.
 
     The angular terms come from the physical camera mount calibration.  The
     two camera translation values are deliberately separate command-line
@@ -83,16 +83,40 @@ class GroundProjector:
         self.collector_forward_m = collector_forward_m
         self.collector_left_m = collector_left_m
 
-    def project(self, pixel_x: float, pixel_y: float):
+    def _project(self, pixel_x: float, pixel_y: float, reference_forward_m: float,
+                 reference_left_m: float):
         ray = self.rotation @ (self.inverse @ np.array((pixel_x, pixel_y, 1.0)))
         if ray[2] >= -1e-6:
             return None
         scale = -self.height_m / ray[2]
-        forward_m = scale * ray[0] + self.camera_forward_m - self.collector_forward_m
-        left_m = scale * ray[1] + self.camera_left_m - self.collector_left_m
+        forward_m = scale * ray[0] + self.camera_forward_m - reference_forward_m
+        left_m = scale * ray[1] + self.camera_left_m - reference_left_m
         if not (math.isfinite(forward_m) and math.isfinite(left_m) and .02 < forward_m < 6.0 and abs(left_m) < 4.0):
             return None
         return forward_m, left_m
+
+    def project(self, pixel_x: float, pixel_y: float):
+        """Return a point relative to the collector centreline for visual servo."""
+        return self._project(pixel_x, pixel_y, self.collector_forward_m, self.collector_left_m)
+
+    def project_chassis(self, pixel_x: float, pixel_y: float):
+        """Return a point relative to the chassis origin for field localization."""
+        return self._project(pixel_x, pixel_y, 0.0, 0.0)
+
+
+def blue_fence_ground_points(blue_mask: np.ndarray, projector: GroundProjector, step: int = 8):
+    """Sample the lower blue-fence envelope and project it onto the field plane."""
+    height, width = blue_mask.shape[:2]
+    points = []
+    for pixel_x in range(0, width, step):
+        rows = np.flatnonzero(blue_mask[:, pixel_x])
+        rows = rows[rows >= int(height * .45)]
+        if rows.size == 0:
+            continue
+        ground = projector.project_chassis(float(pixel_x), float(rows[-1]))
+        if ground is not None:
+            points.append(ground)
+    return points
 
 
 def parse_detections(output: str, width: int, height: int):
@@ -175,31 +199,89 @@ def parse_motion(state_reply: str, telemetry_reply: str):
             -gyro_z * math.pi / 180.0)
 
 
-class V1PoseTracker:
-    """Broad arena pose for the operator map; blue fence validates each update."""
-    def __init__(self, x_m: float, y_m: float, yaw_deg: float):
+class BlueFenceParticleFilter:
+    """Wheel/IMU prediction plus blue-fence ground-plane particle correction."""
+    def __init__(self, count: int, arena_length_m: float, arena_width_m: float, x_m: float, y_m: float,
+                 yaw_deg: float, measurement_sigma_m: float, seed: int):
+        self.count = count
+        self.arena_length_m = arena_length_m
+        self.arena_width_m = arena_width_m
+        self.measurement_sigma_m = measurement_sigma_m
+        self.rng = np.random.default_rng(seed)
+        self.particles = np.zeros((count, 3), dtype=np.float64)
+        self.weights = np.full(count, 1.0 / count, dtype=np.float64)
+        self.last_time = time.monotonic()
         self.x_m = x_m
         self.y_m = y_m
         self.yaw_rad = math.radians(yaw_deg)
-        self.last_time = time.monotonic()
+        self.effective_particles = float(count)
+        self.last_fence_update = False
+        self.reset(x_m, y_m, yaw_deg)
 
-    def update(self, forward_mps: float, left_mps: float, yaw_radps: float) -> None:
+    def _refresh_estimate(self) -> None:
+        self.x_m = float(np.dot(self.weights, self.particles[:, 0]))
+        self.y_m = float(np.dot(self.weights, self.particles[:, 1]))
+        self.yaw_rad = math.atan2(float(np.dot(self.weights, np.sin(self.particles[:, 2]))),
+                                  float(np.dot(self.weights, np.cos(self.particles[:, 2]))))
+        self.effective_particles = float(1.0 / np.dot(self.weights, self.weights))
+
+    def predict(self, forward_mps: float, left_mps: float, yaw_radps: float) -> None:
         now = time.monotonic()
-        dt = min(.2, max(0.0, now - self.last_time))
+        dt = min(.25, max(0.0, now - self.last_time))
         self.last_time = now
-        self.x_m = min(3.0, max(0.0, self.x_m + (math.cos(self.yaw_rad) * forward_mps -
-                                                   math.sin(self.yaw_rad) * left_mps) * dt))
-        self.y_m = min(1.985, max(0.0, self.y_m + (math.sin(self.yaw_rad) * forward_mps +
-                                                    math.cos(self.yaw_rad) * left_mps) * dt))
-        self.yaw_rad = (self.yaw_rad + yaw_radps * dt + math.pi) % (2.0 * math.pi) - math.pi
+        if dt == 0.0:
+            return
+        forward = forward_mps * dt + self.rng.normal(0.0, .002 + .04 * abs(forward_mps * dt), self.count)
+        left = left_mps * dt + self.rng.normal(0.0, .002 + .04 * abs(left_mps * dt), self.count)
+        yaw = yaw_radps * dt + self.rng.normal(0.0, .002 + .035 * abs(yaw_radps * dt), self.count)
+        cosine, sine = np.cos(self.particles[:, 2]), np.sin(self.particles[:, 2])
+        self.particles[:, 0] = np.clip(self.particles[:, 0] + cosine * forward - sine * left,
+                                       0.0, self.arena_length_m)
+        self.particles[:, 1] = np.clip(self.particles[:, 1] + sine * forward + cosine * left,
+                                       0.0, self.arena_width_m)
+        self.particles[:, 2] = (self.particles[:, 2] + yaw + math.pi) % (2.0 * math.pi) - math.pi
+        self._refresh_estimate()
+
+    def update_fence(self, observations) -> bool:
+        if len(observations) < 20:
+            self.last_fence_update = False
+            return False
+        points = np.asarray(observations[:120], dtype=np.float64)
+        cosine, sine = np.cos(self.particles[:, 2]), np.sin(self.particles[:, 2])
+        global_x = self.particles[:, 0, None] + cosine[:, None] * points[None, :, 0] - sine[:, None] * points[None, :, 1]
+        global_y = self.particles[:, 1, None] + sine[:, None] * points[None, :, 0] + cosine[:, None] * points[None, :, 1]
+        residuals = np.minimum.reduce((np.abs(global_x), np.abs(self.arena_length_m - global_x),
+                                       np.abs(global_y), np.abs(self.arena_width_m - global_y)))
+        keep = max(12, int(residuals.shape[1] * 2 / 3))
+        trimmed_mean = np.partition(residuals, keep - 1, axis=1)[:, :keep].mean(axis=1)
+        likelihood = np.exp(-.5 * np.square(trimmed_mean / self.measurement_sigma_m))
+        self.weights *= np.maximum(likelihood, 1e-12)
+        normalizer = float(self.weights.sum())
+        if normalizer <= 1e-20:
+            self.weights.fill(1.0 / self.count)
+        else:
+            self.weights /= normalizer
+        self._refresh_estimate()
+        if self.effective_particles < self.count * .55:
+            positions = (self.rng.random() + np.arange(self.count)) / self.count
+            indices = np.searchsorted(np.cumsum(self.weights), positions, side="right")
+            self.particles = self.particles[np.minimum(indices, self.count - 1)]
+            self.weights.fill(1.0 / self.count)
+            self._refresh_estimate()
+        self.last_fence_update = True
+        return True
 
     def reset(self, x_m: float, y_m: float, yaw_deg: float) -> None:
-        self.x_m = x_m
-        self.y_m = y_m
-        self.yaw_rad = math.radians(yaw_deg)
+        self.particles[:, 0] = np.clip(self.rng.normal(x_m, .06, self.count), 0.0, self.arena_length_m)
+        self.particles[:, 1] = np.clip(self.rng.normal(y_m, .06, self.count), 0.0, self.arena_width_m)
+        self.particles[:, 2] = (self.rng.normal(math.radians(yaw_deg), math.radians(8.0), self.count) + math.pi) % \
+                               (2.0 * math.pi) - math.pi
+        self.weights.fill(1.0 / self.count)
         self.last_time = time.monotonic()
+        self.last_fence_update = False
+        self._refresh_estimate()
 
-    def render(self, path: str, localization_valid: bool, blue_pixels: int) -> None:
+    def render(self, path: str, localization_valid: bool, blue_pixels: int, fence_points: int) -> None:
         width, height, margin = 720, 500, 40
         canvas = np.full((height, width, 3), (22, 30, 34), dtype=np.uint8)
         scale = min((width - 2 * margin) / 3.0, (height - 2 * margin) / 1.985)
@@ -220,12 +302,14 @@ class V1PoseTracker:
         cv2.arrowedLine(canvas, (px, py), tip, (245, 245, 245), 3, tipLength=.32)
         status = "BLUE FENCE: VALID" if localization_valid else "BLUE FENCE: LOST"
         color = (70, 220, 105) if localization_valid else (50, 150, 235)
-        cv2.putText(canvas, "V1 ARENA POSITION", (40, 32), cv2.FONT_HERSHEY_SIMPLEX, .78, (235, 235, 235), 2)
+        cv2.putText(canvas, "V1 PARTICLE-FILTER POSITION", (40, 32), cv2.FONT_HERSHEY_SIMPLEX, .68, (235, 235, 235), 2)
         cv2.putText(canvas, status, (40, 62), cv2.FONT_HERSHEY_SIMPLEX, .60, color, 2)
         cv2.putText(canvas, f"x={self.x_m:.2f}m  y={self.y_m:.2f}m  yaw={math.degrees(self.yaw_rad):.0f}deg",
                     (40, height - 12), cv2.FONT_HERSHEY_SIMPLEX, .57, (235, 235, 235), 2)
-        cv2.putText(canvas, f"blue pixels: {blue_pixels}", (430, 62), cv2.FONT_HERSHEY_SIMPLEX, .48,
+        cv2.putText(canvas, f"blue: {blue_pixels}  ground: {fence_points}", (405, 62), cv2.FONT_HERSHEY_SIMPLEX, .42,
                     (210, 210, 210), 1)
+        cv2.putText(canvas, f"ESS: {self.effective_particles:.0f}/{self.count}", (40, 88),
+                    cv2.FONT_HERSHEY_SIMPLEX, .48, (210, 210, 210), 1)
         temporary = path + ".tmp.png"
         if not cv2.imwrite(temporary, canvas):
             raise RuntimeError(f"cannot write localization map: {path}")
@@ -266,9 +350,16 @@ def main() -> None:
                         help="intake centre forward of the chassis origin (measure this)")
     parser.add_argument("--collector-left-m", type=float, default=-.02,
                         help="calibrated intake centre: 0.02 m to the camera's right (left is positive)")
+    parser.add_argument("--particle-count", type=int, default=600)
+    parser.add_argument("--particle-seed", type=int, default=1)
+    parser.add_argument("--fence-measurement-sigma-m", type=float, default=.07)
+    parser.add_argument("--arena-length-m", type=float, default=3.0)
+    parser.add_argument("--arena-width-m", type=float, default=1.985)
     args = parser.parse_args()
-    if not 0.0 <= args.initial_x <= 3.0 or not 0.0 <= args.initial_y <= 1.985:
-        raise SystemExit("initial pose must lie inside the 3.0m x 1.985m arena")
+    if (args.particle_count < 50 or args.fence_measurement_sigma_m <= 0.0 or args.arena_length_m <= 0.0 or
+            args.arena_width_m <= 0.0 or not 0.0 <= args.initial_x <= args.arena_length_m or
+            not 0.0 <= args.initial_y <= args.arena_width_m):
+        raise SystemExit("particle-filter parameters or initial pose are outside the arena")
 
     capture = cv2.VideoCapture(args.camera, cv2.CAP_V4L2)
     capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -279,7 +370,9 @@ def main() -> None:
     maps = None
     projector = None
     frames = 0
-    pose = V1PoseTracker(args.initial_x, args.initial_y, args.initial_yaw)
+    pose = BlueFenceParticleFilter(args.particle_count, args.arena_length_m, args.arena_width_m,
+                                   args.initial_x, args.initial_y, args.initial_yaw,
+                                   args.fence_measurement_sigma_m, args.particle_seed)
     reset_timestamp_ns = None
     try:
         while not args.max_frames or frames < args.max_frames:
@@ -293,35 +386,45 @@ def main() -> None:
                                             args.collector_forward_m, args.collector_left_m)
             rectified = cv2.remap(raw, maps[0], maps[1], cv2.INTER_LINEAR)
             hsv = cv2.cvtColor(rectified, cv2.COLOR_BGR2HSV)
-            blue_pixels = int(cv2.countNonZero(cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))))
-            localization_valid = blue_pixels >= args.minimum_blue_pixels
+            blue_mask = cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))
+            blue_pixels = int(cv2.countNonZero(blue_mask))
+            blue_detected = blue_pixels >= args.minimum_blue_pixels
+            fence_points = blue_fence_ground_points(blue_mask, projector) if projector else []
             try:
                 reset_stat = os.stat(args.localization_reset_file)
                 if reset_stat.st_mtime_ns != reset_timestamp_ns:
                     with open(args.localization_reset_file, encoding="utf-8") as reset_input:
                         reset = json.load(reset_input)
                     x_m, y_m, yaw_deg = float(reset["x_m"]), float(reset["y_m"]), float(reset["yaw_deg"])
-                    if not 0.0 <= x_m <= 3.0 or not 0.0 <= y_m <= 1.985:
+                    if not 0.0 <= x_m <= args.arena_length_m or not 0.0 <= y_m <= args.arena_width_m:
                         raise ValueError("reset pose is outside the arena")
                     pose.reset(x_m, y_m, yaw_deg)
                     reset_timestamp_ns = reset_stat.st_mtime_ns
             except FileNotFoundError:
                 pass
             try:
-                pose.update(*parse_motion(robotd_request(args.robotd_socket, "state"),
-                                          robotd_request(args.robotd_socket, "telemetry")))
+                pose.predict(*parse_motion(robotd_request(args.robotd_socket, "state"),
+                                            robotd_request(args.robotd_socket, "telemetry")))
             except (OSError, ValueError, StopIteration):
                 # Keep the last broad pose visible. The motion watchdog in
                 # robotd remains authoritative if telemetry is unavailable.
                 pass
-            pose.render(args.localization_map, localization_valid, blue_pixels)
+            fence_updated = pose.update_fence(fence_points) if blue_detected else False
+            # A blue-pixel count alone is not sufficient for autonomous
+            # motion: require enough projectable lower-fence points to make a
+            # particle-filter measurement update in this frame.
+            localization_valid = blue_detected and fence_updated
+            pose.render(args.localization_map, localization_valid, blue_pixels, len(fence_points))
             write_json(args.localization_file, {
                 "valid": localization_valid,
                 "x_m": round(pose.x_m, 3),
                 "y_m": round(pose.y_m, 3),
                 "yaw_deg": round(math.degrees(pose.yaw_rad), 1),
                 "blue_pixels": blue_pixels,
-                "source": "v1_blue_fence_wheel_imu",
+                "fence_ground_points": len(fence_points),
+                "effective_particles": round(pose.effective_particles, 1),
+                "fence_update": fence_updated,
+                "source": "v1_blue_fence_particle_filter",
             })
             environment = os.environ.copy()
             environment["LD_LIBRARY_PATH"] = args.yolo_dir + ":" + environment.get("LD_LIBRARY_PATH", "")
