@@ -70,21 +70,12 @@ class DebugGui:
             self.auto_running = False
 
     def start_auto(self):
-        # The runtime owns the search state.  A new operator-started mission must
-        # begin with a fresh search timer rather than inherit a prior safe-stop.
         try:
-            _, stdout, stderr = self.ssh_client.exec_command(
-                "sudo /bin/systemctl restart robot-runtime")
-            status = stdout.channel.recv_exit_status()
-            if status != 0:
-                raise RuntimeError(stderr.read().decode(errors="replace").strip() or
-                                   "runtime restart failed")
+            self.runtime_command("start")
         except Exception as error:
             self.events.put(("error", "cannot start autonomous session: {}".format(error)))
             return
         self.vx = self.vy = self.wz = 0.0
-        self.send("stop")
-        self.send("collector start")
         self.auto_running = True
         self.auto_button.configure(text="Auto Running", bg="#edc46f")
         self.update_motion_label()
@@ -92,9 +83,24 @@ class DebugGui:
     def stop_motion(self):
         self.vx = self.vy = self.wz = 0.0
         self.auto_running = False
-        self.send("stop")
+        try:
+            self.runtime_command("stop")
+        except Exception as error:
+            self.events.put(("error", "cannot stop autonomous session: {}".format(error)))
+            self.send("stop")
         self.auto_button.configure(text="Start Auto", bg="#b7d7b0")
         self.update_motion_label()
+
+    def runtime_command(self, command):
+        remote = "cd {} && ./bin/robotctl --socket /tmp/robot-runtime.sock {}".format(
+            self.args.remote_dir, command)
+        _, stdout, stderr = self.ssh_client.exec_command(remote)
+        status = stdout.channel.recv_exit_status()
+        reply = stdout.read().decode(errors="replace").strip()
+        if status != 0 or reply.startswith("error:"):
+            detail = stderr.read().decode(errors="replace").strip() or reply
+            raise RuntimeError(detail or "runtime command failed")
+        return reply
 
     def clear_trail(self):
         self.trail.clear()
@@ -107,6 +113,11 @@ class DebugGui:
             self.stop_motion()
             return "break"
         if key in ("w", "s", "a", "d", "q", "e", "x", "z", "c"):
+            if self.auto_running:
+                try:
+                    self.runtime_command("stop")
+                except Exception as error:
+                    self.events.put(("error", "cannot leave auto mode: {}".format(error)))
             self.auto_running = False
             self.auto_button.configure(text="Start Auto", bg="#b7d7b0")
         if key == "w": self.vx = min(self.args.max_linear, self.vx + self.args.linear_step)
@@ -124,12 +135,9 @@ class DebugGui:
 
     def refresh_command(self):
         if self.auto_running and self.pose:
-            proposal = self.pose.get("auto_proposal", {})
-            twist = proposal.get("twist", [0, 0, 0])
-            if proposal.get("valid", False) and not proposal.get("reached", False):
-                self.send("twist {:.3f} {:.3f} {:.3f}".format(*twist))
-            else:
-                self.send("stop")
+            # C++ owns autonomous command refresh through robotd. The GUI only
+            # displays its proposal and sends the one-shot start/stop requests.
+            pass
         elif any(abs(value) > 1e-6 for value in (self.vx, self.vy, self.wz)):
             self.send("twist {:.3f} {:.3f} {:.3f}".format(self.vx, self.vy, self.wz))
         if not self.stopping.is_set():
@@ -191,9 +199,10 @@ class DebugGui:
                     axis_certainty = geometry.get("axis_certainty", [0, 0, 0])
                     proposal = self.pose.get("auto_proposal", {})
                     self.status_label.configure(
-                        text="{}  frame {}  UART {} {:.0f} ms  visual X/Y/yaw {:.0%}/{:.0%}/{:.0%}  {} {:.1f}s".format(
+                        text="{}  frame {}  UART {} {:.0f} ms  mission {}  visual X/Y/yaw {:.0%}/{:.0%}/{:.0%}  {} {:.1f}s".format(
                             event[2], self.pose.get("frame_index", "?"),
                             "OK" if valid else "STALE", age,
+                            "ACTIVE" if self.pose.get("mission_active", False) else "idle",
                             *axis_certainty,
                             proposal.get("phase", "tracking"),
                             proposal.get("lost_seconds", 0)),

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <ctime>
 #include <filesystem>
+#include <fcntl.h>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -52,6 +53,7 @@ struct Options {
     std::string config = "config/robot.yaml";
     std::string camera = "/dev/video0";
     std::string socket = "/tmp/robotd.sock";
+    std::string control_socket = "/tmp/robot-runtime.sock";
     std::string calibration = "config/camera_fisheye_1280x720.yaml";
     std::string log_path;
     std::string video_path;
@@ -188,6 +190,67 @@ std::string request_robotd(const std::string& path, const std::string& request) 
     close(fd);
     if (reply.rfind("error:", 0) == 0) throw std::runtime_error(reply);
     return reply;
+}
+
+struct RuntimeControlRequest {
+    int client = -1;
+    std::string command;
+};
+
+class RuntimeControlServer {
+public:
+    explicit RuntimeControlServer(std::string path) : path_(std::move(path)) {
+        fd_ = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        if (fd_ < 0) throw std::runtime_error("cannot create runtime control socket");
+        if (path_.size() >= sizeof(sockaddr_un::sun_path)) throw std::runtime_error("runtime control socket path is too long");
+        unlink(path_.c_str());
+        sockaddr_un address{};
+        address.sun_family = AF_UNIX;
+        std::strncpy(address.sun_path, path_.c_str(), sizeof(address.sun_path) - 1);
+        if (bind(fd_, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0 ||
+            listen(fd_, 4) != 0 || fcntl(fd_, F_SETFL, O_NONBLOCK) != 0) {
+            close(fd_);
+            fd_ = -1;
+            unlink(path_.c_str());
+            throw std::runtime_error("cannot bind runtime control socket " + path_);
+        }
+    }
+
+    ~RuntimeControlServer() {
+        if (fd_ >= 0) close(fd_);
+        unlink(path_.c_str());
+    }
+
+    std::optional<RuntimeControlRequest> take() const {
+        const int client = accept4(fd_, nullptr, nullptr, SOCK_CLOEXEC | SOCK_NONBLOCK);
+        if (client < 0) return std::nullopt;
+        char buffer[128]{};
+        const ssize_t count = read(client, buffer, sizeof(buffer) - 1);
+        if (count <= 0) {
+            close(client);
+            return std::nullopt;
+        }
+        std::string command(buffer, static_cast<size_t>(count));
+        command.erase(command.find_first_of("\r\n"));
+        return RuntimeControlRequest{.client = client, .command = std::move(command)};
+    }
+
+    static void reply(const RuntimeControlRequest& request, const std::string& response) {
+        const std::string wire = response + "\n";
+        (void)write(request.client, wire.data(), wire.size());
+        close(request.client);
+    }
+
+private:
+    std::string path_;
+    int fd_ = -1;
+};
+
+std::string twist_command(const robot::Twist2& command) {
+    std::ostringstream output;
+    output << std::fixed << std::setprecision(3) << "twist " << command.forward_mps << ' '
+           << command.left_mps << ' ' << command.yaw_radps;
+    return output.str();
 }
 
 bool parse_state(const std::string& reply, EspState& state) {
@@ -569,6 +632,7 @@ Options parse_options(int argc, char** argv) {
         if (argument == "--config") ++index;
         else if (argument == "--camera") options.camera = value("--camera");
         else if (argument == "--socket") options.socket = value("--socket");
+        else if (argument == "--control-socket") options.control_socket = value("--control-socket");
         else if (argument == "--calibration") options.calibration = value("--calibration");
         else if (argument == "--log") {
             options.log_path = value("--log");
@@ -607,7 +671,7 @@ Options parse_options(int argc, char** argv) {
         else if (argument == "--stdout-json") options.stream_json = true;
         else if (argument == "--no-broadcast") options.broadcast_enabled = false;
         else if (argument == "--help") {
-            std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-log] [--no-video] [--telemetry-replay FILE] [--realtime-video] "
+            std::cout << "robot-runtime [--config FILE] [--camera PATH] [--socket PATH] [--control-socket PATH] [--calibration FILE] [--log FILE] [--video FILE] [--raw-video FILE] [--no-log] [--no-video] [--telemetry-replay FILE] [--realtime-video] "
                          "[--visual-width N] [--visual-height N] [--particles N] [--max-frames N] "
                          "[--height M] [--pitch DEG] [--roll DEG] [--initial-x M] [--initial-y M] "
                          "[--initial-yaw DEG] [--global-initialize] [--rectified-input] "
@@ -639,7 +703,7 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   const std::vector<robot::TrackedObject>& objects,
                   const robot::ApproachResult& approach,
                   const robot::SearchResult& search,
-                  const robot::HomeObservation& home) {
+                  const robot::HomeObservation& home, bool mission_active) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
@@ -676,6 +740,7 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"visual_certain\":" << (visual_certain ? "true" : "false")
         << ",\"visual_very_certain\":" << (visual_very_certain ? "true" : "false")
         << ",\"navigation_allowed\":" << (navigation_allowed ? "true" : "false")
+        << ",\"mission_active\":" << (mission_active ? "true" : "false")
         << ",\"imu_yaw_reset\":" << (imu_yaw_reset ? "true" : "false")
         << ",\"gyro_bias_degps\":" << gyro_bias_degps
         << ",\"visual_geometry_candidates\":[";
@@ -758,7 +823,7 @@ int main(int argc, char** argv) {
                            cv::Size(options.capture_width, options.capture_height));
             if (!raw_video.isOpened()) throw std::runtime_error("cannot open raw video writer: " + options.raw_video_path);
         }
-        std::cerr << "robot-runtime: PASSIVE config=" << options.config << " capture=" << options.camera
+        std::cerr << "robot-runtime: control=inactive config=" << options.config << " capture=" << options.camera
                   << " robotd=" << options.socket;
         if (options.record_log) std::cerr << " log=" << options.log_path;
         if (options.record_video) std::cerr << " video=" << options.video_path;
@@ -801,6 +866,12 @@ int main(int argc, char** argv) {
         robot::SearchController search_controller(options.search);
         robot::SearchResult search_result;
         robot::HomeObservation home_observation;
+        std::unique_ptr<RuntimeControlServer> control_server;
+        if (options.telemetry_replay_path.empty()) {
+            control_server = std::make_unique<RuntimeControlServer>(options.control_socket);
+        }
+        bool mission_active = false;
+        bool runtime_has_command = false;
         std::optional<robot::Timestamp> last_navigation_ready;
 #ifdef ROBOT_A733_NPU
         DetectorWorker detector_worker(robot::make_a733_detector(options.detector_model),
@@ -811,6 +882,39 @@ int main(int argc, char** argv) {
         while (g_running && (options.max_frames == 0 || frame_count < options.max_frames)) {
             if (!replay_telemetry.empty() &&
                 static_cast<std::size_t>(frame_count) >= replay_telemetry.size()) break;
+            if (control_server) {
+                if (auto request = control_server->take()) {
+                    std::string response;
+                    if (request->command == "start") {
+                        mission_active = true;
+                        runtime_has_command = false;
+                        approach_controller.reset();
+                        search_controller.reset();
+                        world.replace_objects({});
+                        try {
+                            (void)request_robotd(options.socket, "stop");
+                            response = "ok mission active; " + request_robotd(options.socket, "collector start");
+                        } catch (const std::exception& error) {
+                            response = std::string("ok mission active; collector unavailable: ") + error.what();
+                        }
+                    } else if (request->command == "stop") {
+                        mission_active = false;
+                        runtime_has_command = false;
+                        approach_controller.reset();
+                        search_controller.reset();
+                        try {
+                            response = "ok mission inactive; " + request_robotd(options.socket, "stop");
+                        } catch (const std::exception& error) {
+                            response = std::string("error: stop failed: ") + error.what();
+                        }
+                    } else if (request->command == "status") {
+                        response = mission_active ? "mission active" : "mission inactive";
+                    } else {
+                        response = "error: expected start, stop, or status";
+                    }
+                    RuntimeControlServer::reply(*request, response);
+                }
+            }
             if (options.realtime_video && frame_count > 0) {
                 const double elapsed_s = replay_telemetry.empty()
                     ? frame_count / options.capture_fps
@@ -1019,6 +1123,26 @@ int main(int argc, char** argv) {
                                        .target_reached = search_result.phase == robot::SearchPhase::complete};
                 }
             }
+            if (mission_active) {
+                try {
+                    if (!telemetry_valid || search_result.phase == robot::SearchPhase::complete) {
+                        mission_active = false;
+                        runtime_has_command = false;
+                        (void)request_robotd(options.socket, "stop");
+                    } else {
+                        const robot::Twist2 command =
+                            approach_result.target_valid && !approach_result.target_reached
+                                ? approach_result.command : robot::Twist2{};
+                        (void)request_robotd(options.socket, twist_command(command));
+                        runtime_has_command = true;
+                    }
+                } catch (const std::exception& error) {
+                    std::cerr << "robot-runtime: command transport failed; disarming: "
+                              << error.what() << '\n';
+                    mission_active = false;
+                    runtime_has_command = false;
+                }
+            }
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
@@ -1026,7 +1150,7 @@ int main(int argc, char** argv) {
                          visual_geometry, lower_fence_count, upper_fence_count,
                          visual_certain, visual_very_certain, navigation_allowed, imu_yaw_reset,
                          gyro_bias_radps / kDegreesToRadians, world.objects(), approach_result,
-                         search_result, home_observation);
+                         search_result, home_observation, mission_active);
             if (options.record_log) log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());
@@ -1037,6 +1161,9 @@ int main(int argc, char** argv) {
                           << " fence=" << lower_fence_count << '+' << upper_fence_count
                           << " pose=" << pose.x_m << ',' << pose.y_m << '\n';
             }
+        }
+        if (mission_active || runtime_has_command) {
+            try { (void)request_robotd(options.socket, "stop"); } catch (const std::exception&) {}
         }
     } catch (const std::exception& error) {
         std::cerr << "robotloc: " << error.what() << '\n';

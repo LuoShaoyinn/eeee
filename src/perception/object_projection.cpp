@@ -27,6 +27,18 @@ double rectangle_distance(double x, double y) {
     return std::hypot(dx, dy);
 }
 
+bool overlaps_opponent(const Detection& candidate, const DetectionFrame& frame) {
+    for (const Detection& other : frame.detections) {
+        if (other.object_class != ObjectClass::opponent_robot) continue;
+        const float left = std::max(candidate.box.left, other.box.left);
+        const float top = std::max(candidate.box.top, other.box.top);
+        const float right = std::min(candidate.box.right, other.box.right);
+        const float bottom = std::min(candidate.box.bottom, other.box.bottom);
+        if (right > left && bottom > top) return true;
+    }
+    return false;
+}
+
 }  // namespace
 
 std::vector<TrackedObject> project_collectibles(
@@ -38,6 +50,9 @@ std::vector<TrackedObject> project_collectibles(
         if ((detection.object_class != ObjectClass::yellow_cylinder &&
              detection.object_class != ObjectClass::red_cube) ||
             detection.confidence < limits.minimum_confidence) continue;
+        // A collectable box over an opponent box is usually a duplicate or an
+        // occluded false positive. Do not turn it into a drive target.
+        if (overlaps_opponent(detection, frame)) continue;
 
         const cv::Point2f contact_pixel{
             .5F * (detection.box.left + detection.box.right), detection.box.bottom};

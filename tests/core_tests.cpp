@@ -129,6 +129,13 @@ int main() {
         !require(std::abs(projected[0].x_m - .5) < 1e-6 &&
                      std::abs(projected[0].y_m - 1.5) < 1e-6,
                  "camera-relative target transforms to arena frame")) return 1;
+    detections.detections.push_back({.object_class = robot::ObjectClass::opponent_robot,
+                                     .confidence = .9F,
+                                     .box = {.left = -.05F, .top = -.1F,
+                                             .right = .1F, .bottom = .1F}});
+    if (!require(robot::project_collectibles(
+                     detections, projector, {.x_m = .5, .y_m = .5, .yaw_rad = CV_PI / 2}).empty(),
+                 "collectible overlapping opponent is not a drive target")) return 1;
 
     robot::SearchController search;
     auto search_result = search.update({.x_m = .2, .y_m = .2}, false, now, .1);
