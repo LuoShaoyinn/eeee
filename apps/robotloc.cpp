@@ -983,7 +983,11 @@ int main(int argc, char** argv) {
             if (target && capture_time - target->last_seen > options.approach.target_timeout) {
                 target.reset();
             }
-            if (target && navigation_allowed) {
+            // A fresh object observation is projected from this same camera pose.
+            // Its robot-relative approach vector remains useful even when fence
+            // geometry leaves one global position axis unobservable.  Reserve
+            // navigation_allowed for blind center/home search only.
+            if (target) {
                 search_result = search_controller.update(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                     true, capture_time, std::min(dt_s, .2));
