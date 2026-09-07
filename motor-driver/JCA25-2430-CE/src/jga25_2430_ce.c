@@ -42,7 +42,15 @@ esp_err_t jga25_2430_ce_init(const jga25_2430_ce_config_t *config,
         return ESP_ERR_INVALID_ARG;
     }
 
-    esp_err_t err = gpio_set_direction(config->direction_gpio, GPIO_MODE_OUTPUT);
+    // The carrier's motor PWM input is active-low. Establish the inactive
+    // level electrically before MCPWM claims the pin; otherwise a generator
+    // can emit a near-full-duty pulse while its timer is being configured.
+    esp_err_t err = gpio_set_direction(config->pwm_gpio, GPIO_MODE_OUTPUT);
+    if (err != ESP_OK) goto fail;
+    err = gpio_set_level(config->pwm_gpio, 1);
+    if (err != ESP_OK) goto fail;
+
+    err = gpio_set_direction(config->direction_gpio, GPIO_MODE_OUTPUT);
     if (err != ESP_OK) goto fail;
     err = gpio_set_level(config->direction_gpio, 0);
     if (err != ESP_OK) goto fail;
@@ -74,6 +82,10 @@ esp_err_t jga25_2430_ce_init(const jga25_2430_ce_config_t *config,
     if (err != ESP_OK) goto fail;
     err = mcpwm_new_generator(oper, &generator_config, &driver->generator);
     if (err != ESP_OK) goto fail;
+    // Keep PWM inactive through all remaining setup and timer startup. This
+    // must precede timer enable/start, not merely the final stop() call.
+    err = mcpwm_generator_set_force_level(driver->generator, 1, true);
+    if (err != ESP_OK) goto fail;
     err = mcpwm_operator_connect_timer(oper, timer);
     if (err != ESP_OK) goto fail;
     err = mcpwm_comparator_set_compare_value(driver->comparator, 1);
@@ -99,6 +111,9 @@ esp_err_t jga25_2430_ce_init(const jga25_2430_ce_config_t *config,
     return jga25_2430_ce_stop(driver);
 
 fail:
+    // A partial initialization must also leave this active-low output stopped.
+    (void)gpio_set_direction(config->pwm_gpio, GPIO_MODE_OUTPUT);
+    (void)gpio_set_level(config->pwm_gpio, 1);
     free(driver);
     return err;
 }
