@@ -1,4 +1,7 @@
 build/
+artifacts/
+dataset/
+run-log/
 sdkconfig
 sdkconfig.old
 dependencies.lock
