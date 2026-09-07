@@ -97,7 +97,7 @@ struct MissionConfig {
 struct MissionInput {
     bool localization_valid = false;
     bool collection_sensor_triggered = false;
-    // Actual elapsed time between vision frames.  The live runner supplies
+    // Actual elapsed time between vision frames.  robotbrain supplies
     // this so PID integral/derivative terms remain stable at variable NPU FPS.
     double control_dt_s = 0.10;
     std::vector<Detection> detections;
