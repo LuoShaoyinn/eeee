@@ -760,11 +760,13 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   const robot::PoseEstimate& pose,
                   const robot::VisualGeometryEstimate& visual_geometry,
                   size_t lower_fence_count, size_t upper_fence_count,
+                  const FenceEdges& fence_edges, const robot::Pose2& fence_capture_pose,
                   bool visual_certain, bool visual_very_certain,
                   bool navigation_allowed,
                   bool imu_yaw_reset, double gyro_bias_degps,
                   const std::vector<robot::Detection>& raw_detections,
                   const std::vector<robot::TrackedObject>& objects,
+                  const std::vector<robot::TrackedObject>& local_objects,
                   const std::optional<robot::TrackedObject>& local_target,
                   const robot::ApproachResult& approach,
                   const robot::SearchResult& search,
@@ -819,7 +821,20 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
     }
     log << "]"
         << ",\"lower_fence_points\":" << lower_fence_count
-        << ",\"upper_fence_points\":" << upper_fence_count << ",\"raw_detections\":[";
+        << ",\"upper_fence_points\":" << upper_fence_count
+        << ",\"fence_capture_pose\":[" << fence_capture_pose.x_m << ','
+        << fence_capture_pose.y_m << ',' << fence_capture_pose.yaw_rad << ']'
+        << ",\"fence_samples\":{\"lower\":[";
+    for (std::size_t index = 0; index < fence_edges.lower.size(); ++index) {
+        if (index) log << ',';
+        log << '[' << fence_edges.lower[index].x << ',' << fence_edges.lower[index].y << ']';
+    }
+    log << "],\"upper\":[";
+    for (std::size_t index = 0; index < fence_edges.upper.size(); ++index) {
+        if (index) log << ',';
+        log << '[' << fence_edges.upper[index].x << ',' << fence_edges.upper[index].y << ']';
+    }
+    log << "]},\"raw_detections\":[";
     for (std::size_t index = 0; index < raw_detections.size(); ++index) {
         if (index) log << ',';
         const auto& detection = raw_detections[index];
@@ -833,6 +848,14 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         log << "[" << static_cast<int>(objects[index].object_class) << ','
             << objects[index].x_m << ',' << objects[index].y_m << ','
             << objects[index].confidence << ']';
+    }
+    log << "],\"local_objects\":[";
+    for (std::size_t index = 0; index < local_objects.size(); ++index) {
+        if (index) log << ',';
+        const auto& object = local_objects[index];
+        log << '[' << static_cast<int>(object.object_class) << ','
+            << object.camera_forward_m << ',' << object.camera_left_m << ','
+            << object.confidence << ']';
     }
     log << "],\"local_target\":";
     if (local_target) {
@@ -944,6 +967,8 @@ int main(int argc, char** argv) {
         std::uint64_t fence_request_sequence = 0;
         std::size_t lower_fence_count = 0;
         std::size_t upper_fence_count = 0;
+        FenceEdges latest_fence_edges;
+        robot::Pose2 latest_fence_capture_pose;
         robot::WorldModel world;
         robot::LocalTargetTracker local_target_tracker(
             {.memory = options.approach.target_timeout,
@@ -960,6 +985,7 @@ int main(int argc, char** argv) {
             control_server = std::make_unique<RuntimeControlServer>(options.control_socket);
         }
         bool mission_active = false;
+        bool return_home_active = false;
         bool runtime_has_command = false;
         robot::Twist2 last_approach_command;
         robot::Timestamp last_approach_command_at{};
@@ -977,6 +1003,7 @@ int main(int argc, char** argv) {
                     std::string response;
                     if (request->command == "start") {
                         mission_active = true;
+                        return_home_active = false;
                         mission.reset();
                         mission.start();
                         runtime_has_command = false;
@@ -992,8 +1019,28 @@ int main(int argc, char** argv) {
                         } catch (const std::exception& error) {
                             response = std::string("ok mission active; collector unavailable: ") + error.what();
                         }
+                    } else if (request->command == "return-home") {
+                        // This deliberately does not arm collection. It is an
+                        // operator-invoked localization and return-path test.
+                        mission_active = true;
+                        return_home_active = true;
+                        mission.reset();
+                        mission.start();
+                        runtime_has_command = false;
+                        last_approach_command = {};
+                        last_approach_command_at = {};
+                        approach_controller.reset();
+                        search_controller.begin_return_home();
+                        world.replace_objects({});
+                        local_target_tracker.reset();
+                        try {
+                            response = "ok return-home active; " + request_robotd(options.socket, "stop");
+                        } catch (const std::exception& error) {
+                            response = std::string("ok return-home active; stop unavailable: ") + error.what();
+                        }
                     } else if (request->command == "stop") {
                         mission_active = false;
+                        return_home_active = false;
                         mission.stop();
                         runtime_has_command = false;
                         last_approach_command = {};
@@ -1007,9 +1054,10 @@ int main(int argc, char** argv) {
                             response = std::string("error: stop failed: ") + error.what();
                         }
                     } else if (request->command == "status") {
-                        response = mission_active ? "mission active" : "mission inactive";
+                        response = return_home_active ? "return-home active" :
+                                   (mission_active ? "mission active" : "mission inactive");
                     } else {
-                        response = "error: expected start, stop, or status";
+                        response = "error: expected start, return-home, stop, or status";
                     }
                     RuntimeControlServer::reply(*request, response);
                 }
@@ -1104,6 +1152,8 @@ int main(int argc, char** argv) {
                 visual_geometry = std::move(fence_result->geometry);
                 lower_fence_count = fence_result->edges.lower.size();
                 upper_fence_count = fence_result->edges.upper.size();
+                latest_fence_edges = fence_result->edges;
+                latest_fence_capture_pose = fence_result->odometry_pose;
                 if (visual_geometry.valid && !visual_geometry.candidates.empty()) {
                     const auto& candidate = visual_geometry.candidates.front();
                     robot::Pose2 current_candidate = candidate.pose;
@@ -1201,7 +1251,7 @@ int main(int argc, char** argv) {
             // The selected target remains in local wheel/IMU coordinates while
             // approaching. Other tracks remain available until capture ends.
             auto target = local_target_tracker.target(odometry_pose, capture_time);
-            if (!target && mission.state() == robot::MissionState::search_target) {
+            if (!target && !return_home_active && mission.state() == robot::MissionState::search_target) {
                 target = local_target_tracker.acquire_nearest(odometry_pose, capture_time);
             }
             if (target) {
@@ -1239,6 +1289,9 @@ int main(int argc, char** argv) {
                 .capture_complete = approach_result.target_reached,
                 .search_complete = search_result.phase == robot::SearchPhase::complete,
             });
+            if (return_home_active && mission_state == robot::MissionState::safe_stop) {
+                return_home_active = false;
+            }
             if (approach_result.target_reached) {
                 // Remove and temporarily suppress only the collected object.
                 // Remaining tracks are static objects in the same local
@@ -1299,12 +1352,27 @@ int main(int argc, char** argv) {
                 }
             }
             const std::uint64_t time_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(capture_time.time_since_epoch()).count());
+            std::vector<robot::TrackedObject> local_objects;
+            for (const robot::TrackedObject& track : local_target_tracker.tracks()) {
+                if (capture_time < track.last_seen ||
+                    capture_time - track.last_seen > options.approach.target_timeout) continue;
+                robot::TrackedObject object = track;
+                const double dx = object.x_m - odometry_pose.x_m;
+                const double dy = object.y_m - odometry_pose.y_m;
+                const double cosine = std::cos(odometry_pose.yaw_rad);
+                const double sine = std::sin(odometry_pose.yaw_rad);
+                object.camera_forward_m = cosine * dx + sine * dy;
+                object.camera_left_m = -sine * dx + cosine * dy;
+                local_objects.push_back(object);
+            }
             std::ostringstream record;
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
                          visual_geometry, lower_fence_count, upper_fence_count,
+                         latest_fence_edges, latest_fence_capture_pose,
                          visual_certain, visual_very_certain, navigation_allowed, imu_yaw_reset,
-                         gyro_bias_radps / kDegreesToRadians, raw_detections, world.objects(), target,
+                         gyro_bias_radps / kDegreesToRadians, raw_detections, world.objects(), local_objects,
+                         target,
                          approach_result,
                          search_result, home_observation, mission_active, mission_state);
             if (options.record_log) log << record.str();

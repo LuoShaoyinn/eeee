@@ -42,6 +42,10 @@ public:
     explicit SearchController(SearchConfig config = {});
     SearchResult update(const Pose2& pose, bool target_visible, Timestamp now, double dt_s,
                         bool navigation_allowed = true);
+    // Explicit recovery path for operator-triggered return-home testing. It
+    // visits the arena center and then the physical home corner without
+    // searching for targets or running the collector.
+    void begin_return_home();
     void reset();
 
 private:
@@ -55,6 +59,7 @@ private:
     Twist2 previous_command_;
     bool center_reached_ = false;
     bool center_search_complete_ = false;
+    bool direct_return_home_ = false;
     bool complete_ = false;
 };
 

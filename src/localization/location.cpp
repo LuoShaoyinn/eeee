@@ -49,6 +49,36 @@ double range_weight(double range_m) {
     const double squared = ratio * ratio;
     return 1.0 / (1.0 + squared * squared);
 }
+
+// Most fence samples should map to an arena or home boundary. Retain a robust
+// inlier score for occlusions, but charge the discarded tail when it lies well
+// away from every mapped boundary. Otherwise a pose can explain one wall while
+// silently ignoring a contradictory wall seen by the camera.
+double map_residual(std::vector<std::pair<double, double>>& distances) {
+    constexpr double kUnexpectedToleranceM = .07;
+    constexpr double kUnexpectedPenalty = .50;
+    const std::size_t keep = std::max<std::size_t>(10, distances.size() * 2 / 3);
+    std::nth_element(distances.begin(), distances.begin() + static_cast<std::ptrdiff_t>(keep),
+                     distances.end(), [](const auto& left, const auto& right) {
+                         return left.first < right.first;
+                     });
+    double inlier_error = 0;
+    double inlier_weight = 0;
+    for (std::size_t index = 0; index < keep; ++index) {
+        inlier_error += distances[index].first * distances[index].second;
+        inlier_weight += distances[index].second;
+    }
+    double unexpected_error = 0;
+    double unexpected_weight = 0;
+    for (std::size_t index = keep; index < distances.size(); ++index) {
+        unexpected_error += std::max(0.0, distances[index].first - kUnexpectedToleranceM) *
+                            distances[index].second;
+        unexpected_weight += distances[index].second;
+    }
+    const double inlier_mean = inlier_error / std::max(inlier_weight, 1e-12);
+    const double unexpected_mean = unexpected_error / std::max(unexpected_weight, 1e-12);
+    return inlier_mean + kUnexpectedPenalty * unexpected_mean;
+}
 }  // namespace
 
 GroundProjector::GroundProjector(cv::Mat camera_matrix, double camera_height_m,
@@ -185,17 +215,7 @@ void FenceParticleFilter::update(const std::vector<cv::Point2d>& observations) {
             distances.push_back({field_wall_distance(x, y),
                                  range_weight(range)});
         }
-        std::sort(distances.begin(), distances.end(), [](const auto& left, const auto& right) {
-            return left.first < right.first;
-        });
-        const size_t keep = std::max<size_t>(10, distances.size() * 2 / 3);
-        double weighted_error = 0;
-        double total_weight = 0;
-        for (size_t index = 0; index < keep; ++index) {
-            weighted_error += distances[index].first * distances[index].second;
-            total_weight += distances[index].second;
-        }
-        const double mean = weighted_error / total_weight;
+        const double mean = map_residual(distances);
         particle.weight *= std::exp(-.5 * mean * mean / (sigma_m * sigma_m));
     }
     const double total = std::accumulate(particles_.begin(), particles_.end(), 0.0,
@@ -365,19 +385,7 @@ VisualGeometryEstimate estimate_fence_geometry(
                     weighted_distances[index] = {field_wall_distance(
                         x + point.x, y + point.y), point.weight};
                 }
-                const std::size_t keep = std::max<std::size_t>(10, weighted_distances.size() * 2 / 3);
-                std::nth_element(weighted_distances.begin(), weighted_distances.begin() +
-                                 static_cast<std::ptrdiff_t>(keep), weighted_distances.end(),
-                                 [](const auto& left, const auto& right) {
-                                     return left.first < right.first;
-                                 });
-                double weighted_error = 0;
-                double total_range_weight = 0;
-                for (std::size_t index = 0; index < keep; ++index) {
-                    weighted_error += weighted_distances[index].first * weighted_distances[index].second;
-                    total_range_weight += weighted_distances[index].second;
-                }
-                const double residual = weighted_error / total_range_weight;
+                const double residual = map_residual(weighted_distances);
                 evaluated.push_back({{x, y, wrap_angle(yaw)}, residual});
             }
         }

@@ -99,8 +99,8 @@ struct RuntimeConfig {
     double search_center_y_m = .9925;
     double search_center_entry_radius_m = .25;
     double search_center_exit_radius_m = .35;
-    double search_home_x_m = .1;
-    double search_home_y_m = .15;
+    double search_home_x_m = .20;
+    double search_home_y_m = .30;
     double search_home_stop_radius_m = .3;
     double search_rotation_speed_radps = .35;
     double search_maximum_linear_mps = .20;

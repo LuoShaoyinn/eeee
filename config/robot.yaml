@@ -22,8 +22,8 @@ localization:
   camera_height_m: 1.2910000000000000e-01
   camera_pitch_deg: 3.0029600000000000e+01
   camera_roll_deg: 2.0710000000000000e-01
-  initial_x_m: 1.0000000000000001e-01
-  initial_y_m: 1.0000000000000001e-01
+  initial_x_m: 3.0000000000000000e-01
+  initial_y_m: 1.
   initial_yaw_deg: 0.
   visual_pull_gain: 1.2000000000000000e-01
   visual_precise_residual_m: 1.0000000000000000e-02
@@ -79,7 +79,7 @@ approach:
   # PID ends when the object contact reaches this robot-relative point;
   # collection then immediately performs the intake dash.
   target_forward_m: .20
-  target_left_m: .10
+  target_left_m: .01
   target_tolerance_m: .06
   alignment_enter_yaw_deg: 30
   alignment_exit_yaw_deg: 60
@@ -106,9 +106,10 @@ search:
   # beyond 0.35 m, preventing pose noise from oscillating translation.
   center_entry_radius_m: .25
   center_exit_radius_m: .35
-  home_x_m: .10
-  home_y_m: .15
-  home_stop_radius_m: .30
+  # The outer, field-facing corner of the 0.20 x 0.30 m home zone.
+  home_x_m: .20
+  home_y_m: .30
+  home_stop_radius_m: .10
   # Search only: turn briskly when no collectible is visible. This does not
   # raise the normal object-approach yaw limit.
   rotation_speed_radps: 1.80

@@ -61,8 +61,8 @@ int main() {
             config.search_center_x_m != 1.5 || config.search_center_y_m != .9925 ||
             config.search_center_entry_radius_m != .25 ||
             config.search_center_exit_radius_m != .35 ||
-            config.search_home_x_m != .10 || config.search_home_y_m != .15 ||
-            config.search_home_stop_radius_m != .30 ||
+            config.search_home_x_m != .20 || config.search_home_y_m != .30 ||
+            config.search_home_stop_radius_m != .10 ||
             config.search_rotation_speed_radps != 1.80 ||
             config.search_maximum_yaw_radps != 2.0) {
             std::cerr << "unexpected search controller configuration\n";

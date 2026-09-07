@@ -306,6 +306,25 @@ int main() {
                      search_result.command.forward_mps == 0,
                  "a target detection re-arms a completed search")) return 1;
 
+    robot::SearchController return_home({.center_x_m = 1.5, .center_y_m = .9925,
+                                         .center_entry_radius_m = .25,
+                                         .home_x_m = .20, .home_y_m = .30,
+                                         .home_stop_radius_m = .10});
+    return_home.begin_return_home();
+    search_result = return_home.update({.x_m = .3, .y_m = 1.0}, true, now, .1);
+    if (!require(search_result.phase == robot::SearchPhase::navigate_center &&
+                     std::hypot(search_result.command.forward_mps,
+                                search_result.command.left_mps) > 0,
+                 "explicit return-home reaches the center before home")) return 1;
+    search_result = return_home.update({.x_m = 1.5, .y_m = .9925}, true, now + 1s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::return_home &&
+                     std::hypot(search_result.command.forward_mps,
+                                search_result.command.left_mps) > 0,
+                 "explicit return-home leaves center directly for the corner")) return 1;
+    search_result = return_home.update({.x_m = .22, .y_m = .27}, true, now + 2s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::complete,
+                 "explicit return-home completes inside the corner radius")) return 1;
+
     robot::DetectionFrame home_frame{
         .timestamp = now,
         .frame_sequence = 8,

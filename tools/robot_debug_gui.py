@@ -27,7 +27,6 @@ class DebugGui:
         self.vx = self.vy = self.wz = 0.0
         self.pose = None
         self.trail = []
-        self.odometry_trail = []
 
         root.title("Robot arena debug")
         root.geometry("1000x720")
@@ -36,6 +35,8 @@ class DebugGui:
         self.auto_button = tk.Button(toolbar, text="Reload + Start", width=13,
                                      command=self.start_auto, bg="#b7d7b0")
         self.auto_button.pack(side=tk.LEFT)
+        tk.Button(toolbar, text="Return Home", width=12, command=self.return_home,
+                  bg="#b9d4ec").pack(side=tk.LEFT, padx=(8, 0))
         tk.Button(toolbar, text="STOP", width=10, command=self.stop_motion,
                   bg="#e8a4a4").pack(side=tk.LEFT, padx=(8, 0))
         tk.Button(toolbar, text="Clear trail", command=self.clear_trail).pack(side=tk.LEFT, padx=8)
@@ -91,6 +92,17 @@ class DebugGui:
         self.auto_button.configure(text="Reload + Start", bg="#b7d7b0")
         self.update_motion_label()
 
+    def return_home(self):
+        try:
+            self.runtime_command("return-home")
+        except Exception as error:
+            self.events.put(("error", "cannot start return-home: {}".format(error)))
+            return
+        self.vx = self.vy = self.wz = 0.0
+        self.auto_running = False
+        self.auto_button.configure(text="Reload + Start", bg="#b7d7b0")
+        self.update_motion_label()
+
     def runtime_command(self, command):
         remote = "cd {} && ./bin/robotctl --socket /tmp/robot-runtime.sock {}".format(
             self.args.remote_dir, command)
@@ -122,7 +134,6 @@ class DebugGui:
 
     def clear_trail(self):
         self.trail.clear()
-        self.odometry_trail.clear()
         self.draw()
 
     def on_key(self, event):
@@ -207,10 +218,6 @@ class DebugGui:
                     if not self.trail or math.dist(point, self.trail[-1]) > 0.005:
                         self.trail.append(point)
                         self.trail = self.trail[-2000:]
-                    odometry = tuple(self.pose.get("odometry_pose", [0, 0, 0])[:2])
-                    if not self.odometry_trail or math.dist(odometry, self.odometry_trail[-1]) > 0.005:
-                        self.odometry_trail.append(odometry)
-                        self.odometry_trail = self.odometry_trail[-2000:]
                     age = self.pose.get("telemetry_age_ms", -1)
                     valid = self.pose.get("telemetry_valid", False)
                     geometry = self.pose.get("visual_geometry", {})
@@ -264,12 +271,6 @@ class DebugGui:
                 px, py, _ = self.transform(*point)
                 coordinates.extend((px, py))
             self.canvas.create_line(*coordinates, fill="#d36f24", width=2)
-        if len(self.odometry_trail) > 1:
-            coordinates = []
-            for point in self.odometry_trail:
-                px, py, _ = self.transform(*point)
-                coordinates.extend((px, py))
-            self.canvas.create_line(*coordinates, fill="#2676c9", width=2, dash=(5, 3))
         if not self.pose:
             self.canvas.create_text((x0 + x1) / 2, (y0 + y1) / 2,
                                     text="Waiting for UDP location on port {}".format(self.args.port))
@@ -290,15 +291,19 @@ class DebugGui:
                                 text="PF ({:.2f}, {:.2f})  {:.1f} deg  sigma {:.2f} m".format(
                                     x_m, y_m, math.degrees(yaw), sigma / scale), anchor="w")
         odom_x, odom_y, odom_yaw = self.pose.get("odometry_pose", [0, 0, 0])
-        opx, opy, _ = self.transform(odom_x, odom_y)
-        self.canvas.create_oval(opx - 6, opy - 6, opx + 6, opy + 6,
-                                fill="#2676c9", outline="#174a7d")
-        self.canvas.create_line(opx, opy, opx + 26 * math.cos(odom_yaw),
-                                opy - 26 * math.sin(odom_yaw), fill="#174a7d", width=2,
-                                arrow=tk.LAST)
-        self.canvas.create_text(opx + 10, opy + 14,
-                                text="wheel+IMU ({:.2f}, {:.2f})".format(odom_x, odom_y),
-                                fill="#174a7d", anchor="w")
+        fence_samples = self.pose.get("fence_samples", {})
+        cosine, sine = math.cos(yaw), math.sin(yaw)
+        for name, colour in (("lower", "#f08b22"), ("upper", "#32c66d")):
+            for sample in fence_samples.get(name, []):
+                if len(sample) < 2:
+                    continue
+                forward_m, left_m = sample[:2]
+                world_x = x_m + cosine * forward_m - sine * left_m
+                world_y = y_m + sine * forward_m + cosine * left_m
+                sample_x, sample_y, _ = self.transform(world_x, world_y)
+                self.canvas.create_oval(sample_x - 2, sample_y - 2,
+                                        sample_x + 2, sample_y + 2,
+                                        fill=colour, outline="")
         home = self.pose.get("home_box", {})
         if home.get("detected", False):
             home_x, home_y = home.get("position", [0, 0])
@@ -352,15 +357,26 @@ class DebugGui:
                 fill="#5f197b", anchor="nw")
         object_colours = ("#d5a000", "#d3342f", "#333333", "#666666")
         object_names = ("cylinder", "cube", "home", "opponent")
-        for item in self.pose.get("objects", []):
+        # The local tracks are the coordinates the approach controller uses:
+        # forward/left from the current camera-centered odometry pose. Draw
+        # them rather than the delayed global detector map.
+        for item in self.pose.get("local_objects", []):
             if len(item) < 4: continue
-            class_id, object_x, object_y, confidence = item
-            opx, opy, _ = self.transform(object_x, object_y)
-            colour = object_colours[int(class_id)]
-            self.canvas.create_oval(opx - 7, opy - 7, opx + 7, opy + 7,
+            class_id, forward_m, left_m, confidence = item
+            class_id = int(class_id)
+            if class_id < 0 or class_id >= len(object_names):
+                continue
+            object_x = odom_x + math.cos(odom_yaw) * forward_m - math.sin(odom_yaw) * left_m
+            object_y = odom_y + math.sin(odom_yaw) * forward_m + math.cos(odom_yaw) * left_m
+            target_x, target_y, _ = self.transform(object_x, object_y)
+            colour = object_colours[class_id]
+            self.canvas.create_line(opx, opy, target_x, target_y,
+                                    fill=colour, width=2, dash=(4, 3))
+            self.canvas.create_oval(target_x - 7, target_y - 7, target_x + 7, target_y + 7,
                                     fill=colour, outline="#111")
-            self.canvas.create_text(opx + 10, opy - 10,
-                                    text="{} {:.0%}".format(object_names[int(class_id)], confidence),
+            self.canvas.create_text(target_x + 10, target_y - 10,
+                                    text="{} F {:+.2f} L {:+.2f} {:.0%}".format(
+                                        object_names[class_id], forward_m, left_m, confidence),
                                     fill=colour, anchor="w")
 
     def close(self):

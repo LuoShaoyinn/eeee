@@ -16,11 +16,47 @@ SearchController::SearchController(SearchConfig config) : config_(config) {}
 
 SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                                       Timestamp now, double dt_s, bool navigation_allowed) {
-    if (target_visible) {
+    if (target_visible && !direct_return_home_) {
         reset();
         return {};
     }
     if (complete_) return {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
+    if (direct_return_home_) {
+        SearchResult result;
+        if (!navigation_allowed) {
+            result.phase = SearchPhase::hold_for_localization;
+        } else {
+            if (!center_reached_ &&
+                std::hypot(pose.x_m - config_.center_x_m, pose.y_m - config_.center_y_m) <=
+                    config_.center_entry_radius_m) {
+                center_reached_ = true;
+            }
+            if (!center_reached_) {
+                result.phase = SearchPhase::navigate_center;
+                result.command = navigate(pose, config_.center_x_m, config_.center_y_m,
+                                          config_.center_entry_radius_m, dt_s);
+            } else {
+            result.phase = SearchPhase::return_home;
+            result.command = navigate(pose, config_.home_x_m, config_.home_y_m,
+                                      config_.home_stop_radius_m, dt_s);
+            if (std::hypot(pose.x_m - config_.home_x_m, pose.y_m - config_.home_y_m) <=
+                config_.home_stop_radius_m) {
+                result = {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
+                complete_ = true;
+            }
+            }
+        }
+        const double linear_step = .4 * std::clamp(dt_s, 0.0, .2);
+        const double yaw_step = 2.5 * std::clamp(dt_s, 0.0, .2);
+        result.command.forward_mps = slew(result.command.forward_mps, previous_command_.forward_mps,
+                                          linear_step);
+        result.command.left_mps = slew(result.command.left_mps, previous_command_.left_mps,
+                                       linear_step);
+        result.command.yaw_radps = slew(result.command.yaw_radps, previous_command_.yaw_radps,
+                                        yaw_step);
+        previous_command_ = result.command;
+        return result;
+    }
     if (lost_since_ == Timestamp{}) lost_since_ = now;
     const double lost = std::chrono::duration<double>(now - lost_since_).count();
     SearchResult result{.command = {}, .phase = SearchPhase::tracking, .lost_seconds = lost};
@@ -108,12 +144,18 @@ Twist2 SearchController::navigate(const Pose2& pose, double x_m, double y_m,
     return command;
 }
 
+void SearchController::begin_return_home() {
+    reset();
+    direct_return_home_ = true;
+}
+
 void SearchController::reset() {
     lost_since_ = {};
     center_search_started_ = {};
     previous_command_ = {};
     center_reached_ = false;
     center_search_complete_ = false;
+    direct_return_home_ = false;
     complete_ = false;
 }
 
