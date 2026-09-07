@@ -93,9 +93,13 @@ For manual control over SSH, run this on the Cubie:
 python3 tools/keyboard_control.py
 ```
 
-`W/S` control forward motion, `A/D` strafe, and `Q/E` rotate. Space stops all
-motion. Escape sends `stop` before exiting. Run the program in a real terminal
-so key handling and emergency-stop behavior remain available.
+`W/S` control forward motion, `A/D` strafe, and `Q/E` rotate. `[`/`]` change
+the S3 target pulse within its operational range; the host slews the commanded
+pulse and `R` releases output while remembering the last active pulse for the
+next adjustment. `H` starts the ESP32-owned collector recovery loop and `J`
+stops it. Space stops all motion. Escape sends `stop` before exiting. Run the
+program in a real terminal so key handling and emergency-stop behavior remain
+available.
 
 ## Localization
 
