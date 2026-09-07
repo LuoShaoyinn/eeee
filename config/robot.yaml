@@ -58,7 +58,9 @@ servo:
   firmware_min_pulse_us: 1550
   firmware_max_pulse_us: 2125
 control:
-  max_linear_mps: 4.5000000000000001e-01
+  # Allows the center/home position controller to use its 0.60 m/s cap.
+  # Object approach has an independent 0.45 m/s cap below.
+  max_linear_mps: 5.9999999999999998e-01
   max_yaw_radps: 2.
   max_linear_accel_mps2: 5.9999999999999998e-01
   max_yaw_accel_radps2: 2.5
@@ -119,7 +121,8 @@ search:
   # Search only: turn briskly when no collectible is visible. This does not
   # raise the normal object-approach yaw limit.
   rotation_speed_radps: 1.80
-  maximum_linear_mps: .20
+  # Closed-loop travel to center and home. Rotation-only search is unaffected.
+  maximum_linear_mps: .60
   maximum_yaw_radps: 2.0
 detector:
   backend: vip_lite
