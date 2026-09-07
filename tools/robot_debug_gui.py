@@ -290,16 +290,18 @@ class DebugGui:
         self.canvas.create_text(px + 12, py - 16,
                                 text="PF ({:.2f}, {:.2f})  {:.1f} deg  sigma {:.2f} m".format(
                                     x_m, y_m, math.degrees(yaw), sigma / scale), anchor="w")
-        odom_x, odom_y, odom_yaw = self.pose.get("odometry_pose", [0, 0, 0])
         fence_samples = self.pose.get("fence_samples", {})
-        cosine, sine = math.cos(yaw), math.sin(yaw)
+        # Fence extraction runs asynchronously. Its samples belong to the PF
+        # pose at image capture, not the current pose received over UDP.
+        edge_x, edge_y, edge_yaw = self.pose.get("fence_capture_pose", [x_m, y_m, yaw])
+        cosine, sine = math.cos(edge_yaw), math.sin(edge_yaw)
         for name, colour in (("lower", "#f08b22"), ("upper", "#32c66d")):
             for sample in fence_samples.get(name, []):
                 if len(sample) < 2:
                     continue
                 forward_m, left_m = sample[:2]
-                world_x = x_m + cosine * forward_m - sine * left_m
-                world_y = y_m + sine * forward_m + cosine * left_m
+                world_x = edge_x + cosine * forward_m - sine * left_m
+                world_y = edge_y + sine * forward_m + cosine * left_m
                 sample_x, sample_y, _ = self.transform(world_x, world_y)
                 self.canvas.create_oval(sample_x - 2, sample_y - 2,
                                         sample_x + 2, sample_y + 2,
@@ -360,6 +362,7 @@ class DebugGui:
         # The local tracks are the coordinates the approach controller uses:
         # forward/left from the current camera-centered odometry pose. Draw
         # them rather than the delayed global detector map.
+        odom_x, odom_y, odom_yaw = self.pose.get("odometry_pose", [0, 0, 0])
         for item in self.pose.get("local_objects", []):
             if len(item) < 4: continue
             class_id, forward_m, left_m, confidence = item

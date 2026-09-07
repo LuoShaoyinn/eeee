@@ -432,6 +432,7 @@ struct FenceRequest {
     std::uint64_t sequence = 0;
     double yaw_prior_rad = 0;
     robot::Pose2 odometry_pose;
+    robot::Pose2 particle_pose;
 };
 
 struct FenceResult {
@@ -441,6 +442,7 @@ struct FenceResult {
     std::vector<cv::Point2d> observations;
     robot::VisualGeometryEstimate geometry;
     robot::Pose2 odometry_pose;
+    robot::Pose2 particle_pose;
 };
 
 FenceEdges fence_edge_points(const cv::Mat& rectified,
@@ -507,6 +509,7 @@ private:
                 result.timestamp = request->timestamp;
                 result.sequence = request->sequence;
                 result.odometry_pose = request->odometry_pose;
+                result.particle_pose = request->particle_pose;
                 result.edges = fence_edge_points(request->frame, projector_, hsv_lower_,
                                                   hsv_upper_, fence_height_m_);
                 result.observations = result.edges.combined();
@@ -1150,8 +1153,12 @@ int main(int argc, char** argv) {
             detector_worker.submit({rectified.clone(), capture_time,
                                     static_cast<std::uint64_t>(frame_count), odometry_pose});
 #endif
+            const robot::PoseEstimate fence_capture_estimate = filter.estimate();
             fence_worker.submit({small.clone(), capture_time, ++fence_request_sequence,
-                                 odometry_pose.yaw_rad, odometry_pose});
+                                 odometry_pose.yaw_rad, odometry_pose,
+                                 {.x_m = fence_capture_estimate.x_m,
+                                  .y_m = fence_capture_estimate.y_m,
+                                  .yaw_rad = fence_capture_estimate.yaw_rad}});
             bool visual_certain = false;
             bool visual_very_certain = false;
             bool imu_yaw_reset = false;
@@ -1160,7 +1167,7 @@ int main(int argc, char** argv) {
                 lower_fence_count = fence_result->edges.lower.size();
                 upper_fence_count = fence_result->edges.upper.size();
                 latest_fence_edges = fence_result->edges;
-                latest_fence_capture_pose = fence_result->odometry_pose;
+                latest_fence_capture_pose = fence_result->particle_pose;
                 // The edge worker returns asynchronously. Carry its camera-frame
                 // points from capture time into the current body frame before
                 // scoring each particle, rather than treating a delayed image as
