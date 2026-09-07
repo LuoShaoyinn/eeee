@@ -74,7 +74,7 @@ struct RuntimeConfig {
     int approach_target_timeout_ms = 300;
 
     std::string detector_backend = "vip_lite";
-    std::string detector_model = "models/official_yolo26n_split_pcq_a733.nb";
+    std::string detector_model = "models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb";
     double detector_inference_hz = 30;
     double detector_confidence = .35;
     double detector_nms = .45;

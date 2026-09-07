@@ -205,6 +205,14 @@ OTA is an explicit maintenance operation and is never called by startup,
 builds, or tests. Its UART format is not authenticated, so use only trusted
 firmware images on the trusted Cubie.
 
+## Calibrated 640x384 YOLO
+
+The A733 detector defaults to the RGB-corrected 640x384 model. The runtime
+projects each detection's lower box centre through the calibrated camera model
+to obtain its relative ground position. `tools/robotvision_bridge.py` provides
+the same projection for the external A733 YOLO executable and only emits
+detections; it never commands actuators.
+
 ## Camera Tools
 
 The Python environment is managed independently from the C++ build:

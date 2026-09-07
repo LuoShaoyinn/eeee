@@ -14,7 +14,7 @@
 
 namespace {
 
-constexpr int kCandidates = 8400;
+constexpr int kCandidates = 5040;
 
 struct Object {
     cv::Rect rect;
