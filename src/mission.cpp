@@ -219,7 +219,8 @@ MissionOutput MissionController::drive_to(const Detection& detection, bool home,
 MissionOutput MissionController::output_for_state() const {
     MissionOutput output;
     output.state = state_;
-    output.collector_percent = state_ == MissionState::dumping || state_ == MissionState::done ||
+    output.collector_percent = state_ == MissionState::initializing || state_ == MissionState::dumping ||
+                                       state_ == MissionState::done ||
                                        state_ == MissionState::fault
                                    ? 0
                                    : config_.collector_percent;
@@ -241,17 +242,10 @@ void MissionController::begin_intake_run(const MissionInput& input) {
 }
 
 MissionOutput MissionController::update(const MissionInput& input) {
-    if (config_.global_home && !config_.object_servo_test &&
-        (!input.pose_valid || !std::isfinite(input.camera_x_m) ||
-         !std::isfinite(input.camera_y_m) || !std::isfinite(input.chassis_yaw_rad))) {
-        state_ = MissionState::fault;
-    }
-    if (!config_.object_servo_test && !input.localization_valid && state_ != MissionState::initializing &&
-        state_ != MissionState::fault) {
-        state_ = MissionState::fault;
-    }
     if (state_ == MissionState::initializing) {
-        if (input.localization_valid || config_.object_servo_test) state_ = MissionState::searching;
+        // Camera-local object acquisition remains available while the
+        // blue-fence filter is warming up or temporarily lost.
+        state_ = MissionState::searching;
         return output_for_state();
     }
     if (state_ == MissionState::fault) {
@@ -411,7 +405,9 @@ MissionOutput MissionController::update(const MissionInput& input) {
     }
 
     if (state_ == MissionState::returning_home || state_ == MissionState::docking_home) {
-        if (config_.global_home) {
+        if (config_.global_home && input.localization_valid && input.pose_valid &&
+            std::isfinite(input.camera_x_m) && std::isfinite(input.camera_y_m) &&
+            std::isfinite(input.chassis_yaw_rad)) {
             const double dx = config_.home_camera_x_m - input.camera_x_m;
             const double dy = config_.home_camera_y_m - input.camera_y_m;
             const double distance = std::hypot(dx, dy);

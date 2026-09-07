@@ -67,11 +67,11 @@ int main() {
     assert(global_output.state == robot::MissionState::done && global_output.servo_pulse_us == 1600);
     robot::MissionController missing_pose(global);
     frame.pose_valid = false;
-    assert(missing_pose.update(frame).emergency_stop);
+    assert(missing_pose.update(frame).state == robot::MissionState::searching);
     frame.pose_valid = true;
     robot::MissionController nan_pose(global);
     frame.camera_x_m = std::numeric_limits<double>::quiet_NaN();
-    assert(nan_pose.update(frame).emergency_stop);
+    assert(nan_pose.update(frame).state == robot::MissionState::searching);
     frame.camera_x_m = 1.0;
     global.home_timeout_s = .15;
     robot::MissionController timeout(global);
@@ -221,5 +221,5 @@ int main() {
     robot::MissionController fault_mission(config);
     (void)fault_mission.update({.localization_valid = true, .detections = {}});
     output = fault_mission.update({.localization_valid = false, .detections = {}});
-    assert(output.state == robot::MissionState::fault && output.emergency_stop);
+    assert(output.state == robot::MissionState::searching && !output.emergency_stop);
 }
