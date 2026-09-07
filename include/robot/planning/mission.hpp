@@ -5,26 +5,20 @@
 namespace robot {
 
 enum class MissionState {
-    boot,
-    self_test,
-    localize,
+    inactive,
     search_target,
+    align_target,
     approach_target,
-    acquire_target,
-    navigate_home,
-    deposit,
-    recover_localization,
+    capture_target,
     safe_stop,
 };
 
 struct MissionInputs {
-    bool hardware_ready = false;
-    bool localized = false;
-    bool target_visible = false;
-    bool target_reached = false;
-    bool target_acquired = false;
-    bool home_reached = false;
-    bool deposit_complete = false;
+    bool target_active = false;
+    bool aligning = false;
+    bool capturing = false;
+    bool capture_complete = false;
+    bool search_complete = false;
     bool fault = false;
 };
 
@@ -32,9 +26,12 @@ class SoloMission {
 public:
     MissionState update(const MissionInputs& inputs);
     MissionState state() const;
+    void start();
+    void stop();
+    void reset();
 
 private:
-    MissionState state_ = MissionState::boot;
+    MissionState state_ = MissionState::inactive;
 };
 
 std::string_view to_string(MissionState state);

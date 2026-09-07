@@ -49,8 +49,12 @@ private:
                     double dt_s);
     SearchConfig config_;
     Timestamp lost_since_{};
+    // The center-search dwell begins only after the chassis reaches the
+    // center region. Travel time and localization holds do not consume it.
+    Timestamp center_search_started_{};
     Twist2 previous_command_;
     bool center_reached_ = false;
+    bool center_search_complete_ = false;
     bool complete_ = false;
 };
 

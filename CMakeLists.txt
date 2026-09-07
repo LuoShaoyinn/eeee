@@ -42,10 +42,12 @@ target_link_libraries(robot_config PUBLIC ${OpenCV_LIBS})
 target_compile_options(robot_config PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(robot_autonomy
+    src/control/command_limits.cpp
     src/control/safety_supervisor.cpp
     src/perception/detections.cpp
     src/perception/object_projection.cpp
     src/planning/approach_controller.cpp
+    src/planning/local_target_tracker.cpp
     src/planning/search_controller.cpp
     src/planning/vehicle_geometry.cpp
     src/planning/mission.cpp

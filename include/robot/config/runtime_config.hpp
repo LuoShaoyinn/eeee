@@ -60,6 +60,9 @@ struct RuntimeConfig {
     double max_yaw_radps = 2;
     double max_linear_accel_mps2 = .6;
     double max_yaw_accel_radps2 = 2.5;
+    double minimum_moving_linear_mps = .10;
+    double minimum_moving_left_mps = 0;
+    double minimum_moving_yaw_radps = .10;
 
     double approach_translation_kp = .75;
     double approach_translation_ki = .04;
@@ -69,6 +72,8 @@ struct RuntimeConfig {
     double approach_lateral_kd = .06;
     double approach_yaw_kp = 1.4;
     double approach_yaw_kd = .08;
+    double approach_alignment_yaw_kp = 1.4;
+    double approach_alignment_yaw_kd = .08;
     double approach_maximum_linear_mps = .28;
     double approach_maximum_yaw_radps = .8;
     double approach_maximum_linear_accel_mps2 = .5;
@@ -76,15 +81,27 @@ struct RuntimeConfig {
     double approach_target_forward_m = .20;
     double approach_target_left_m = .01;
     double approach_target_tolerance_m = .06;
+    double approach_alignment_enter_yaw_deg = 8;
+    double approach_alignment_exit_yaw_deg = 15;
+    double approach_forward_command_deadband_mps = .04;
+    double approach_left_command_deadband_mps = .04;
+    double approach_yaw_command_deadband_radps = .05;
     double approach_capture_finish_distance_m = .30;
     double approach_capture_finish_speed_mps = .22;
     int approach_capture_finish_timeout_ms = 3000;
-    int approach_target_timeout_ms = 300;
+    int approach_alignment_settle_ms = 700;
+    int approach_target_timeout_ms = 3000;
+    double approach_target_measurement_gain = .60;
 
     double search_local_rotate_seconds = 5;
     double search_center_rotate_seconds = 5;
+    double search_center_x_m = 1.5;
+    double search_center_y_m = .9925;
     double search_center_entry_radius_m = .25;
     double search_center_exit_radius_m = .35;
+    double search_home_x_m = .1;
+    double search_home_y_m = .15;
+    double search_home_stop_radius_m = .3;
     double search_rotation_speed_radps = .35;
     double search_maximum_linear_mps = .20;
     double search_maximum_yaw_radps = .6;

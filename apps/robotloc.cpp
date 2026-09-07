@@ -35,9 +35,12 @@
 
 #include "robot/localization/location.hpp"
 #include "robot/config/runtime_config.hpp"
+#include "robot/control/command_limits.hpp"
 #include "robot/runtime/latest_value.hpp"
 #include "robot/perception/object_projection.hpp"
 #include "robot/planning/approach_controller.hpp"
+#include "robot/planning/local_target_tracker.hpp"
+#include "robot/planning/mission.hpp"
 #include "robot/planning/world_model.hpp"
 #include "robot/planning/search_controller.hpp"
 #include "robot/planning/vehicle_geometry.hpp"
@@ -92,6 +95,12 @@ struct Options {
     double visual_axis_max_correction_rad = 30.0 * kDegreesToRadians;
     double visual_axis_max_pull_gain = .80;
     double fence_height_m = .254;
+    double minimum_moving_linear_mps = .10;
+    double minimum_moving_left_mps = 0;
+    double minimum_moving_yaw_radps = .10;
+    double maximum_linear_mps = .45;
+    double maximum_yaw_radps = 2;
+    double target_measurement_gain = .60;
     cv::Scalar fence_hsv_lower{96, 128, 82};
     cv::Scalar fence_hsv_upper{121, 255, 255};
     bool stream_json = false;
@@ -255,11 +264,15 @@ std::string twist_command(const robot::Twist2& command) {
     return output.str();
 }
 
-robot::Twist2 apply_command_dead_zone(robot::Twist2 command) {
-    constexpr double kDeadZone = .10;
-    if (std::abs(command.forward_mps) < kDeadZone) command.forward_mps = 0;
-    if (std::abs(command.left_mps) < kDeadZone) command.left_mps = 0;
-    if (std::abs(command.yaw_radps) < kDeadZone) command.yaw_radps = 0;
+robot::Twist2 apply_command_minimum(robot::Twist2 command, double minimum_forward_mps,
+                                    double minimum_left_mps, double minimum_yaw_radps) {
+    const auto enforce_minimum = [](double value, double minimum) {
+        if (value == 0) return 0.0;
+        return std::copysign(std::max(std::abs(value), minimum), value);
+    };
+    command.forward_mps = enforce_minimum(command.forward_mps, minimum_forward_mps);
+    command.left_mps = enforce_minimum(command.left_mps, minimum_left_mps);
+    command.yaw_radps = enforce_minimum(command.yaw_radps, minimum_yaw_radps);
     return command;
 }
 
@@ -515,7 +528,17 @@ private:
 };
 
 #ifdef ROBOT_A733_NPU
-struct DetectorRequest { cv::Mat frame; robot::Timestamp timestamp; std::uint64_t sequence; };
+struct DetectorRequest {
+    cv::Mat frame;
+    robot::Timestamp timestamp;
+    std::uint64_t sequence;
+    robot::Pose2 odometry_pose;
+};
+
+struct DetectorResult {
+    robot::DetectionFrame frame;
+    robot::Pose2 odometry_pose;
+};
 
 class DetectorWorker {
 public:
@@ -524,14 +547,15 @@ public:
     ~DetectorWorker() { stopping_ = true; if (thread_.joinable()) thread_.join(); }
     void start() { thread_ = std::thread(&DetectorWorker::run, this); }
     void submit(DetectorRequest request) { requests_.publish(std::move(request)); }
-    std::optional<robot::DetectionFrame> take() { return results_.take(); }
+    std::optional<DetectorResult> take() { return results_.take(); }
 private:
     void run() {
         auto next = std::chrono::steady_clock::now();
         while (!stopping_) {
             if (auto request = requests_.take()) {
-                results_.publish(detector_->detect(request->frame, request->timestamp,
-                                                   request->sequence));
+                results_.publish({.frame = detector_->detect(request->frame, request->timestamp,
+                                                              request->sequence),
+                                  .odometry_pose = request->odometry_pose});
             }
             next += std::chrono::duration_cast<std::chrono::steady_clock::duration>(period_);
             std::this_thread::sleep_until(next);
@@ -540,7 +564,7 @@ private:
     std::unique_ptr<robot::Detector> detector_;
     std::chrono::duration<double> period_;
     robot::LatestValue<DetectorRequest> requests_;
-    robot::LatestValue<robot::DetectionFrame> results_;
+    robot::LatestValue<DetectorResult> results_;
     std::atomic_bool stopping_{false};
     std::thread thread_;
 };
@@ -602,6 +626,12 @@ Options parse_options(int argc, char** argv) {
         config.visual_axis_max_correction_deg * kDegreesToRadians;
     options.visual_axis_max_pull_gain = config.visual_axis_max_pull_gain;
     options.fence_height_m = config.fence_height_m;
+    options.minimum_moving_linear_mps = config.minimum_moving_linear_mps;
+    options.minimum_moving_left_mps = config.minimum_moving_left_mps;
+    options.minimum_moving_yaw_radps = config.minimum_moving_yaw_radps;
+    options.maximum_linear_mps = config.max_linear_mps;
+    options.maximum_yaw_radps = config.max_yaw_radps;
+    options.target_measurement_gain = config.approach_target_measurement_gain;
     options.fence_hsv_lower = cv::Scalar(config.fence_hsv_h_min, config.fence_hsv_s_min,
                                          config.fence_hsv_v_min);
     options.fence_hsv_upper = cv::Scalar(config.fence_hsv_h_max, config.fence_hsv_s_max,
@@ -619,6 +649,8 @@ Options parse_options(int argc, char** argv) {
     options.approach.lateral_kd = config.approach_lateral_kd;
     options.approach.yaw_kp = config.approach_yaw_kp;
     options.approach.yaw_kd = config.approach_yaw_kd;
+    options.approach.alignment_yaw_kp = config.approach_alignment_yaw_kp;
+    options.approach.alignment_yaw_kd = config.approach_alignment_yaw_kd;
     options.approach.maximum_linear_mps = config.approach_maximum_linear_mps;
     options.approach.maximum_yaw_radps = config.approach_maximum_yaw_radps;
     options.approach.maximum_linear_accel_mps2 = config.approach_maximum_linear_accel_mps2;
@@ -626,15 +658,31 @@ Options parse_options(int argc, char** argv) {
     options.approach.target_forward_m = config.approach_target_forward_m;
     options.approach.target_left_m = config.approach_target_left_m;
     options.approach.target_tolerance_m = config.approach_target_tolerance_m;
+    options.approach.alignment_enter_yaw_rad =
+        config.approach_alignment_enter_yaw_deg * kDegreesToRadians;
+    options.approach.alignment_exit_yaw_rad =
+        config.approach_alignment_exit_yaw_deg * kDegreesToRadians;
+    options.approach.forward_command_deadband_mps =
+        config.approach_forward_command_deadband_mps;
+    options.approach.left_command_deadband_mps = config.approach_left_command_deadband_mps;
+    options.approach.yaw_command_deadband_radps =
+        config.approach_yaw_command_deadband_radps;
     options.approach.capture_finish_distance_m = config.approach_capture_finish_distance_m;
     options.approach.capture_finish_speed_mps = config.approach_capture_finish_speed_mps;
     options.approach.capture_finish_timeout =
         std::chrono::milliseconds(config.approach_capture_finish_timeout_ms);
+    options.approach.alignment_settle =
+        std::chrono::milliseconds(config.approach_alignment_settle_ms);
     options.approach.target_timeout = std::chrono::milliseconds(config.approach_target_timeout_ms);
     options.search.local_rotate_seconds = config.search_local_rotate_seconds;
     options.search.center_search_seconds = config.search_center_rotate_seconds;
+    options.search.center_x_m = config.search_center_x_m;
+    options.search.center_y_m = config.search_center_y_m;
     options.search.center_entry_radius_m = config.search_center_entry_radius_m;
     options.search.center_exit_radius_m = config.search_center_exit_radius_m;
+    options.search.home_x_m = config.search_home_x_m;
+    options.search.home_y_m = config.search_home_y_m;
+    options.search.home_stop_radius_m = config.search_home_stop_radius_m;
     options.search.rotation_speed_radps = config.search_rotation_speed_radps;
     options.search.maximum_linear_mps = config.search_maximum_linear_mps;
     options.search.maximum_yaw_radps = config.search_maximum_yaw_radps;
@@ -717,9 +765,11 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   bool imu_yaw_reset, double gyro_bias_degps,
                   const std::vector<robot::Detection>& raw_detections,
                   const std::vector<robot::TrackedObject>& objects,
+                  const std::optional<robot::TrackedObject>& local_target,
                   const robot::ApproachResult& approach,
                   const robot::SearchResult& search,
-                  const robot::HomeObservation& home, bool mission_active) {
+                  const robot::HomeObservation& home, bool mission_active,
+                  robot::MissionState mission_state) {
     log << std::fixed << std::setprecision(6)
         << "{\"frame_index\":" << frame_index << ",\"monotonic_ns\":" << time_ns
         << ",\"telemetry_valid\":" << (telemetry_valid ? "true" : "false")
@@ -757,6 +807,7 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"visual_very_certain\":" << (visual_very_certain ? "true" : "false")
         << ",\"navigation_allowed\":" << (navigation_allowed ? "true" : "false")
         << ",\"mission_active\":" << (mission_active ? "true" : "false")
+        << ",\"mission_phase\":\"" << robot::to_string(mission_state) << "\""
         << ",\"imu_yaw_reset\":" << (imu_yaw_reset ? "true" : "false")
         << ",\"gyro_bias_degps\":" << gyro_bias_degps
         << ",\"visual_geometry_candidates\":[";
@@ -783,14 +834,23 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
             << objects[index].x_m << ',' << objects[index].y_m << ','
             << objects[index].confidence << ']';
     }
-    log << "],\"home_box\":{\"detected\":" << (home.detected ? "true" : "false")
+    log << "],\"local_target\":";
+    if (local_target) {
+        log << '[' << static_cast<int>(local_target->object_class) << ','
+            << local_target->camera_forward_m << ',' << local_target->camera_left_m << ','
+            << local_target->confidence << ']';
+    } else {
+        log << "null";
+    }
+    log << ",\"home_box\":{\"detected\":" << (home.detected ? "true" : "false")
         << ",\"consistent\":" << (home.consistent ? "true" : "false")
         << ",\"position\":[" << home.x_m << ',' << home.y_m << "]"
         << ",\"error_m\":" << home.distance_to_home_m
         << ",\"confidence\":" << home.confidence << '}'
         << ",\"auto_proposal\":{\"valid\":" << (approach.target_valid ? "true" : "false")
         << ",\"reached\":" << (approach.target_reached ? "true" : "false")
-        << ",\"phase\":\"" << robot::to_string(search.phase) << "\""
+        << ",\"capture_eligible\":" << (approach.capture_eligible ? "true" : "false")
+        << ",\"phase\":\"" << (approach.aligning ? "align_target" : robot::to_string(search.phase)) << "\""
         << ",\"lost_seconds\":" << search.lost_seconds
         << ",\"distance_m\":" << approach.distance_m << ",\"twist\":["
         << approach.command.forward_mps << ',' << approach.command.left_mps << ','
@@ -885,11 +945,15 @@ int main(int argc, char** argv) {
         std::size_t lower_fence_count = 0;
         std::size_t upper_fence_count = 0;
         robot::WorldModel world;
+        robot::LocalTargetTracker local_target_tracker(
+            {.memory = options.approach.target_timeout,
+             .measurement_gain = options.target_measurement_gain});
         std::vector<robot::Detection> raw_detections;
         robot::ApproachController approach_controller(options.approach);
         robot::ApproachResult approach_result;
         robot::SearchController search_controller(options.search);
         robot::SearchResult search_result;
+        robot::SoloMission mission;
         robot::HomeObservation home_observation;
         std::unique_ptr<RuntimeControlServer> control_server;
         if (options.telemetry_replay_path.empty()) {
@@ -897,11 +961,8 @@ int main(int argc, char** argv) {
         }
         bool mission_active = false;
         bool runtime_has_command = false;
-        // Once an approach starts, preserve the closest selected target. A
-        // momentary duplicate/false detection must not make the chassis chase
-        // a different object on the next NPU frame.
-        std::optional<std::uint64_t> locked_collectible_id;
-        std::optional<robot::Timestamp> last_navigation_ready;
+        robot::Twist2 last_approach_command;
+        robot::Timestamp last_approach_command_at{};
 #ifdef ROBOT_A733_NPU
         DetectorWorker detector_worker(robot::make_a733_detector(options.detector_model),
                                        options.detector_hz);
@@ -916,11 +977,15 @@ int main(int argc, char** argv) {
                     std::string response;
                     if (request->command == "start") {
                         mission_active = true;
+                        mission.reset();
+                        mission.start();
                         runtime_has_command = false;
+                        last_approach_command = {};
+                        last_approach_command_at = {};
                         approach_controller.reset();
                         search_controller.reset();
                         world.replace_objects({});
-                        locked_collectible_id.reset();
+                        local_target_tracker.reset();
                         try {
                             (void)request_robotd(options.socket, "stop");
                             response = "ok mission active; " + request_robotd(options.socket, "collector start");
@@ -929,10 +994,13 @@ int main(int argc, char** argv) {
                         }
                     } else if (request->command == "stop") {
                         mission_active = false;
+                        mission.stop();
                         runtime_has_command = false;
+                        last_approach_command = {};
+                        last_approach_command_at = {};
                         approach_controller.reset();
                         search_controller.reset();
-                        locked_collectible_id.reset();
+                        local_target_tracker.reset();
                         try {
                             response = "ok mission inactive; " + request_robotd(options.socket, "stop");
                         } catch (const std::exception& error) {
@@ -964,10 +1032,6 @@ int main(int argc, char** argv) {
             else cv::remap(raw, rectified, map_x, map_y, cv::INTER_LINEAR);
             if (options.record_raw_video) raw_video.write(raw);
             if (options.record_video) video.write(rectified);
-#ifdef ROBOT_A733_NPU
-            detector_worker.submit({rectified.clone(), capture_time,
-                                    static_cast<std::uint64_t>(frame_count)});
-#endif
             cv::resize(rectified, small, cv::Size(options.visual_width, options.visual_height), 0, 0, cv::INTER_AREA);
             cv::cvtColor(small, gray, cv::COLOR_BGR2GRAY);
             const double dt_s = std::chrono::duration<double>(capture_time - previous_time).count();
@@ -1024,6 +1088,13 @@ int main(int argc, char** argv) {
                                   std::cos(midpoint_yaw) * prediction.left_mps) * prediction_dt;
             odometry_pose.yaw_rad += prediction.yaw_radps * prediction_dt;
             filter.predict(prediction, prediction_dt);
+#ifdef ROBOT_A733_NPU
+            // Preserve the odometry pose from image capture. NPU inference is
+            // asynchronous, and using the later pose shifts detections during
+            // a search rotation by the detector latency times the yaw rate.
+            detector_worker.submit({rectified.clone(), capture_time,
+                                    static_cast<std::uint64_t>(frame_count), odometry_pose});
+#endif
             fence_worker.submit({small.clone(), capture_time, ++fence_request_sequence,
                                  odometry_pose.yaw_rad, odometry_pose});
             bool visual_certain = false;
@@ -1067,15 +1138,21 @@ int main(int argc, char** argv) {
                         std::min(visual_geometry.axis_certainty[0],
                                  visual_geometry.axis_certainty[1]) >= .80 &&
                         visual_geometry.axis_certainty[2] >= .85;
-                    if (visual_certain) last_navigation_ready = capture_time;
+                    const bool visual_xy_very_certain =
+                        visual_geometry.axis_certainty[0] >= .80 &&
+                        visual_geometry.axis_certainty[1] >= .80;
+                    auto correction_certainty = visual_geometry.axis_certainty;
+                    // A partially observed position must not steer heading.
+                    if (!visual_xy_very_certain) correction_certainty[2] = 0;
                     filter.correct_toward_axes(
-                        current_candidate, visual_geometry.axis_certainty,
+                        current_candidate, correction_certainty,
                         options.visual_pull_gain, options.visual_axis_max_pull_gain,
                         options.visual_axis_max_correction_m,
                         options.visual_axis_max_correction_rad);
                     const double yaw_error = std::remainder(
                         current_candidate.yaw_rad - odometry_pose.yaw_rad, 2.0 * CV_PI);
-                    if (precise && visual_geometry.axis_certainty[2] >= .90 &&
+                    if (visual_xy_very_certain && precise &&
+                        visual_geometry.axis_certainty[2] >= .90 &&
                         std::abs(yaw_error) <= options.visual_yaw_reset_max_error_rad) {
                         // The IMU supplies only relative yaw rate; reset the
                         // integrated heading reference, not the sensor itself.
@@ -1102,53 +1179,38 @@ int main(int argc, char** argv) {
                 }
             }
             const robot::PoseEstimate pose = filter.estimate();
-            const bool navigation_allowed =
-                last_navigation_ready && capture_time >= *last_navigation_ready &&
-                capture_time - *last_navigation_ready <= std::chrono::milliseconds(1500) &&
-                pose.position_sigma_m <= .25;
+            // Center/home travel is driven by the fused particle-filter pose.
+            // Requiring a very recent, high-certainty single fence update made
+            // navigation flicker off even while the filter reported a stable
+            // 0.13-0.18 m position estimate, leaving search to rotate in place.
+            const bool navigation_allowed = pose.position_sigma_m <= .25;
 #ifdef ROBOT_A733_NPU
             if (auto detections = detector_worker.take()) {
-                raw_detections = detections->detections;
+                raw_detections = detections->frame.detections;
                 home_observation = robot::check_home_box(
-                    *detections, object_projector,
+                    detections->frame, object_projector,
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
-                world.update_objects(robot::project_collectibles(
-                    *detections, object_projector,
-                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad}),
-                    capture_time);
+                auto observations = robot::project_collectibles(
+                    detections->frame, object_projector,
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
+                world.update_objects(observations, detections->frame.timestamp);
+                local_target_tracker.observe(observations, detections->odometry_pose,
+                                             detections->frame.timestamp);
             }
 #endif
-            auto target = locked_collectible_id
-                ? world.collectible_by_id(*locked_collectible_id)
-                : world.nearest_collectible(
-                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
-            if (target && !locked_collectible_id) locked_collectible_id = target->id;
-            if (target && capture_time - target->last_seen > options.approach.target_timeout) {
-                target.reset();
-                locked_collectible_id.reset();
+            // The selected target remains in local wheel/IMU coordinates while
+            // approaching. Other tracks remain available until capture ends.
+            auto target = local_target_tracker.target(odometry_pose, capture_time);
+            if (!target && mission.state() == robot::MissionState::search_target) {
+                target = local_target_tracker.acquire_nearest(odometry_pose, capture_time);
             }
-            // A fresh object observation is projected from this same camera pose.
-            // Its robot-relative approach vector remains useful even when fence
-            // geometry leaves one global position axis unobservable.  Reserve
-            // navigation_allowed for blind center/home search only.
             if (target) {
                 search_result = search_controller.update(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                     true, capture_time, std::min(dt_s, .2));
-                // Target selection belongs in the arena frame, but the last
-                // camera contact projection is the stable control error. Do
-                // not let a particle-filter correction rotate/translate the
-                // target error below the camera between detector frames.
-                robot::TrackedObject camera_target = *target;
-                const double cosine = std::cos(odometry_pose.yaw_rad);
-                const double sine = std::sin(odometry_pose.yaw_rad);
-                camera_target.x_m = odometry_pose.x_m + cosine * target->camera_forward_m -
-                                    sine * target->camera_left_m;
-                camera_target.y_m = odometry_pose.y_m + sine * target->camera_forward_m +
-                                    cosine * target->camera_left_m;
                 approach_result = approach_controller.update(
                     odometry_pose,
-                    camera_target, capture_time, std::min(dt_s, .2));
+                    *target, capture_time, std::min(dt_s, .2));
             } else {
                 approach_result = approach_controller.continue_capture(
                     // The capture pass is a commanded chassis-relative distance.
@@ -1161,7 +1223,6 @@ int main(int argc, char** argv) {
                         {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                         true, capture_time, std::min(dt_s, .2));
                 } else {
-                    locked_collectible_id.reset();
                     approach_controller.reset();
                     search_result = search_controller.update(
                         {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
@@ -1171,25 +1232,69 @@ int main(int argc, char** argv) {
                                        .target_reached = search_result.phase == robot::SearchPhase::complete};
                 }
             }
+            const robot::MissionState mission_state = mission.update({
+                .target_active = target.has_value(),
+                .aligning = approach_result.aligning,
+                .capturing = approach_result.capturing,
+                .capture_complete = approach_result.target_reached,
+                .search_complete = search_result.phase == robot::SearchPhase::complete,
+            });
+            if (approach_result.target_reached) {
+                // Remove and temporarily suppress only the collected object.
+                // Remaining tracks are static objects in the same local
+                // odometry frame and are valid candidates after the scan.
+                local_target_tracker.mark_collected(capture_time);
+                world.replace_objects({});
+                approach_controller.reset();
+                search_controller.reset();
+            }
             if (mission_active) {
                 try {
-                    if (!telemetry_valid || search_result.phase == robot::SearchPhase::complete) {
+                    if (!telemetry_valid || mission_state == robot::MissionState::safe_stop) {
                         mission_active = false;
+                        mission.stop();
                         runtime_has_command = false;
-                        locked_collectible_id.reset();
+                        last_approach_command = {};
+                        last_approach_command_at = {};
+                        local_target_tracker.reset();
                         (void)request_robotd(options.socket, "stop");
                     } else {
-                        const robot::Twist2 command = apply_command_dead_zone(
+                        robot::Twist2 requested =
                             approach_result.target_valid && !approach_result.target_reached
-                                ? approach_result.command : robot::Twist2{});
+                                ? approach_result.command : robot::Twist2{};
+                        const bool pid_approach =
+                            mission_state == robot::MissionState::approach_target && target.has_value() &&
+                            !approach_result.capturing;
+                        const bool requested_stop = requested.forward_mps == 0 &&
+                                                    requested.left_mps == 0 &&
+                                                    requested.yaw_radps == 0;
+                        if (pid_approach && requested_stop &&
+                            last_approach_command_at != robot::Timestamp{} &&
+                            capture_time >= last_approach_command_at &&
+                            capture_time - last_approach_command_at <= std::chrono::milliseconds(250)) {
+                            // A single detector/PID deadband frame must not brake every wheel.
+                            requested = last_approach_command;
+                        } else if (pid_approach && !requested_stop) {
+                            last_approach_command = requested;
+                            last_approach_command_at = capture_time;
+                        } else if (!pid_approach) {
+                            last_approach_command = {};
+                            last_approach_command_at = {};
+                        }
+                        const robot::Twist2 command = robot::clamp_twist(apply_command_minimum(requested,
+                            options.minimum_moving_linear_mps,
+                            options.minimum_moving_left_mps,
+                            options.minimum_moving_yaw_radps),
+                            options.maximum_linear_mps, options.maximum_yaw_radps);
                         (void)request_robotd(options.socket, twist_command(command));
                         runtime_has_command = true;
-                        if (approach_result.target_reached) locked_collectible_id.reset();
                     }
                 } catch (const std::exception& error) {
-                    std::cerr << "robot-runtime: command transport failed; disarming: "
+                    // An envelope rejection must not end the mission. The next
+                    // control frame retries the clamped command. If UART is
+                    // unavailable, robotd's heartbeat still stops the chassis.
+                    std::cerr << "robot-runtime: command transport failed; retaining mission: "
                               << error.what() << '\n';
-                    mission_active = false;
                     runtime_has_command = false;
                 }
             }
@@ -1199,8 +1304,9 @@ int main(int argc, char** argv) {
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
                          visual_geometry, lower_fence_count, upper_fence_count,
                          visual_certain, visual_very_certain, navigation_allowed, imu_yaw_reset,
-                         gyro_bias_radps / kDegreesToRadians, raw_detections, world.objects(), approach_result,
-                         search_result, home_observation, mission_active);
+                         gyro_bias_radps / kDegreesToRadians, raw_detections, world.objects(), target,
+                         approach_result,
+                         search_result, home_observation, mission_active, mission_state);
             if (options.record_log) log << record.str();
             if (options.stream_json) { std::cout << record.str(); std::cout.flush(); }
             broadcaster.send(record.str());

@@ -23,6 +23,12 @@ int main() {
             std::cerr << "unexpected debug UDP configuration\n";
             return 1;
         }
+        if (config.minimum_moving_linear_mps != .10 ||
+            config.minimum_moving_left_mps != 0 ||
+            config.minimum_moving_yaw_radps != 0) {
+            std::cerr << "unexpected minimum motion commands\n";
+            return 1;
+        }
         if (config.fence_hsv_h_min != 96 || config.fence_hsv_h_max != 121 ||
             config.fence_hsv_s_min != 128 || config.fence_hsv_v_min != 82) {
             std::cerr << "unexpected blue-fence HSV profile\n";
@@ -35,19 +41,28 @@ int main() {
             std::cerr << "unexpected visual correction limits\n";
             return 1;
         }
-        if (config.approach_translation_kp != 1. || config.approach_lateral_kp != 1.5 ||
-            config.approach_yaw_kp != 2.4 || config.approach_target_forward_m != .20 ||
+        if (config.approach_translation_kp != 3. || config.approach_lateral_kp != 2. ||
+            config.approach_yaw_kp != 2.4 || config.approach_alignment_yaw_kp != 2.4 ||
+            config.approach_alignment_yaw_kd != 1. ||
+            config.approach_alignment_settle_ms != 0 ||
+            config.approach_alignment_enter_yaw_deg != 30 ||
+            config.approach_alignment_exit_yaw_deg != 60 ||
+            config.approach_target_forward_m != .20 ||
             config.approach_target_left_m != .01 || config.approach_target_tolerance_m != .06 ||
             config.approach_maximum_linear_mps != .45 ||
             config.approach_capture_finish_distance_m != .30 ||
-            config.approach_target_timeout_ms != 300) {
+            config.approach_target_timeout_ms != 3000 ||
+            config.approach_target_measurement_gain != .60) {
             std::cerr << "unexpected approach controller configuration\n";
             return 1;
         }
         if (config.search_local_rotate_seconds != 10.0 ||
             config.search_center_rotate_seconds != 10.0 ||
+            config.search_center_x_m != 1.5 || config.search_center_y_m != .9925 ||
             config.search_center_entry_radius_m != .25 ||
             config.search_center_exit_radius_m != .35 ||
+            config.search_home_x_m != .10 || config.search_home_y_m != .15 ||
+            config.search_home_stop_radius_m != .30 ||
             config.search_rotation_speed_radps != 1.80 ||
             config.search_maximum_yaw_radps != 2.0) {
             std::cerr << "unexpected search controller configuration\n";

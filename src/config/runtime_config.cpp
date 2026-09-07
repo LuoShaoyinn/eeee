@@ -29,23 +29,46 @@ void validate(const RuntimeConfig& config) {
         config.initial_y_m < 0 || config.initial_y_m > config.arena_width_m) {
         throw std::runtime_error("configured initial pose lies outside the arena");
     }
+    if (config.minimum_moving_linear_mps < 0 ||
+        config.minimum_moving_linear_mps > config.max_linear_mps ||
+        config.minimum_moving_left_mps < 0 ||
+        config.minimum_moving_left_mps > config.max_linear_mps ||
+        config.minimum_moving_yaw_radps < 0 ||
+        config.minimum_moving_yaw_radps > config.max_yaw_radps) {
+        throw std::runtime_error("minimum motion command exceeds control limits");
+    }
     if (config.approach_translation_kp < 0 || config.approach_translation_ki < 0 ||
         config.approach_translation_kd < 0 || config.approach_lateral_kp < 0 ||
         config.approach_lateral_ki < 0 || config.approach_lateral_kd < 0 ||
-        config.approach_yaw_kp < 0 ||
-        config.approach_yaw_kd < 0 || config.approach_maximum_linear_mps <= 0 ||
+        config.approach_yaw_kp < 0 || config.approach_yaw_kd < 0 ||
+        config.approach_alignment_yaw_kp < 0 ||
+        config.approach_alignment_yaw_kd < 0 || config.approach_maximum_linear_mps <= 0 ||
         config.approach_maximum_yaw_radps <= 0 ||
         config.approach_maximum_linear_accel_mps2 <= 0 ||
         config.approach_maximum_yaw_accel_radps2 <= 0 ||
         config.approach_target_forward_m <= 0 || config.approach_target_tolerance_m <= 0 ||
+        config.approach_alignment_enter_yaw_deg <= 0 ||
+        config.approach_alignment_exit_yaw_deg < config.approach_alignment_enter_yaw_deg ||
+        config.approach_alignment_exit_yaw_deg > 180 ||
+        config.approach_forward_command_deadband_mps < 0 ||
+        config.approach_left_command_deadband_mps < 0 ||
+        config.approach_yaw_command_deadband_radps < 0 ||
         config.approach_capture_finish_distance_m <= 0 ||
         config.approach_capture_finish_speed_mps <= 0 || config.approach_capture_finish_timeout_ms <= 0 ||
-        config.approach_target_timeout_ms <= 0) {
+        config.approach_alignment_settle_ms < 0 ||
+        config.approach_target_timeout_ms <= 0 ||
+        config.approach_target_measurement_gain <= 0 ||
+        config.approach_target_measurement_gain > 1) {
         throw std::runtime_error("approach controller configuration is invalid");
     }
     if (config.search_local_rotate_seconds < 0 || config.search_center_rotate_seconds <= 0 ||
+        config.search_center_x_m < 0 || config.search_center_x_m > config.arena_length_m ||
+        config.search_center_y_m < 0 || config.search_center_y_m > config.arena_width_m ||
         config.search_center_entry_radius_m <= 0 ||
         config.search_center_exit_radius_m < config.search_center_entry_radius_m ||
+        config.search_home_x_m < 0 || config.search_home_x_m > config.arena_length_m ||
+        config.search_home_y_m < 0 || config.search_home_y_m > config.arena_width_m ||
+        config.search_home_stop_radius_m <= 0 ||
         config.search_rotation_speed_radps <= 0 || config.search_maximum_linear_mps <= 0 ||
         config.search_maximum_yaw_radps <= 0) {
         throw std::runtime_error("search controller configuration is invalid");
@@ -137,6 +160,9 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(control, "max_yaw_radps", config.max_yaw_radps);
     read(control, "max_linear_accel_mps2", config.max_linear_accel_mps2);
     read(control, "max_yaw_accel_radps2", config.max_yaw_accel_radps2);
+    read(control, "minimum_moving_linear_mps", config.minimum_moving_linear_mps);
+    read(control, "minimum_moving_left_mps", config.minimum_moving_left_mps);
+    read(control, "minimum_moving_yaw_radps", config.minimum_moving_yaw_radps);
     const cv::FileNode approach = file["approach"];
     read(approach, "translation_kp", config.approach_translation_kp);
     read(approach, "translation_ki", config.approach_translation_ki);
@@ -146,6 +172,8 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(approach, "lateral_kd", config.approach_lateral_kd);
     read(approach, "yaw_kp", config.approach_yaw_kp);
     read(approach, "yaw_kd", config.approach_yaw_kd);
+    read(approach, "alignment_yaw_kp", config.approach_alignment_yaw_kp);
+    read(approach, "alignment_yaw_kd", config.approach_alignment_yaw_kd);
     read(approach, "maximum_linear_mps", config.approach_maximum_linear_mps);
     read(approach, "maximum_yaw_radps", config.approach_maximum_yaw_radps);
     read(approach, "maximum_linear_accel_mps2", config.approach_maximum_linear_accel_mps2);
@@ -153,15 +181,27 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(approach, "target_forward_m", config.approach_target_forward_m);
     read(approach, "target_left_m", config.approach_target_left_m);
     read(approach, "target_tolerance_m", config.approach_target_tolerance_m);
+    read(approach, "alignment_enter_yaw_deg", config.approach_alignment_enter_yaw_deg);
+    read(approach, "alignment_exit_yaw_deg", config.approach_alignment_exit_yaw_deg);
+    read(approach, "forward_command_deadband_mps", config.approach_forward_command_deadband_mps);
+    read(approach, "left_command_deadband_mps", config.approach_left_command_deadband_mps);
+    read(approach, "yaw_command_deadband_radps", config.approach_yaw_command_deadband_radps);
     read(approach, "capture_finish_distance_m", config.approach_capture_finish_distance_m);
     read(approach, "capture_finish_speed_mps", config.approach_capture_finish_speed_mps);
     read(approach, "capture_finish_timeout_ms", config.approach_capture_finish_timeout_ms);
+    read(approach, "alignment_settle_ms", config.approach_alignment_settle_ms);
     read(approach, "target_timeout_ms", config.approach_target_timeout_ms);
+    read(approach, "target_measurement_gain", config.approach_target_measurement_gain);
     const cv::FileNode search = file["search"];
     read(search, "local_rotate_seconds", config.search_local_rotate_seconds);
     read(search, "center_rotate_seconds", config.search_center_rotate_seconds);
+    read(search, "center_x_m", config.search_center_x_m);
+    read(search, "center_y_m", config.search_center_y_m);
     read(search, "center_entry_radius_m", config.search_center_entry_radius_m);
     read(search, "center_exit_radius_m", config.search_center_exit_radius_m);
+    read(search, "home_x_m", config.search_home_x_m);
+    read(search, "home_y_m", config.search_home_y_m);
+    read(search, "home_stop_radius_m", config.search_home_stop_radius_m);
     read(search, "rotation_speed_radps", config.search_rotation_speed_radps);
     read(search, "maximum_linear_mps", config.search_maximum_linear_mps);
     read(search, "maximum_yaw_radps", config.search_maximum_yaw_radps);

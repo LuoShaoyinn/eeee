@@ -1,10 +1,13 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <limits>
 
 #include "robot/control/safety_supervisor.hpp"
+#include "robot/control/command_limits.hpp"
 #include "robot/perception/object_projection.hpp"
 #include "robot/planning/approach_controller.hpp"
+#include "robot/planning/local_target_tracker.hpp"
 #include "robot/planning/mission.hpp"
 #include "robot/planning/search_controller.hpp"
 #include "robot/planning/world_model.hpp"
@@ -29,6 +32,21 @@ int main() {
     if (!require(result.limited, "overspeed command is limited") ||
         !require(result.command.forward_mps == .45, "linear speed clamp") ||
         !require(result.command.yaw_radps == 2.0, "yaw speed clamp")) return 1;
+    const robot::Twist2 transport_limited = robot::clamp_twist({.forward_mps = .8,
+                                                                  .left_mps = -.6,
+                                                                  .yaw_radps = 3},
+                                                                 .45, 2);
+    if (!require(std::abs(std::hypot(transport_limited.forward_mps,
+                                     transport_limited.left_mps) - .45) < 1e-9,
+                 "transport clamp preserves the calibrated linear envelope") ||
+        !require(transport_limited.yaw_radps == 2,
+                 "transport clamp preserves the calibrated yaw envelope")) return 1;
+    const robot::Twist2 invalid_transport = robot::clamp_twist(
+        {.forward_mps = std::numeric_limits<double>::quiet_NaN(), .left_mps = 0,
+         .yaw_radps = 0}, .45, 2);
+    if (!require(invalid_transport.forward_mps == 0 && invalid_transport.left_mps == 0 &&
+                     invalid_transport.yaw_radps == 0,
+                 "non-finite transport command becomes a safe stop")) return 1;
     result = safety.evaluate({.1, 0, 0}, localization, now + 301ms, false);
     if (!require(result.stopped, "stale localization stops motion")) return 1;
 
@@ -39,16 +57,17 @@ int main() {
     if (!require(approach_result.target_valid, "fresh approach target accepted") ||
         !require(approach_result.command.forward_mps > 0,
                  "target ahead commands forward motion") ||
-        !require(approach_result.command.left_mps < 0,
-                 "target ahead corrects toward the configured 1cm-left intake target")) return 1;
+        !require(approach_result.command.left_mps == 0,
+                 "one-centimeter intake offset remains inside lateral PID deadband")) return 1;
     approach.reset();
     target.x_m = 0;
     target.y_m = 1;
     approach_result = approach.update({}, target, now, .1);
-    if (!require(approach_result.command.left_mps > 0,
-                 "target left commands left strafe") ||
+    if (!require(approach_result.aligning && approach_result.command.forward_mps == 0 &&
+                     approach_result.command.left_mps == 0,
+                 "target left first enters yaw alignment") ||
         !require(approach_result.command.yaw_radps > 0,
-                 "target left commands counterclockwise rotation")) return 1;
+                 "target left commands counterclockwise alignment rotation")) return 1;
     approach_result = approach.update({}, target, now + 301ms, .1);
     if (!require(!approach_result.target_valid &&
                      approach_result.command.forward_mps == 0 &&
@@ -59,21 +78,34 @@ int main() {
     target.last_seen = now;
     approach_result = approach.update({}, target, now, .1);
     if (!require(approach_result.target_valid && !approach_result.target_reached &&
-                 approach_result.command.forward_mps > 0,
-                 "target at intake position immediately begins capture dash")) return 1;
+                 approach_result.command.forward_mps == 0 &&
+                 approach_result.command.left_mps == 0,
+                 "target at intake position settles a preceding yaw reversal")) return 1;
     target.last_seen = now + 100ms;
     approach_result = approach.update({}, target, now + 100ms, .1);
+    if (!require(approach_result.target_valid && approach_result.command.forward_mps == 0 &&
+                 approach_result.command.left_mps == 0,
+                 "capture settle holds zero chassis command for its full interval")) return 1;
+    target.last_seen = now + 800ms;
+    approach_result = approach.update({}, target, now + 800ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
-                 "continued detection does not delay capture dash")) return 1;
-    approach_result = approach.continue_capture({}, now + 401ms, .1);
+                 "capture dash begins after yaw settle")) return 1;
+    approach_result = approach.continue_capture({}, now + 1001ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
                  "lost close target drives capture finish")) return 1;
-    approach_result = approach.continue_capture({.x_m = .29}, now + 1s, .1);
+    approach_result = approach.continue_capture({.x_m = .29}, now + 1400ms, .1);
     if (!require(approach_result.target_valid && !approach_result.target_reached,
                  "capture finish remains active below 0.3m")) return 1;
-    approach_result = approach.continue_capture({.x_m = .31}, now + 2s, .1);
+    approach_result = approach.continue_capture({.x_m = .31}, now + 2200ms, .1);
     if (!require(approach_result.target_reached && approach_result.command.forward_mps == 0,
                  "capture finish stops after 0.3m")) return 1;
+
+    robot::ApproachController close_approach;
+    robot::TrackedObject close_target{.id = 9, .object_class = robot::ObjectClass::yellow_cylinder,
+                                      .x_m = .15, .y_m = .01, .last_seen = now};
+    const auto close_result = close_approach.update({}, close_target, now, .1);
+    if (!require(close_result.capturing && close_result.command.forward_mps > 0,
+                 "a laterally aligned target inside 0.2m enters capture")) return 1;
 
     robot::WorldModel world;
     world.replace_objects({
@@ -116,6 +148,74 @@ int main() {
     tracked_world.update_objects({}, now + 600ms);
     if (!require(!tracked_world.nearest_collectible({}).has_value(),
                  "stale collectible track expires")) return 1;
+
+    robot::LocalTargetTracker local_tracker({.memory = 3s, .association_gate_m = .75,
+                                             .measurement_gain = .55});
+    robot::TrackedObject local_observation{
+        .object_class = robot::ObjectClass::yellow_cylinder,
+        .camera_forward_m = 1.0,
+        .camera_left_m = .2,
+        .confidence = .9F,
+        .last_seen = now,
+    };
+    local_tracker.observe({local_observation}, {}, now);
+    robot::TrackedObject second_local_observation{
+        .object_class = robot::ObjectClass::red_cube,
+        .camera_forward_m = 1.4,
+        .camera_left_m = -.2,
+        .confidence = .8F,
+        .last_seen = now,
+    };
+    local_tracker.observe({second_local_observation}, {}, now);
+    if (!require(local_tracker.tracks().size() == 2,
+                 "local tracker retains more than the active collectible")) return 1;
+    const auto selected_local = local_tracker.acquire_nearest({}, now);
+    if (!require(selected_local && selected_local->object_class == robot::ObjectClass::yellow_cylinder,
+                 "local tracker selects nearest fresh collectible")) return 1;
+    const auto propagated = local_tracker.target({.x_m = .3}, now + 1s);
+    if (!require(propagated && std::abs(propagated->camera_forward_m - .7) < 1e-9 &&
+                     std::abs(propagated->camera_left_m - .2) < 1e-9,
+                 "local target propagates a static object through odometry")) return 1;
+    local_tracker.mark_collected(now + 100ms);
+    if (!require(local_tracker.tracks().size() == 1 &&
+                     local_tracker.acquire_nearest({}, now + 100ms) &&
+                     local_tracker.acquire_nearest({}, now + 100ms)->object_class ==
+                         robot::ObjectClass::red_cube,
+                 "collecting one target retains the other local track")) return 1;
+    const robot::TrackedObject outlier{
+        .object_class = robot::ObjectClass::yellow_cylinder,
+        .camera_forward_m = 4.0,
+        .camera_left_m = .2,
+        .confidence = .9F,
+        .last_seen = now + 1s,
+    };
+    local_tracker.observe({outlier}, {.x_m = .3}, now + 1s);
+    if (!require(local_tracker.target({.x_m = .3}, now + 3001ms) == std::nullopt,
+                 "local target expires after three seconds without a detection")) return 1;
+
+    robot::LocalTargetTracker expired_tracker({.memory = 3s, .association_gate_m = .75,
+                                               .measurement_gain = .55});
+    expired_tracker.observe({local_observation}, {}, now);
+    robot::TrackedObject red_observation{
+        .object_class = robot::ObjectClass::red_cube,
+        .camera_forward_m = .8,
+        .camera_left_m = -.1,
+        .confidence = .9F,
+        .last_seen = now + 4s,
+    };
+    expired_tracker.observe({red_observation}, {}, now + 4s);
+    const auto reacquired = expired_tracker.acquire_nearest({}, now + 4s);
+    if (!require(reacquired && reacquired->object_class == robot::ObjectClass::red_cube,
+                 "expired target does not reject a newly visible collectible class")) return 1;
+
+    local_tracker.observe({local_observation}, {}, now + 4s);
+    local_tracker.mark_collected(now + 4s);
+    local_tracker.observe({local_observation}, {}, now + 5s);
+    if (!require(!local_tracker.target({}, now + 5s),
+                 "recently collected target is suppressed through stale detections")) return 1;
+    local_tracker.observe({local_observation}, {}, now + 8s);
+    if (!require(local_tracker.acquire_nearest({}, now + 8s).has_value(),
+                 "suppression expires after local target memory interval")) return 1;
 
     const cv::Mat camera_matrix = cv::Mat::eye(3, 3, CV_64F);
     const robot::GroundProjector projector(camera_matrix, 1.0, 45.0);
@@ -188,10 +288,16 @@ int main() {
     if (!require(search_result.phase == robot::SearchPhase::hold_for_localization &&
                  search_result.command.forward_mps == 0 && search_result.command.left_mps == 0,
                  "uncertain localization never permits center translation")) return 1;
-    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 11s, .1);
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 10s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::rotate_center,
+                 "center dwell begins after returning to the center")) return 1;
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 14s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::rotate_center,
+                 "center travel does not consume the center-search dwell")) return 1;
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 15s, .1);
     if (!require(search_result.phase == robot::SearchPhase::return_home,
-                 "ten-second loss returns home")) return 1;
-    search_result = search.update({.x_m = .25, .y_m = .2}, false, now + 12s, .1);
+                 "completed center search returns home")) return 1;
+    search_result = search.update({.x_m = .25, .y_m = .2}, false, now + 16s, .1);
     if (!require(search_result.phase == robot::SearchPhase::complete &&
                      search_result.command.forward_mps == 0,
                  "home radius permanently stops search")) return 1;
@@ -213,13 +319,19 @@ int main() {
                  "boxed home agrees with localized home rectangle")) return 1;
 
     robot::SoloMission mission;
-    if (!require(mission.update({.hardware_ready = true}) == robot::MissionState::self_test,
-                 "boot to self-test") ||
-        !require(mission.update({.localized = true}) == robot::MissionState::search_target,
-                 "self-test to search") ||
-        !require(mission.update({.localized = true, .target_visible = true}) ==
-                     robot::MissionState::approach_target,
-                 "search to approach") ||
+    mission.start();
+    if (!require(mission.state() == robot::MissionState::search_target,
+                 "start enters target search") ||
+        !require(mission.update({.target_active = true, .aligning = true}) ==
+                     robot::MissionState::align_target,
+                 "search to target alignment") ||
+        !require(mission.update({.target_active = true}) == robot::MissionState::approach_target,
+                 "alignment to approach") ||
+        !require(mission.update({.target_active = true, .capturing = true}) ==
+                     robot::MissionState::capture_target,
+                 "approach to capture") ||
+        !require(mission.update({.capture_complete = true}) == robot::MissionState::search_target,
+                 "capture returns to a fresh search") ||
         !require(mission.update({.fault = true}) == robot::MissionState::safe_stop,
                  "fault to safe stop")) return 1;
 }

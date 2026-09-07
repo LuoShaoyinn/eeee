@@ -27,7 +27,7 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
     if (lost < config_.local_rotate_seconds) {
         result.phase = SearchPhase::rotate_local;
         result.command.yaw_radps = config_.rotation_speed_radps;
-    } else if (lost < config_.local_rotate_seconds + config_.center_search_seconds) {
+    } else if (!center_search_complete_) {
         if (!navigation_allowed) {
             result.phase = SearchPhase::hold_for_localization;
             result.command.yaw_radps = config_.rotation_speed_radps;
@@ -36,16 +36,26 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                                                       pose.y_m - config_.center_y_m);
             if (center_reached_ && center_distance > config_.center_exit_radius_m) {
                 center_reached_ = false;
+                center_search_started_ = {};
             } else if (!center_reached_ && center_distance <= config_.center_entry_radius_m) {
                 center_reached_ = true;
+                center_search_started_ = now;
             }
             if (!center_reached_) {
-            result.phase = SearchPhase::navigate_center;
+                result.phase = SearchPhase::navigate_center;
                 result.command = navigate(pose, config_.center_x_m, config_.center_y_m,
                                           config_.center_entry_radius_m, dt_s);
             } else {
                 result.phase = SearchPhase::rotate_center;
                 result.command.yaw_radps = config_.rotation_speed_radps;
+                if (center_search_started_ == Timestamp{}) center_search_started_ = now;
+                if (now - center_search_started_ >=
+                    std::chrono::duration<double>(config_.center_search_seconds)) {
+                    center_search_complete_ = true;
+                    result.phase = SearchPhase::return_home;
+                    result.command = navigate(pose, config_.home_x_m, config_.home_y_m,
+                                              config_.home_stop_radius_m, dt_s);
+                }
             }
         }
     } else {
@@ -100,8 +110,10 @@ Twist2 SearchController::navigate(const Pose2& pose, double x_m, double y_m,
 
 void SearchController::reset() {
     lost_since_ = {};
+    center_search_started_ = {};
     previous_command_ = {};
     center_reached_ = false;
+    center_search_complete_ = false;
     complete_ = false;
 }
 

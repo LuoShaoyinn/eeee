@@ -57,10 +57,8 @@ int main(int argc, char** argv) {
                 std::cout << request(socket_path, command);
                 if (std::cout.good()) std::cout.flush();
             }
-            try { (void)request(socket_path, "stop"); } catch (const std::exception&) {}
         } catch (const std::exception& error) {
             std::cerr << "robotctl: " << error.what() << '\n';
-            try { (void)request(socket_path, "stop"); } catch (const std::exception&) {}
             return 1;
         }
         return 0;
