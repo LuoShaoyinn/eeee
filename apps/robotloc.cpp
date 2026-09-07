@@ -231,7 +231,9 @@ public:
             return std::nullopt;
         }
         std::string command(buffer, static_cast<size_t>(count));
-        command.erase(command.find_first_of("\r\n"));
+        if (const size_t newline = command.find_first_of("\r\n"); newline != std::string::npos) {
+            command.erase(newline);
+        }
         return RuntimeControlRequest{.client = client, .command = std::move(command)};
     }
 
