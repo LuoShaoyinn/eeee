@@ -105,9 +105,9 @@ struct RuntimeConfig {
     double search_center_y_m = .9925;
     double search_center_entry_radius_m = .25;
     double search_center_exit_radius_m = .35;
-    double search_home_x_m = .20;
-    double search_home_y_m = .30;
-    double search_home_stop_radius_m = .3;
+    double search_home_x_m = .10;
+    double search_home_y_m = .15;
+    double search_home_stop_radius_m = .2;
     double search_rotation_speed_radps = .35;
     double search_maximum_linear_mps = .20;
     double search_maximum_yaw_radps = .6;
@@ -121,7 +121,7 @@ struct RuntimeConfig {
     double search_post_home_turn_yaw_kp = 1.5;
     double search_post_home_turn_yaw_tolerance_deg = 5;
     double search_post_home_reverse_mps = .30;
-    double search_post_home_reverse_seconds = 1;
+    double search_post_home_reverse_seconds = 2;
 
     std::string detector_backend = "vip_lite";
     std::string detector_model = "models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb";

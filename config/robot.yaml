@@ -114,17 +114,17 @@ search:
   # beyond 0.35 m, preventing pose noise from oscillating translation.
   center_entry_radius_m: .25
   center_exit_radius_m: .35
-  # The outer, field-facing corner of the 0.20 x 0.30 m home zone.
-  home_x_m: .20
-  home_y_m: .30
-  home_stop_radius_m: .10
+  # Return to the center of the 0.20 x 0.30 m home zone.
+  home_x_m: .10
+  home_y_m: .15
+  home_stop_radius_m: .20
   # Search only: turn briskly when no collectible is visible. This does not
   # raise the normal object-approach yaw limit.
   rotation_speed_radps: 1.80
   # Closed-loop travel to center and home. Rotation-only search is unaffected.
   maximum_linear_mps: .60
   maximum_yaw_radps: 2.0
-  # After return-home reaches the outer home corner, translate with a
+  # After return-home reaches the home center, translate with a
   # field-frame PID toward this interior point while yawing to -145 deg
   # (+/-10). This prevents a fixed sideways command from crossing a fence.
   post_home_moonwalk_x_m: .55
@@ -137,7 +137,7 @@ search:
   post_home_turn_yaw_kp: 1.5
   post_home_turn_yaw_tolerance_deg: 5.
   post_home_reverse_mps: .30
-  post_home_reverse_seconds: 1.
+  post_home_reverse_seconds: 2.
 detector:
   backend: vip_lite
   model: models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb
