@@ -79,17 +79,17 @@ approach:
   capture_finish_timeout_ms: 1800
   target_timeout_ms: 300
 search:
-  local_rotate_seconds: 5.
-  center_rotate_seconds: 5.
+  local_rotate_seconds: 10.
+  center_rotate_seconds: 10.
   # Enter the center search region at 0.25 m and only leave it after drifting
   # beyond 0.35 m, preventing pose noise from oscillating translation.
   center_entry_radius_m: .25
   center_exit_radius_m: .35
   # Search only: turn briskly when no collectible is visible. This does not
   # raise the normal object-approach yaw limit.
-  rotation_speed_radps: .80
+  rotation_speed_radps: 1.80
   maximum_linear_mps: .20
-  maximum_yaw_radps: 1.0
+  maximum_yaw_radps: 2.0
 detector:
   backend: vip_lite
   model: models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb

@@ -255,6 +255,14 @@ std::string twist_command(const robot::Twist2& command) {
     return output.str();
 }
 
+robot::Twist2 apply_command_dead_zone(robot::Twist2 command) {
+    constexpr double kDeadZone = .10;
+    if (std::abs(command.forward_mps) < kDeadZone) command.forward_mps = 0;
+    if (std::abs(command.left_mps) < kDeadZone) command.left_mps = 0;
+    if (std::abs(command.yaw_radps) < kDeadZone) command.yaw_radps = 0;
+    return command;
+}
+
 bool parse_state(const std::string& reply, EspState& state) {
     std::istringstream input(reply);
     std::string key;
@@ -1171,9 +1179,9 @@ int main(int argc, char** argv) {
                         locked_collectible_id.reset();
                         (void)request_robotd(options.socket, "stop");
                     } else {
-                        const robot::Twist2 command =
+                        const robot::Twist2 command = apply_command_dead_zone(
                             approach_result.target_valid && !approach_result.target_reached
-                                ? approach_result.command : robot::Twist2{};
+                                ? approach_result.command : robot::Twist2{});
                         (void)request_robotd(options.socket, twist_command(command));
                         runtime_has_command = true;
                         if (approach_result.target_reached) locked_collectible_id.reset();
