@@ -40,6 +40,12 @@ struct RuntimeConfig {
     double visual_axis_max_correction_m = 1.0;
     double visual_axis_max_correction_deg = 30.0;
     double visual_axis_max_pull_gain = .80;
+    // The home detector observes the interior of the home rectangle, while
+    // navigation docks at its outer field-facing corner.
+    double home_landmark_x_m = .10;
+    double home_landmark_y_m = .15;
+    double home_landmark_sigma_m = .20;
+    double home_landmark_maximum_error_m = 1.20;
 
     double arena_length_m = 3;
     double arena_width_m = 1.985;

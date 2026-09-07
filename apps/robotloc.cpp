@@ -94,6 +94,9 @@ struct Options {
     double visual_axis_max_correction_m = 1.0;
     double visual_axis_max_correction_rad = 30.0 * kDegreesToRadians;
     double visual_axis_max_pull_gain = .80;
+    cv::Point2d home_landmark{.10, .15};
+    double home_landmark_sigma_m = .20;
+    double home_landmark_maximum_error_m = 1.20;
     double fence_height_m = .254;
     double minimum_moving_linear_mps = .10;
     double minimum_moving_left_mps = 0;
@@ -625,6 +628,9 @@ Options parse_options(int argc, char** argv) {
     options.visual_axis_max_correction_rad =
         config.visual_axis_max_correction_deg * kDegreesToRadians;
     options.visual_axis_max_pull_gain = config.visual_axis_max_pull_gain;
+    options.home_landmark = {config.home_landmark_x_m, config.home_landmark_y_m};
+    options.home_landmark_sigma_m = config.home_landmark_sigma_m;
+    options.home_landmark_maximum_error_m = config.home_landmark_maximum_error_m;
     options.fence_height_m = config.fence_height_m;
     options.minimum_moving_linear_mps = config.minimum_moving_linear_mps;
     options.minimum_moving_left_mps = config.minimum_moving_left_mps;
@@ -1246,9 +1252,9 @@ int main(int argc, char** argv) {
                     // A detection can only constrain pose when capture-time odometry puts
                     // it inside the physical arena. This rejects background black regions.
                     if (arena_x >= 0 && arena_x <= 3.0 && arena_y >= 0 && arena_y <= 1.985) {
-                        (void)filter.update_landmark(landmark.relative,
-                                                     {options.search.home_x_m, options.search.home_y_m},
-                                                     .30, 1.20);
+                        (void)filter.update_landmark(landmark.relative, options.home_landmark,
+                                                     options.home_landmark_sigma_m,
+                                                     options.home_landmark_maximum_error_m);
                         pose = filter.estimate();
                     }
                 }

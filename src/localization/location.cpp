@@ -23,6 +23,11 @@ constexpr double kFieldWidthM = 1.985;
 constexpr double kHomeLengthM = .20;
 constexpr double kHomeWidthM = .30;
 constexpr double kRangeWeightScaleM = .75;
+// The blue fence normally projects to the outer arena.  The home rectangle can
+// explain a partial observation near the corner, but it must lose to an
+// equally accurate outer-boundary explanation.  The detector landmark supplies
+// the separate positive evidence that the home is actually visible.
+constexpr double kHomeBoundaryResidualBiasM = .08;
 
 double wrap_angle(double value) {
     while (value > CV_PI) value -= 2.0 * CV_PI;
@@ -40,8 +45,9 @@ double rectangle_edge_distance(double x, double y, double width, double height) 
 }
 
 double field_wall_distance(double x, double y) {
-    return std::min(rectangle_edge_distance(x, y, kFieldLengthM, kFieldWidthM),
-                    rectangle_edge_distance(x, y, kHomeLengthM, kHomeWidthM));
+    const double arena_distance = rectangle_edge_distance(x, y, kFieldLengthM, kFieldWidthM);
+    const double home_distance = rectangle_edge_distance(x, y, kHomeLengthM, kHomeWidthM);
+    return std::min(arena_distance, home_distance + kHomeBoundaryResidualBiasM);
 }
 
 double range_weight(double range_m) {
@@ -50,10 +56,11 @@ double range_weight(double range_m) {
     return 1.0 / (1.0 + squared * squared);
 }
 
-// Most fence samples should map to an arena or home boundary. Retain a robust
-// inlier score for occlusions, but charge the discarded tail when it lies well
-// away from every mapped boundary. Otherwise a pose can explain one wall while
-// silently ignoring a contradictory wall seen by the camera.
+// Most fence samples should map to an arena boundary; a home boundary is a
+// lower-confidence fallback. Retain a robust inlier score for occlusions, but
+// charge the discarded tail when it lies well away from every mapped boundary.
+// Otherwise a pose can explain one wall while silently ignoring a contradictory
+// wall seen by the camera.
 double map_residual(std::vector<std::pair<double, double>>& distances) {
     constexpr double kUnexpectedToleranceM = .07;
     constexpr double kUnexpectedPenalty = .50;

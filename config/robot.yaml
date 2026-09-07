@@ -35,6 +35,12 @@ localization:
   visual_axis_max_correction_m: 1.
   visual_axis_max_correction_deg: 30.
   visual_axis_max_pull_gain: 8.0000000000000004e-01
+  # Detection landmark is the home rectangle's center, separate from the
+  # field-facing docking corner at (.20, .30).
+  home_landmark_x_m: .10
+  home_landmark_y_m: .15
+  home_landmark_sigma_m: .20
+  home_landmark_maximum_error_m: 1.20
 arena:
   length_m: 3.
   width_m: 1.985

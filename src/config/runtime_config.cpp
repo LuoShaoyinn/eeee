@@ -29,6 +29,11 @@ void validate(const RuntimeConfig& config) {
         config.initial_y_m < 0 || config.initial_y_m > config.arena_width_m) {
         throw std::runtime_error("configured initial pose lies outside the arena");
     }
+    if (config.home_landmark_x_m < 0 || config.home_landmark_x_m > config.arena_length_m ||
+        config.home_landmark_y_m < 0 || config.home_landmark_y_m > config.arena_width_m ||
+        config.home_landmark_sigma_m <= 0 || config.home_landmark_maximum_error_m <= 0) {
+        throw std::runtime_error("home landmark configuration is invalid");
+    }
     if (config.minimum_moving_linear_mps < 0 ||
         config.minimum_moving_linear_mps > config.max_linear_mps ||
         config.minimum_moving_left_mps < 0 ||
@@ -139,6 +144,10 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(localization, "visual_axis_max_correction_m", config.visual_axis_max_correction_m);
     read(localization, "visual_axis_max_correction_deg", config.visual_axis_max_correction_deg);
     read(localization, "visual_axis_max_pull_gain", config.visual_axis_max_pull_gain);
+    read(localization, "home_landmark_x_m", config.home_landmark_x_m);
+    read(localization, "home_landmark_y_m", config.home_landmark_y_m);
+    read(localization, "home_landmark_sigma_m", config.home_landmark_sigma_m);
+    read(localization, "home_landmark_maximum_error_m", config.home_landmark_maximum_error_m);
     const cv::FileNode arena = file["arena"];
     read(arena, "length_m", config.arena_length_m);
     read(arena, "width_m", config.arena_width_m);

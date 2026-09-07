@@ -37,7 +37,10 @@ int main() {
         if (config.visual_yaw_reset_max_error_deg != 15.0 ||
             config.visual_axis_certainty_min != .05 ||
             config.visual_axis_max_correction_m != 1.0 ||
-            config.visual_axis_max_correction_deg != 30.0) {
+            config.visual_axis_max_correction_deg != 30.0 ||
+            config.home_landmark_x_m != .10 || config.home_landmark_y_m != .15 ||
+            config.home_landmark_sigma_m != .20 ||
+            config.home_landmark_maximum_error_m != 1.20) {
             std::cerr << "unexpected visual correction limits\n";
             return 1;
         }
