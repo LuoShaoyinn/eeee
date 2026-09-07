@@ -138,7 +138,6 @@ def main():
             # loop resumes from this stored pulse and ramps to the new target.
             servo_pulse_us = servo_last_active_pulse_us
             servo_resume_pending = True
-        print(f"S3 target: {servo_target_pulse_us}us")
 
     try:
         show_s3_status()
