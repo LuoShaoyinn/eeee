@@ -20,6 +20,7 @@ int main() {
     config.expected_collectibles = 1;
     config.frames_to_confirm_collection = 1;
     config.frames_to_confirm_dock = 1;
+    config.dump_duration_s = .05;
     robot::MissionController mission(config);
 
     assert(mission.update({.localization_valid = true, .detections = {}}).state == robot::MissionState::searching);
@@ -31,7 +32,9 @@ int main() {
 
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::yellow, .7)}});
-    assert(output.forward_mps == .35);
+    // Once the intake-zone confirmation begins, the collector keeps running
+    // but the chassis must not rotate or drive the object back out.
+    assert(output.forward_mps == 0.0 && output.left_mps == 0.0 && output.yaw_radps == 0.0);
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::yellow, .7, .20)}});
     assert(output.forward_mps == 0.0);
@@ -45,8 +48,9 @@ int main() {
     assert(output.state == robot::MissionState::approaching_target);
     assert(output.forward_mps == 0.0);
     output = ground_mission.update({.localization_valid = true,
-                                    .detections = {ground_object(robot::ObjectClass::yellow, .12, .01)}});
-    assert(output.forward_mps == 0.0);
+                                    .odometry_valid = true, .odometry_forward_m = 1.0,
+                                    .detections = {ground_object(robot::ObjectClass::yellow, .025, .003)}});
+    assert(output.state == robot::MissionState::intake_run && output.forward_mps == .15);
 
     // Mecanum visual servo: a lateral miss closes the forward gate while the
     // robot strafes and yaws; a centred object then releases forward PID.
@@ -78,8 +82,12 @@ int main() {
     robot::MissionController aligned_intake_mission(config);
     (void)aligned_intake_mission.update({.localization_valid = true, .detections = {}});
     (void)aligned_intake_mission.update({.localization_valid = true,
-                                         .detections = {ground_object(robot::ObjectClass::yellow, .14, .01)}});
-    output = aligned_intake_mission.update({.localization_valid = true, .detections = {}});
+                                         .odometry_valid = true, .odometry_forward_m = 1.0,
+                                         .detections = {ground_object(robot::ObjectClass::yellow, .025, .003)}});
+    (void)aligned_intake_mission.update({.localization_valid = true,
+                                         .odometry_valid = true, .odometry_forward_m = 1.25, .detections = {}});
+    output = aligned_intake_mission.update({.localization_valid = true,
+                                            .odometry_valid = true, .odometry_forward_m = 1.25, .detections = {}});
     assert(output.state == robot::MissionState::returning_home);
 
     // The supervised object-servo test intentionally freezes global
@@ -91,8 +99,12 @@ int main() {
     output = object_test_mission.update({.localization_valid = false, .detections = {}});
     assert(output.state == robot::MissionState::searching);
     (void)object_test_mission.update({.localization_valid = false,
-                                     .detections = {ground_object(robot::ObjectClass::yellow, .14, .01)}});
-    output = object_test_mission.update({.localization_valid = false, .detections = {}});
+                                     .odometry_valid = true, .odometry_forward_m = 1.0,
+                                     .detections = {ground_object(robot::ObjectClass::yellow, .025, .003)}});
+    (void)object_test_mission.update({.localization_valid = false,
+                                      .odometry_valid = true, .odometry_forward_m = 1.25, .detections = {}});
+    output = object_test_mission.update({.localization_valid = false,
+                                         .odometry_valid = true, .odometry_forward_m = 1.25, .detections = {}});
     assert(output.state == robot::MissionState::done && output.collector_percent == 0);
 
     output = mission.update({.localization_valid = true,

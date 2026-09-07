@@ -104,13 +104,14 @@ class GroundProjector:
         return self._project(pixel_x, pixel_y, 0.0, 0.0)
 
 
-def blue_fence_ground_points(blue_mask: np.ndarray, projector: GroundProjector, step: int = 8):
+def blue_fence_ground_points(blue_mask: np.ndarray, projector: GroundProjector, step: int = 8,
+                             lower_row_fraction: float = .30):
     """Sample the lower blue-fence envelope and project it onto the field plane."""
     height, width = blue_mask.shape[:2]
     points = []
     for pixel_x in range(0, width, step):
         rows = np.flatnonzero(blue_mask[:, pixel_x])
-        rows = rows[rows >= int(height * .45)]
+        rows = rows[rows >= int(height * lower_row_fraction)]
         if rows.size == 0:
             continue
         ground = projector.project_chassis(float(pixel_x), float(rows[-1]))
@@ -216,6 +217,7 @@ class BlueFenceParticleFilter:
         self.yaw_rad = math.radians(yaw_deg)
         self.effective_particles = float(count)
         self.last_fence_update = False
+        self.last_fence_update_time = None
         self.reset(x_m, y_m, yaw_deg)
 
     def _refresh_estimate(self) -> None:
@@ -269,6 +271,7 @@ class BlueFenceParticleFilter:
             self.weights.fill(1.0 / self.count)
             self._refresh_estimate()
         self.last_fence_update = True
+        self.last_fence_update_time = time.monotonic()
         return True
 
     def reset(self, x_m: float, y_m: float, yaw_deg: float) -> None:
@@ -279,6 +282,7 @@ class BlueFenceParticleFilter:
         self.weights.fill(1.0 / self.count)
         self.last_time = time.monotonic()
         self.last_fence_update = False
+        self.last_fence_update_time = None
         self._refresh_estimate()
 
     def render(self, path: str, localization_valid: bool, blue_pixels: int, fence_points: int) -> None:
@@ -353,10 +357,14 @@ def main() -> None:
     parser.add_argument("--particle-count", type=int, default=600)
     parser.add_argument("--particle-seed", type=int, default=1)
     parser.add_argument("--fence-measurement-sigma-m", type=float, default=.07)
+    parser.add_argument("--fence-hold-seconds", type=float, default=1.0,
+                        help="keep the last valid blue-fence PF correction briefly across sparse frames")
+    parser.add_argument("--fence-lower-row-fraction", type=float, default=.30)
     parser.add_argument("--arena-length-m", type=float, default=3.0)
     parser.add_argument("--arena-width-m", type=float, default=1.985)
     args = parser.parse_args()
-    if (args.particle_count < 50 or args.fence_measurement_sigma_m <= 0.0 or args.arena_length_m <= 0.0 or
+    if (args.particle_count < 50 or args.fence_measurement_sigma_m <= 0.0 or
+            not 0.0 < args.fence_lower_row_fraction < 1.0 or args.arena_length_m <= 0.0 or
             args.arena_width_m <= 0.0 or not 0.0 <= args.initial_x <= args.arena_length_m or
             not 0.0 <= args.initial_y <= args.arena_width_m):
         raise SystemExit("particle-filter parameters or initial pose are outside the arena")
@@ -374,6 +382,8 @@ def main() -> None:
                                    args.initial_x, args.initial_y, args.initial_yaw,
                                    args.fence_measurement_sigma_m, args.particle_seed)
     reset_timestamp_ns = None
+    encoder_forward_m = 0.0
+    encoder_last_time = time.monotonic()
     try:
         while not args.max_frames or frames < args.max_frames:
             ok, raw = capture.read()
@@ -389,7 +399,8 @@ def main() -> None:
             blue_mask = cv2.inRange(hsv, (92, 75, 45), (135, 255, 255))
             blue_pixels = int(cv2.countNonZero(blue_mask))
             blue_detected = blue_pixels >= args.minimum_blue_pixels
-            fence_points = blue_fence_ground_points(blue_mask, projector) if projector else []
+            fence_points = blue_fence_ground_points(blue_mask, projector,
+                                                     lower_row_fraction=args.fence_lower_row_fraction) if projector else []
             try:
                 reset_stat = os.stat(args.localization_reset_file)
                 if reset_stat.st_mtime_ns != reset_timestamp_ns:
@@ -403,8 +414,12 @@ def main() -> None:
             except FileNotFoundError:
                 pass
             try:
-                pose.predict(*parse_motion(robotd_request(args.robotd_socket, "state"),
-                                            robotd_request(args.robotd_socket, "telemetry")))
+                motion = parse_motion(robotd_request(args.robotd_socket, "state"),
+                                      robotd_request(args.robotd_socket, "telemetry"))
+                now = time.monotonic()
+                encoder_forward_m += motion[0] * min(.25, max(0.0, now - encoder_last_time))
+                encoder_last_time = now
+                pose.predict(*motion)
             except (OSError, ValueError, StopIteration):
                 # Keep the last broad pose visible. The motion watchdog in
                 # robotd remains authoritative if telemetry is unavailable.
@@ -413,7 +428,9 @@ def main() -> None:
             # A blue-pixel count alone is not sufficient for autonomous
             # motion: require enough projectable lower-fence points to make a
             # particle-filter measurement update in this frame.
-            localization_valid = blue_detected and fence_updated
+            fence_recent = pose.last_fence_update_time is not None and \
+                           time.monotonic() - pose.last_fence_update_time <= args.fence_hold_seconds
+            localization_valid = fence_recent
             pose.render(args.localization_map, localization_valid, blue_pixels, len(fence_points))
             write_json(args.localization_file, {
                 "valid": localization_valid,
@@ -424,6 +441,8 @@ def main() -> None:
                 "fence_ground_points": len(fence_points),
                 "effective_particles": round(pose.effective_particles, 1),
                 "fence_update": fence_updated,
+                "encoder_forward_m": round(encoder_forward_m, 3),
+                "odometry_source": "wheel_encoder_rpm_fused_with_blue_fence_pf_gate",
                 "source": "v1_blue_fence_particle_filter",
             })
             environment = os.environ.copy()
@@ -441,7 +460,11 @@ def main() -> None:
                 raise RuntimeError("A733 YOLO failed: " + result.stdout[-500:])
             detections = parse_detections(result.stdout, rectified.shape[1], rectified.shape[0])
             annotated = rectified.copy()
-            frame = ["1" if localization_valid else "0", "0"]
+            # ODOM is a signed cumulative wheel-encoder distance.  The
+            # mission records its value at intake entry and closes a 0.25 m
+            # local run with it; autonomous motion remains gated by the
+            # concurrently updated blue-fence particle filter.
+            frame = ["1" if localization_valid else "0", "0", "ODOM", f"{encoder_forward_m:.3f}"]
             ground_log = []
             for label, confidence, left, top, right, bottom in detections:
                 center_x = max(0.0, min(1.0, (left + right) * .5 / rectified.shape[1]))

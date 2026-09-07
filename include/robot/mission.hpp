@@ -29,6 +29,7 @@ enum class MissionState {
     initializing,
     searching,
     approaching_target,
+    intake_run,
     avoiding_robot,
     returning_home,
     docking_home,
@@ -65,7 +66,15 @@ struct MissionConfig {
     double turn_in_place_error = 0.22;
     // Physical pursuit is preferred whenever a calibrated ground point is
     // available.  These distances are measured from the collector intake.
-    double collect_forward_m = 0.15;
+    // Ground points are measured from the collector reference, so do not
+    // begin collection confirmation while the object is still 0.13 m ahead.
+    // This small stand-off keeps the object in the intake without driving
+    // past it when the next projected ground point becomes unavailable.
+    double collect_forward_m = 0.03;
+    double intake_trigger_forward_m = 0.20;
+    double intake_run_distance_m = 0.25;
+    double intake_forward_mps = 0.15;
+    double intake_max_duration_s = 3.0;
     double home_dock_forward_m = 0.18;
     double ground_lateral_deadband_m = 0.045;
     double ground_turn_in_place_bearing_rad = 0.26;
@@ -96,6 +105,7 @@ struct MissionConfig {
     int collector_percent = -100;
     int dump_servo_pulse_us = 2000;
     int stow_servo_pulse_us = 1600;
+    double dump_duration_s = 2.0;
 };
 
 struct MissionInput {
@@ -104,6 +114,10 @@ struct MissionInput {
     // Actual elapsed time between vision frames.  robotbrain supplies
     // this so PID integral/derivative terms remain stable at variable NPU FPS.
     double control_dt_s = 0.10;
+    // Signed accumulated forward wheel-encoder distance, published by the
+    // vision bridge alongside the blue-fence particle-filter validity bit.
+    bool odometry_valid = false;
+    double odometry_forward_m = 0.0;
     std::vector<Detection> detections;
 };
 
@@ -140,6 +154,7 @@ private:
     [[nodiscard]] bool ground_target_reached(const Detection& detection, bool home) const;
     [[nodiscard]] Detection stabilize_target(const Detection& detection);
     void begin_collection_wait();
+    void begin_intake_run(const MissionInput& input);
     void reset_visual_servo();
 
     struct PidState {
@@ -155,11 +170,15 @@ private:
     std::optional<ObjectClass> active_target_;
     std::optional<Detection> filtered_target_;
     bool awaiting_collection_ = false;
+    bool intake_odometry_started_ = false;
+    double intake_odometry_start_m_ = 0.0;
+    double intake_elapsed_s_ = 0.0;
     int collected_count_ = 0;
     std::array<bool, 2> collected_types_{};
     int missing_target_frames_ = 0;
     int lost_target_frames_ = 0;
     int dock_frames_ = 0;
+    double dump_elapsed_s_ = 0.0;
     PidState forward_pid_;
     PidState lateral_pid_;
     PidState yaw_pid_;

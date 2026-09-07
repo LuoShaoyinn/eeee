@@ -13,7 +13,11 @@ target_center_x: 0.51 # Calibrated collector centreline in image coordinates.
 alignment_deadband: 0.035
 target_filter_alpha: 0.45
 target_jump_threshold: 0.16
-collect_forward_m: 0.15 # From collector intake; used with a calibrated ground point.
+collect_forward_m: 0.03 # Near-intake stand-off; ground point is collector-relative.
+intake_trigger_forward_m: 0.20 # Start the measured straight intake run only when centred.
+intake_run_distance_m: 0.25 # Wheel-encoder distance after entering the intake zone.
+intake_forward_mps: 0.15
+intake_max_duration_s: 3.0 # Fault rather than drive blindly if encoder progress is lost.
 home_dock_forward_m: 0.18
 ground_lateral_deadband_m: 0.045
 ground_turn_in_place_bearing_rad: 0.26
@@ -37,3 +41,4 @@ max_yaw_radps: 1.80
 turn_in_place_error: 0.22
 dump_servo_pulse_us: 2000 # Confirm this direction on the physical robot.
 stow_servo_pulse_us: 1600 # Confirm this direction on the physical robot.
+dump_duration_s: 2.0 # Hold rear flap open before commanding the stowed pulse.

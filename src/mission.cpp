@@ -25,14 +25,17 @@ MissionController::MissionController(MissionConfig config) : config_(config) {
         config_.alignment_deadband < 0 || config_.target_filter_alpha <= 0 || config_.target_filter_alpha > 1 ||
         config_.target_jump_threshold <= 0 ||
         config_.steering_gain <= 0 || config_.max_yaw_radps <= 0 || config_.turn_in_place_error <= 0 ||
-        config_.collect_forward_m <= 0 || config_.home_dock_forward_m <= 0 ||
+        config_.collect_forward_m <= 0 || config_.intake_trigger_forward_m <= 0 ||
+        config_.intake_run_distance_m <= 0 || config_.intake_forward_mps <= 0 ||
+        config_.intake_max_duration_s <= 0 || config_.home_dock_forward_m <= 0 ||
         config_.ground_lateral_deadband_m < 0 || config_.ground_turn_in_place_bearing_rad <= 0 ||
         config_.ground_forward_kp <= 0 || config_.ground_forward_ki < 0 || config_.ground_forward_kd < 0 ||
         config_.ground_lateral_kp <= 0 || config_.ground_lateral_ki < 0 || config_.ground_lateral_kd < 0 ||
         config_.ground_steering_gain <= 0 || config_.ground_yaw_ki < 0 || config_.ground_yaw_kd < 0 ||
         config_.ground_integral_limit_m_s <= 0 || config_.ground_max_lateral_mps <= 0 ||
         config_.ground_yaw_deadband_rad < 0 || config_.ground_advance_lateral_m <= 0 ||
-        config_.ground_advance_bearing_rad <= 0 || config_.target_bearing_jump_rad <= 0) {
+        config_.ground_advance_bearing_rad <= 0 || config_.target_bearing_jump_rad <= 0 ||
+        config_.dump_duration_s <= 0) {
         throw std::invalid_argument("invalid mission configuration");
     }
 }
@@ -224,6 +227,14 @@ void MissionController::begin_collection_wait() {
     lost_target_frames_ = 0;
 }
 
+void MissionController::begin_intake_run(const MissionInput& input) {
+    state_ = MissionState::intake_run;
+    intake_odometry_started_ = input.odometry_valid;
+    intake_odometry_start_m_ = input.odometry_forward_m;
+    intake_elapsed_s_ = 0.0;
+    reset_visual_servo();
+}
+
 MissionOutput MissionController::update(const MissionInput& input) {
     if (!config_.object_servo_test && !input.localization_valid && state_ != MissionState::initializing &&
         state_ != MissionState::fault) {
@@ -245,6 +256,7 @@ MissionOutput MissionController::update(const MissionInput& input) {
     // stationary in the dumping state.
     if (obstacle && obstacle->bottom_y >= config_.obstacle_bottom_y && state_ != MissionState::dumping) {
         reset_visual_servo();
+        intake_odometry_started_ = false;
         state_ = MissionState::avoiding_robot;
         MissionOutput output = output_for_state();
         output.left_mps = obstacle->center_x < .5 ? config_.avoid_left_mps : -config_.avoid_left_mps;
@@ -253,12 +265,50 @@ MissionOutput MissionController::update(const MissionInput& input) {
     }
     if (state_ == MissionState::avoiding_robot) state_ = MissionState::searching;
 
+    // Once a centred object crosses the intake trigger, drive a measured
+    // straight run-through.  Blue-fence PF must remain valid for the mission
+    // as a whole; wheel-encoder odometry is the local distance source because
+    // it measures travel in the vehicle's current forward axis.
+    if (state_ == MissionState::intake_run) {
+        intake_elapsed_s_ += std::clamp(input.control_dt_s, .02, .50);
+        if (!input.odometry_valid || !intake_odometry_started_) {
+            state_ = MissionState::fault;
+            MissionOutput output = output_for_state();
+            output.emergency_stop = true;
+            return output;
+        }
+        const double travelled_m = input.odometry_forward_m - intake_odometry_start_m_;
+        if (travelled_m >= config_.intake_run_distance_m) {
+            intake_odometry_started_ = false;
+            begin_collection_wait();
+            state_ = MissionState::approaching_target;
+            return output_for_state();
+        }
+        if (intake_elapsed_s_ >= config_.intake_max_duration_s) {
+            state_ = MissionState::fault;
+            MissionOutput output = output_for_state();
+            output.emergency_stop = true;
+            return output;
+        }
+        MissionOutput output = output_for_state();
+        output.forward_mps = config_.intake_forward_mps;
+        return output;
+    }
+
     if (state_ == MissionState::searching || state_ == MissionState::approaching_target) {
         std::optional<Detection> target;
         if (active_target_ && is_collectible(*active_target_) && !already_collected(*active_target_)) {
             target = locked_collectible(input.detections);
             if (target) {
                 lost_target_frames_ = 0;
+                // The intake is already over the object.  Holding the
+                // chassis still prevents a tiny close-range bearing error
+                // from turning the collector away before disappearance (or
+                // the collection sensor) confirms the pickup.
+                if (awaiting_collection_) {
+                    missing_target_frames_ = 0;
+                    return output_for_state();
+                }
             } else if (awaiting_collection_) {
                 ++missing_target_frames_;
                 if (input.collection_sensor_triggered || missing_target_frames_ >= config_.frames_to_confirm_collection) {
@@ -303,8 +353,17 @@ MissionOutput MissionController::update(const MissionInput& input) {
             active_target_ = target->object_class;
             state_ = MissionState::approaching_target;
             const Detection stabilized = stabilize_target(*target);
-            if ((stabilized.ground_valid && ground_target_reached(stabilized, false)) ||
-                (!stabilized.ground_valid && stabilized.bottom_y >= config_.collect_bottom_y)) {
+            const bool intake_aligned = stabilized.ground_valid &&
+                                        stabilized.ground_forward_m <= config_.intake_trigger_forward_m &&
+                                        std::abs(stabilized.ground_left_m) <= config_.ground_lateral_deadband_m &&
+                                        std::abs(bearing_of(stabilized)) <= config_.ground_advance_bearing_rad;
+            if (intake_aligned) {
+                begin_intake_run(input);
+                MissionOutput output = output_for_state();
+                output.forward_mps = config_.intake_forward_mps;
+                return output;
+            }
+            if (!stabilized.ground_valid && stabilized.bottom_y >= config_.collect_bottom_y) {
                 begin_collection_wait();
             }
             return drive_to(stabilized, false, input.control_dt_s);
@@ -350,9 +409,16 @@ MissionOutput MissionController::update(const MissionInput& input) {
     }
 
     if (state_ == MissionState::dumping) {
-        state_ = MissionState::done;
+        dump_elapsed_s_ += std::clamp(input.control_dt_s, .02, .50);
         MissionOutput output = output_for_state();
-        output.servo_pulse_us = config_.dump_servo_pulse_us;
+        if (dump_elapsed_s_ < config_.dump_duration_s) {
+            output.servo_pulse_us = config_.dump_servo_pulse_us;
+            return output;
+        }
+        state_ = MissionState::done;
+        output.state = state_;
+        output.collector_percent = 0;
+        output.servo_pulse_us = config_.stow_servo_pulse_us;
         return output;
     }
     return output_for_state();
@@ -363,6 +429,7 @@ const char* to_string(MissionState state) {
         case MissionState::initializing: return "initializing";
         case MissionState::searching: return "searching";
         case MissionState::approaching_target: return "approaching_target";
+        case MissionState::intake_run: return "intake_run";
         case MissionState::avoiding_robot: return "avoiding_robot";
         case MissionState::returning_home: return "returning_home";
         case MissionState::docking_home: return "docking_home";

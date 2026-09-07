@@ -1,6 +1,6 @@
 // Decision-to-actuator bridge for Cubie replay and supervised field tests.
 // Input is one frame per line:
-//   LOCALIZATION_OK COLLECTION_SENSOR [CLASS CONFIDENCE CENTER_X BOTTOM_Y [@ FORWARD_M LEFT_M]]...
+//   LOCALIZATION_OK COLLECTION_SENSOR [ODOM METRES] [CLASS CONFIDENCE CENTER_X BOTTOM_Y [@ FORWARD_M LEFT_M]]...
 // Example: 1 0 yellow .91 .52 .63 other_robot .88 .20 .45
 // The process must receive frames at least four times per second while live,
 // because robotd deliberately stops a stale twist after 250 ms.
@@ -102,6 +102,13 @@ robot::MissionInput parse_frame(const std::string& line) {
     frame.collection_sensor_triggered = collection != 0;
     std::string object_name;
     while (input >> object_name) {
+        if (object_name == "ODOM") {
+            if (!(input >> frame.odometry_forward_m) || !std::isfinite(frame.odometry_forward_m)) {
+                throw std::runtime_error("invalid ODOM distance");
+            }
+            frame.odometry_valid = true;
+            continue;
+        }
         robot::Detection detection{.object_class = parse_class(object_name)};
         if (!(input >> detection.confidence >> detection.center_x >> detection.bottom_y)) {
             throw std::runtime_error("incomplete detection: " + object_name);
@@ -151,7 +158,7 @@ int main(int argc, char** argv) {
         }
         else if (argument == "--help") {
             std::cout << "robotbrain [--live] [--socket PATH] [--expected-objects N] [--object-servo-test] [--dump-pulse US]\n"
-                         "Read YOLO/localization frames from stdin. --live is required to command robotd.\n";
+                         "Read YOLO/localization/ODOM frames from stdin. --live is required to command robotd.\n";
             return 0;
         } else throw std::runtime_error("unknown option: " + argument);
     }

@@ -45,6 +45,15 @@ def valid_frame(line: str) -> bool:
         return False
     index = 2
     while index < len(fields):
+        if fields[index] == "ODOM":
+            if index + 1 >= len(fields):
+                return False
+            try:
+                float(fields[index + 1])
+            except ValueError:
+                return False
+            index += 2
+            continue
         if index + 4 > len(fields):
             return False
         # CLASS CONFIDENCE CENTER_X BOTTOM_Y
@@ -100,6 +109,8 @@ def main() -> int:
     parser.add_argument("--object-servo-test", action="store_true",
                         help="collect one ground-projected target, then stop without home navigation")
     parser.add_argument("--socket", default="/tmp/robotd.sock")
+    parser.add_argument("--dump-pulse", type=int, default=2000,
+                        help="rear-flap dump pulse; explicit authorization for servo motion")
     parser.add_argument("--max-frame-age", type=float, default=1.50)
     parser.add_argument("--heartbeat-seconds", type=float, default=.08)
     parser.add_argument("--linear-rise-step", type=float, default=.030)
@@ -113,6 +124,7 @@ def main() -> int:
     protocol_file = Path(args.protocol_file)
     status_file = Path(args.status_file)
     command = [args.robotbrain, "--live", "--expected-objects", str(args.expected_objects)]
+    command += ["--dump-pulse", str(args.dump_pulse)]
     if args.object_servo_test:
         command.append("--object-servo-test")
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
