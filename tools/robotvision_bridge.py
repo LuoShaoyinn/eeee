@@ -465,6 +465,11 @@ def main() -> None:
             # local run with it; autonomous motion remains gated by the
             # concurrently updated blue-fence particle filter.
             frame = ["1" if localization_valid else "0", "0", "ODOM", f"{encoder_forward_m:.3f}"]
+            # PF pose is chassis-centred; Home target is the camera ground position.
+            c, s = math.cos(pose.yaw_rad), math.sin(pose.yaw_rad)
+            camera_x = pose.x_m + c * args.camera_forward_m - s * args.camera_left_m
+            camera_y = pose.y_m + s * args.camera_forward_m + c * args.camera_left_m
+            frame += ["POSE", f"{camera_x:.4f}", f"{camera_y:.4f}", f"{pose.yaw_rad:.5f}"]
             ground_log = []
             for label, confidence, left, top, right, bottom in detections:
                 center_x = max(0.0, min(1.0, (left + right) * .5 / rectified.shape[1]))

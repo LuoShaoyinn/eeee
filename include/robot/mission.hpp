@@ -39,6 +39,14 @@ enum class MissionState {
 };
 
 struct MissionConfig {
+    bool global_home = false;
+    // Field target is the camera ground position, not the chassis centre.
+    double home_camera_x_m = 0.280;
+    double home_camera_y_m = 0.120;
+    double home_yaw_rad = 0.0;
+    double home_position_tolerance_m = 0.020;
+    double home_yaw_tolerance_rad = 0.035;
+    double home_timeout_s = 60.0;
     int expected_collectibles = 0;
     // Supervised single-object intake validation. This intentionally bypasses
     // global blue-fence localization, never returns home, and stops after the
@@ -118,6 +126,10 @@ struct MissionInput {
     // vision bridge alongside the blue-fence particle-filter validity bit.
     bool odometry_valid = false;
     double odometry_forward_m = 0.0;
+    bool pose_valid = false;
+    double camera_x_m = 0.0;
+    double camera_y_m = 0.0;
+    double chassis_yaw_rad = 0.0;
     std::vector<Detection> detections;
 };
 
@@ -179,6 +191,7 @@ private:
     int lost_target_frames_ = 0;
     int dock_frames_ = 0;
     double dump_elapsed_s_ = 0.0;
+    double home_elapsed_s_ = 0.0;
     PidState forward_pid_;
     PidState lateral_pid_;
     PidState yaw_pid_;

@@ -18,6 +18,11 @@ double bearing_of(const Detection& detection) {
 }  // namespace
 
 MissionController::MissionController(MissionConfig config) : config_(config) {
+    if (!std::isfinite(config_.home_camera_x_m) || !std::isfinite(config_.home_camera_y_m) ||
+        !std::isfinite(config_.home_yaw_rad) || !(config_.home_position_tolerance_m > 0) ||
+        !(config_.home_yaw_tolerance_rad > 0) || !(config_.home_timeout_s > 0)) {
+        throw std::invalid_argument("invalid global home configuration");
+    }
     if (config_.expected_collectibles < 0 || config_.frames_to_confirm_collection < 1 ||
         config_.frames_to_confirm_dock < 1 || config_.max_lost_target_frames < 1 ||
         config_.collector_percent < -100 || config_.collector_percent > 100 ||
@@ -236,6 +241,11 @@ void MissionController::begin_intake_run(const MissionInput& input) {
 }
 
 MissionOutput MissionController::update(const MissionInput& input) {
+    if (config_.global_home && !config_.object_servo_test &&
+        (!input.pose_valid || !std::isfinite(input.camera_x_m) ||
+         !std::isfinite(input.camera_y_m) || !std::isfinite(input.chassis_yaw_rad))) {
+        state_ = MissionState::fault;
+    }
     if (!config_.object_servo_test && !input.localization_valid && state_ != MissionState::initializing &&
         state_ != MissionState::fault) {
         state_ = MissionState::fault;
@@ -251,10 +261,30 @@ MissionOutput MissionController::update(const MissionInput& input) {
     }
     if (state_ == MissionState::done) return output_for_state();
 
+    if (config_.global_home && collected_count_ >= config_.expected_collectibles &&
+        config_.expected_collectibles > 0 && state_ != MissionState::dumping) {
+        home_elapsed_s_ += std::clamp(input.control_dt_s, .02, .50);
+        if (home_elapsed_s_ >= config_.home_timeout_s) {
+            state_ = MissionState::fault;
+            auto output = output_for_state();
+            output.emergency_stop = true;
+            return output;
+        }
+    }
+
     const auto obstacle = best_detection(input.detections, ObjectClass::other_robot);
     // A nearby robot always overrides pursuit, except once the vehicle is
     // stationary in the dumping state.
     if (obstacle && obstacle->bottom_y >= config_.obstacle_bottom_y && state_ != MissionState::dumping) {
+        dock_frames_ = 0;
+        if (config_.global_home && config_.expected_collectibles > 0 &&
+            collected_count_ >= config_.expected_collectibles) {
+            // Hold near field boundaries instead of an unplanned avoidance strafe.
+            state_ = MissionState::returning_home;
+            auto output = output_for_state();
+            output.collector_percent = 0;
+            return output;
+        }
         reset_visual_servo();
         intake_odometry_started_ = false;
         state_ = MissionState::avoiding_robot;
@@ -381,6 +411,38 @@ MissionOutput MissionController::update(const MissionInput& input) {
     }
 
     if (state_ == MissionState::returning_home || state_ == MissionState::docking_home) {
+        if (config_.global_home) {
+            const double dx = config_.home_camera_x_m - input.camera_x_m;
+            const double dy = config_.home_camera_y_m - input.camera_y_m;
+            const double distance = std::hypot(dx, dy);
+            const double yaw_error = std::remainder(config_.home_yaw_rad - input.chassis_yaw_rad,
+                                                     2.0 * std::acos(-1.0));
+            state_ = MissionState::docking_home;
+            auto output = output_for_state();
+            output.collector_percent = 0;
+            const bool aligned = std::abs(yaw_error) <= config_.home_yaw_tolerance_rad;
+            if (aligned && distance <= config_.home_position_tolerance_m) {
+                if (++dock_frames_ >= config_.frames_to_confirm_dock) {
+                    state_ = MissionState::dumping;
+                    output.state = state_;
+                    output.servo_pulse_us = config_.dump_servo_pulse_us;
+                }
+                return output;
+            }
+            dock_frames_ = 0;
+            // Orient first, then translate using the current camera field error.
+            // The bridge rotates the calibrated camera offset into field coordinates.
+            if (!aligned) {
+                output.yaw_radps = std::clamp(1.5 * yaw_error, -.35, .35);
+                return output;
+            }
+            const double scale = std::min(.8, .10 / distance);
+            const double c = std::cos(input.chassis_yaw_rad);
+            const double s = std::sin(input.chassis_yaw_rad);
+            output.forward_mps = scale * (c * dx + s * dy);
+            output.left_mps = scale * (-s * dx + c * dy);
+            return output;
+        }
         const auto home = best_detection(input.detections, ObjectClass::home);
         if (!home) {
             state_ = MissionState::returning_home;

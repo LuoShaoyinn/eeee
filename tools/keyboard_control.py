@@ -5,6 +5,7 @@ import argparse
 import re
 import select
 import socket
+import subprocess
 import sys
 import termios
 import time
@@ -40,6 +41,11 @@ def main():
                         help="lowest active S3 calibration pulse in microseconds")
     parser.add_argument("--servo-max-pulse", type=int, default=2000,
                         help="highest S3 calibration pulse in microseconds")
+    parser.add_argument("--mission-runner", default="tools/live_mission.py")
+    parser.add_argument("--robotbrain", default="build/robotbrain")
+    parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt")
+    parser.add_argument("--mission-status-file", default="/tmp/robot-mission-status.json")
+    parser.add_argument("--expected-objects", type=int, default=2)
     args = parser.parse_args()
     if (args.linear <= 0 or args.yaw <= 0 or args.max_linear <= 0 or
             args.max_yaw <= 0 or args.period <= 0 or args.servo_pulse_step <= 0 or
@@ -52,7 +58,7 @@ def main():
 
     print("W/S forward/back, A/D left/right, Q/E yaw: each press adds speed")
     print(f"limits: linear +-{args.max_linear:.2f} m/s, yaw +-{args.max_yaw:.2f} rad/s")
-    print("Space stop, Esc quit")
+    print("Space stop, Esc quit; M starts global decision validation")
     print("[ / ] S3 active range "
           f"{args.servo_active_min_pulse}..{args.servo_max_pulse} us; R releases")
     print("F/B GA25 forward/reverse, ,/. GA25 speed down/up, G stops GA25, T state")
@@ -60,6 +66,7 @@ def main():
     servo_pulse_us = 0
     ga25_speed = 0
     ga25_direction = 1
+    mission_process = None
     old_settings = termios.tcgetattr(sys.stdin)
 
     def issue(command, show=True):
@@ -118,6 +125,23 @@ def main():
         direction = "forward" if ga25_direction > 0 else "reverse"
         print(f"GA25: {direction}, {ga25_speed}%")
 
+    def start_global_mission():
+        nonlocal mission_process
+        if mission_process is not None and mission_process.poll() is None:
+            print("global decision validation already running")
+            return
+        mission_process = subprocess.Popen([sys.executable, args.mission_runner,
+            "--robotbrain", args.robotbrain, "--protocol-file", args.protocol_file,
+            "--status-file", args.mission_status_file, "--expected-objects",
+            str(args.expected_objects), "--socket", args.socket])
+        print("global decision validation started")
+
+    def stop_global_mission():
+        nonlocal mission_process
+        if mission_process is not None and mission_process.poll() is None:
+            mission_process.terminate()
+        mission_process = None
+
     try:
         show_s3_status()
         tty.setcbreak(sys.stdin.fileno())
@@ -131,6 +155,7 @@ def main():
                     break
                 if key == " ":
                     vx = vy = wz = 0.0
+                    stop_global_mission()
                     issue("stop")
                     continue
                 if key == "w":
@@ -195,15 +220,18 @@ def main():
                 elif key == "t":
                     issue("state")
                     show_s3_status()
+                elif key == "m":
+                    start_global_mission()
                 else: continue
 
             now = time.monotonic()
-            if now >= next_refresh:
+            if now >= next_refresh and not (mission_process is not None and mission_process.poll() is None):
                 issue(f"twist {vx:.3f} {vy:.3f} {wz:.3f}", show=False)
                 if ga25_speed:
                     issue(f"ga25 {ga25_direction * ga25_speed}", show=False)
                 next_refresh = now + args.period
     finally:
+        stop_global_mission()
         issue("stop", show=False)
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 

@@ -45,6 +45,16 @@ def valid_frame(line: str) -> bool:
         return False
     index = 2
     while index < len(fields):
+        if fields[index] == "POSE":
+            if index + 3 >= len(fields):
+                return False
+            try:
+                if not all(math.isfinite(float(value)) for value in fields[index + 1:index + 4]):
+                    return False
+            except ValueError:
+                return False
+            index += 4
+            continue
         if fields[index] == "ODOM":
             if index + 1 >= len(fields):
                 return False
@@ -127,6 +137,8 @@ def main() -> int:
     command += ["--dump-pulse", str(args.dump_pulse)]
     if args.object_servo_test:
         command.append("--object-servo-test")
+    else:
+        command.append("--global-home")
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, bufsize=1)
     state = "starting"

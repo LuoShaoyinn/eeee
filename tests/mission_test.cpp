@@ -1,4 +1,6 @@
 #include <cassert>
+#include <cmath>
+#include <limits>
 
 #include "robot/mission.hpp"
 
@@ -16,6 +18,67 @@ robot::Detection ground_object(robot::ObjectClass type, double forward, double l
 }  // namespace
 
 int main() {
+    // Global docking uses the camera pose even with no Home detection.
+    robot::MissionConfig global;
+    global.global_home = true;
+    global.expected_collectibles = 1;
+    global.frames_to_confirm_collection = 1;
+    global.frames_to_confirm_dock = 3;
+    global.dump_duration_s = .1;
+    robot::MissionInput frame;
+    frame.localization_valid = true;
+    frame.pose_valid = true;
+    frame.camera_x_m = 1.0;
+    frame.camera_y_m = .8;
+    frame.chassis_yaw_rad = 1.57;
+    const auto collect = [&](robot::MissionController& controller) {
+        (void)controller.update(frame);
+        frame.detections = {object(robot::ObjectClass::yellow, .9)};
+        (void)controller.update(frame);
+        frame.detections.clear();
+        return controller.update(frame);
+    };
+    robot::MissionController global_mission(global);
+    auto global_output = collect(global_mission);
+    assert(global_output.yaw_radps < 0 && global_output.forward_mps == 0 && global_output.left_mps == 0);
+    frame.chassis_yaw_rad = 0;
+    global_output = global_mission.update(frame);
+    assert(global_output.forward_mps < 0 && global_output.left_mps < 0);
+    assert(std::hypot(global_output.forward_mps, global_output.left_mps) <= .100001);
+    assert(global_output.collector_percent == 0 && !global_output.servo_pulse_us);
+    frame.camera_x_m = .28;
+    frame.camera_y_m = .12;
+    assert(!global_mission.update(frame).servo_pulse_us);
+    assert(!global_mission.update(frame).servo_pulse_us);
+    frame.detections = {object(robot::ObjectClass::other_robot, .9)};
+    global_output = global_mission.update(frame);
+    assert(global_output.forward_mps == 0 && global_output.left_mps == 0 && !global_output.servo_pulse_us);
+    frame.detections.clear();
+    assert(!global_mission.update(frame).servo_pulse_us);
+    frame.camera_x_m = .4;  // A pose excursion resets consecutive docking confirmation.
+    assert(!global_mission.update(frame).servo_pulse_us);
+    frame.camera_x_m = .28;
+    assert(!global_mission.update(frame).servo_pulse_us);
+    assert(!global_mission.update(frame).servo_pulse_us);
+    global_output = global_mission.update(frame);
+    assert(global_output.state == robot::MissionState::dumping && global_output.servo_pulse_us == 2000);
+    assert(global_output.forward_mps == 0 && global_output.left_mps == 0 && global_output.yaw_radps == 0);
+    global_output = global_mission.update(frame);
+    assert(global_output.state == robot::MissionState::done && global_output.servo_pulse_us == 1600);
+    robot::MissionController missing_pose(global);
+    frame.pose_valid = false;
+    assert(missing_pose.update(frame).emergency_stop);
+    frame.pose_valid = true;
+    robot::MissionController nan_pose(global);
+    frame.camera_x_m = std::numeric_limits<double>::quiet_NaN();
+    assert(nan_pose.update(frame).emergency_stop);
+    frame.camera_x_m = 1.0;
+    global.home_timeout_s = .15;
+    robot::MissionController timeout(global);
+    (void)collect(timeout);
+    (void)timeout.update(frame);
+    assert(timeout.update(frame).emergency_stop);
+
     robot::MissionConfig config;
     config.expected_collectibles = 1;
     config.frames_to_confirm_collection = 1;

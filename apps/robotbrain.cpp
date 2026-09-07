@@ -102,6 +102,15 @@ robot::MissionInput parse_frame(const std::string& line) {
     frame.collection_sensor_triggered = collection != 0;
     std::string object_name;
     while (input >> object_name) {
+        if (object_name == "POSE") {
+            if (!(input >> frame.camera_x_m >> frame.camera_y_m >> frame.chassis_yaw_rad) ||
+                !std::isfinite(frame.camera_x_m) || !std::isfinite(frame.camera_y_m) ||
+                !std::isfinite(frame.chassis_yaw_rad)) {
+                throw std::runtime_error("invalid POSE camera x/y metres or chassis yaw radians");
+            }
+            frame.pose_valid = true;
+            continue;
+        }
         if (object_name == "ODOM") {
             if (!(input >> frame.odometry_forward_m) || !std::isfinite(frame.odometry_forward_m)) {
                 throw std::runtime_error("invalid ODOM distance");
@@ -152,12 +161,14 @@ int main(int argc, char** argv) {
         else if (argument == "--socket") socket = value("--socket");
         else if (argument == "--expected-objects") config.expected_collectibles = std::stoi(value("--expected-objects"));
         else if (argument == "--object-servo-test") config.object_servo_test = true;
+        else if (argument == "--global-home") config.global_home = true;
         else if (argument == "--dump-pulse") {
             config.dump_servo_pulse_us = std::stoi(value("--dump-pulse"));
             dump_pulse = config.dump_servo_pulse_us;
         }
         else if (argument == "--help") {
             std::cout << "robotbrain [--live] [--socket PATH] [--expected-objects N] [--object-servo-test] [--dump-pulse US]\n"
+                         "[--global-home] uses POSE camera x/y metres, chassis yaw radians to return home.\n"
                          "Read YOLO/localization/ODOM frames from stdin. --live is required to command robotd.\n";
             return 0;
         } else throw std::runtime_error("unknown option: " + argument);
