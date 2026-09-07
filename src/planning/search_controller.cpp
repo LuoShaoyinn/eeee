@@ -64,7 +64,9 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
         }
     }
     const double linear_step = .4 * std::clamp(dt_s, 0.0, .2);
-    const double yaw_step = 1.2 * std::clamp(dt_s, 0.0, .2);
+    // Search needs to acquire targets quickly; retain a bounded ramp so a
+    // transition from translation to rotation cannot step the wheel command.
+    const double yaw_step = 2.5 * std::clamp(dt_s, 0.0, .2);
     result.command.forward_mps = slew(result.command.forward_mps, previous_command_.forward_mps,
                                       linear_step);
     result.command.left_mps = slew(result.command.left_mps, previous_command_.left_mps,

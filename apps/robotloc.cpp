@@ -874,6 +874,10 @@ int main(int argc, char** argv) {
         }
         bool mission_active = false;
         bool runtime_has_command = false;
+        // Once an approach starts, preserve the closest selected target. A
+        // momentary duplicate/false detection must not make the chassis chase
+        // a different object on the next NPU frame.
+        std::optional<std::uint64_t> locked_collectible_id;
         std::optional<robot::Timestamp> last_navigation_ready;
 #ifdef ROBOT_A733_NPU
         DetectorWorker detector_worker(robot::make_a733_detector(options.detector_model),
@@ -893,6 +897,7 @@ int main(int argc, char** argv) {
                         approach_controller.reset();
                         search_controller.reset();
                         world.replace_objects({});
+                        locked_collectible_id.reset();
                         try {
                             (void)request_robotd(options.socket, "stop");
                             response = "ok mission active; " + request_robotd(options.socket, "collector start");
@@ -904,6 +909,7 @@ int main(int argc, char** argv) {
                         runtime_has_command = false;
                         approach_controller.reset();
                         search_controller.reset();
+                        locked_collectible_id.reset();
                         try {
                             response = "ok mission inactive; " + request_robotd(options.socket, "stop");
                         } catch (const std::exception& error) {
@@ -1088,10 +1094,14 @@ int main(int argc, char** argv) {
                     capture_time);
             }
 #endif
-            auto target = world.nearest_collectible(
-                {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
+            auto target = locked_collectible_id
+                ? world.collectible_by_id(*locked_collectible_id)
+                : world.nearest_collectible(
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad});
+            if (target && !locked_collectible_id) locked_collectible_id = target->id;
             if (target && capture_time - target->last_seen > options.approach.target_timeout) {
                 target.reset();
+                locked_collectible_id.reset();
             }
             // A fresh object observation is projected from this same camera pose.
             // Its robot-relative approach vector remains useful even when fence
@@ -1116,6 +1126,7 @@ int main(int argc, char** argv) {
                         {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                         true, capture_time, std::min(dt_s, .2));
                 } else {
+                    locked_collectible_id.reset();
                     approach_controller.reset();
                     search_result = search_controller.update(
                         {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
@@ -1130,6 +1141,7 @@ int main(int argc, char** argv) {
                     if (!telemetry_valid || search_result.phase == robot::SearchPhase::complete) {
                         mission_active = false;
                         runtime_has_command = false;
+                        locked_collectible_id.reset();
                         (void)request_robotd(options.socket, "stop");
                     } else {
                         const robot::Twist2 command =
@@ -1137,6 +1149,7 @@ int main(int argc, char** argv) {
                                 ? approach_result.command : robot::Twist2{};
                         (void)request_robotd(options.socket, twist_command(command));
                         runtime_has_command = true;
+                        if (approach_result.target_reached) locked_collectible_id.reset();
                     }
                 } catch (const std::exception& error) {
                     std::cerr << "robot-runtime: command transport failed; disarming: "

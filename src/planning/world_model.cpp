@@ -50,6 +50,17 @@ void WorldModel::update_objects(std::vector<TrackedObject> observations, Timesta
 
 const std::vector<TrackedObject>& WorldModel::objects() const { return objects_; }
 
+std::optional<TrackedObject> WorldModel::collectible_by_id(std::uint64_t id) const {
+    for (const auto& object : objects_) {
+        if (object.id != id) continue;
+        if (object.object_class == ObjectClass::yellow_cylinder ||
+            object.object_class == ObjectClass::red_cube) {
+            return object;
+        }
+    }
+    return std::nullopt;
+}
+
 std::optional<TrackedObject> WorldModel::nearest_collectible(const Pose2& pose) const {
     const TrackedObject* best = nullptr;
     double best_distance = std::numeric_limits<double>::infinity();

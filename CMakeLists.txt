@@ -43,6 +43,7 @@ target_compile_options(robot_config PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
 add_library(robot_autonomy
     src/control/safety_supervisor.cpp
+    src/perception/detections.cpp
     src/perception/object_projection.cpp
     src/planning/approach_controller.cpp
     src/planning/search_controller.cpp

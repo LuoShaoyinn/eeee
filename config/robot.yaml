@@ -78,9 +78,11 @@ search:
   # beyond 0.35 m, preventing pose noise from oscillating translation.
   center_entry_radius_m: .25
   center_exit_radius_m: .35
-  rotation_speed_radps: .35
+  # Search only: turn briskly when no collectible is visible. This does not
+  # raise the normal object-approach yaw limit.
+  rotation_speed_radps: .80
   maximum_linear_mps: .20
-  maximum_yaw_radps: .60
+  maximum_yaw_radps: 1.0
 detector:
   backend: vip_lite
   model: models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb

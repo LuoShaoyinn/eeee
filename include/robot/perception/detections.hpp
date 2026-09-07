@@ -33,4 +33,10 @@ struct DetectionFrame {
     std::vector<Detection> detections;
 };
 
+// Keep the most confident member of each set of substantially overlapping
+// boxes from the same class. This is deliberately class-aware: a collectible
+// inside an opponent-robot box must remain visible to the later safety filter.
+std::vector<Detection> deduplicate_same_class_detections(
+    std::vector<Detection> detections, float minimum_overlap = .50F);
+
 }  // namespace robot

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 
@@ -85,7 +86,9 @@ int main() {
     });
     const auto nearest = world.nearest_collectible({});
     if (!require(nearest && nearest->id == 3,
-                 "nearest collectible ignores opponent")) return 1;
+                 "nearest collectible ignores opponent") ||
+        !require(world.collectible_by_id(3).has_value() && !world.collectible_by_id(4).has_value(),
+                 "only collectable IDs can be held as an approach target")) return 1;
 
     const auto corners = robot::footprint_corners({.x_m = .38, .y_m = .25});
     if (!require(std::abs(corners[0].x_m - .10) < 1e-9 &&
@@ -136,6 +139,24 @@ int main() {
     if (!require(robot::project_collectibles(
                      detections, projector, {.x_m = .5, .y_m = .5, .yaw_rad = CV_PI / 2}).empty(),
                  "collectible overlapping opponent is not a drive target")) return 1;
+
+    const auto deduplicated = robot::deduplicate_same_class_detections({
+        {.object_class = robot::ObjectClass::yellow_cylinder, .confidence = .91F,
+         .box = {.left = 10, .top = 10, .right = 30, .bottom = 30}},
+        {.object_class = robot::ObjectClass::yellow_cylinder, .confidence = .70F,
+         .box = {.left = 12, .top = 12, .right = 32, .bottom = 32}},
+        {.object_class = robot::ObjectClass::yellow_cylinder, .confidence = .80F,
+         .box = {.left = 50, .top = 10, .right = 70, .bottom = 30}},
+        {.object_class = robot::ObjectClass::red_cube, .confidence = .60F,
+         .box = {.left = 12, .top = 12, .right = 32, .bottom = 32}},
+    });
+    if (!require(deduplicated.size() == 3 && deduplicated[0].confidence == .91F,
+                 "same-class overlapping detections collapse to highest confidence") ||
+        !require(std::any_of(deduplicated.begin(), deduplicated.end(),
+                             [](const robot::Detection& detection) {
+                                 return detection.object_class == robot::ObjectClass::red_cube;
+                             }),
+                 "different classes remain available for overlap safety filtering")) return 1;
 
     robot::SearchController search;
     auto search_result = search.update({.x_m = .2, .y_m = .2}, false, now, .1);

@@ -47,7 +47,7 @@ int main() {
             config.search_center_rotate_seconds != 5.0 ||
             config.search_center_entry_radius_m != .25 ||
             config.search_center_exit_radius_m != .35 ||
-            config.search_rotation_speed_radps != .35) {
+            config.search_rotation_speed_radps != .80) {
             std::cerr << "unexpected search controller configuration\n";
             return 1;
         }

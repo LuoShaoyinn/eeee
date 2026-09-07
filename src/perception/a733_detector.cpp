@@ -56,6 +56,7 @@ public:
                         .bottom = static_cast<float>(detection.box.y + detection.box.height)},
             });
         }
+        frame.detections = deduplicate_same_class_detections(std::move(frame.detections));
         return frame;
     }
 

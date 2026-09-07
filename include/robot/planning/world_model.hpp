@@ -24,6 +24,7 @@ public:
     void replace_objects(std::vector<TrackedObject> objects);
     void update_objects(std::vector<TrackedObject> observations, Timestamp now);
     const std::vector<TrackedObject>& objects() const;
+    std::optional<TrackedObject> collectible_by_id(std::uint64_t id) const;
     std::optional<TrackedObject> nearest_collectible(const Pose2& pose) const;
 
 private:
