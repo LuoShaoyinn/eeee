@@ -1161,6 +1161,28 @@ int main(int argc, char** argv) {
                 upper_fence_count = fence_result->edges.upper.size();
                 latest_fence_edges = fence_result->edges;
                 latest_fence_capture_pose = fence_result->odometry_pose;
+                // The edge worker returns asynchronously. Carry its camera-frame
+                // points from capture time into the current body frame before
+                // scoring each particle, rather than treating a delayed image as
+                // an observation from the current camera pose.
+                std::vector<cv::Point2d> current_observations;
+                current_observations.reserve(fence_result->observations.size());
+                const double captured_cosine = std::cos(fence_result->odometry_pose.yaw_rad);
+                const double captured_sine = std::sin(fence_result->odometry_pose.yaw_rad);
+                const double current_cosine = std::cos(odometry_pose.yaw_rad);
+                const double current_sine = std::sin(odometry_pose.yaw_rad);
+                for (const cv::Point2d& point : fence_result->observations) {
+                    const double world_x = fence_result->odometry_pose.x_m +
+                        captured_cosine * point.x - captured_sine * point.y;
+                    const double world_y = fence_result->odometry_pose.y_m +
+                        captured_sine * point.x + captured_cosine * point.y;
+                    const double delta_x = world_x - odometry_pose.x_m;
+                    const double delta_y = world_y - odometry_pose.y_m;
+                    current_observations.emplace_back(
+                        current_cosine * delta_x + current_sine * delta_y,
+                        -current_sine * delta_x + current_cosine * delta_y);
+                }
+                filter.update(current_observations);
                 if (visual_geometry.valid && !visual_geometry.candidates.empty()) {
                     const auto& candidate = visual_geometry.candidates.front();
                     robot::Pose2 current_candidate = candidate.pose;
