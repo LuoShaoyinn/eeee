@@ -75,7 +75,21 @@ void validate(const RuntimeConfig& config) {
         config.search_home_y_m < 0 || config.search_home_y_m > config.arena_width_m ||
         config.search_home_stop_radius_m <= 0 ||
         config.search_rotation_speed_radps <= 0 || config.search_maximum_linear_mps <= 0 ||
-        config.search_maximum_yaw_radps <= 0) {
+        config.search_maximum_yaw_radps <= 0 ||
+        config.search_post_home_moonwalk_x_m < 0 ||
+        config.search_post_home_moonwalk_x_m > config.arena_length_m ||
+        config.search_post_home_moonwalk_y_m < 0 ||
+        config.search_post_home_moonwalk_y_m > config.arena_width_m ||
+        config.search_post_home_moonwalk_translation_kp <= 0 ||
+        config.search_post_home_moonwalk_yaw_tolerance_deg <= 0 ||
+        config.search_post_home_moonwalk_yaw_tolerance_deg >= 180 ||
+        config.search_post_home_moonwalk_yaw_kp <= 0 ||
+        config.search_post_home_moonwalk_timeout_seconds <= 0 ||
+        config.search_post_home_turn_yaw_kp <= 0 ||
+        config.search_post_home_turn_yaw_tolerance_deg <= 0 ||
+        config.search_post_home_turn_yaw_tolerance_deg >= 180 ||
+        config.search_post_home_reverse_mps <= 0 ||
+        config.search_post_home_reverse_seconds <= 0) {
         throw std::runtime_error("search controller configuration is invalid");
     }
     if (config.fence_hsv_h_min < 0 || config.fence_hsv_h_max > 179 ||
@@ -214,6 +228,17 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(search, "rotation_speed_radps", config.search_rotation_speed_radps);
     read(search, "maximum_linear_mps", config.search_maximum_linear_mps);
     read(search, "maximum_yaw_radps", config.search_maximum_yaw_radps);
+    read(search, "post_home_moonwalk_x_m", config.search_post_home_moonwalk_x_m);
+    read(search, "post_home_moonwalk_y_m", config.search_post_home_moonwalk_y_m);
+    read(search, "post_home_moonwalk_translation_kp", config.search_post_home_moonwalk_translation_kp);
+    read(search, "post_home_moonwalk_yaw_deg", config.search_post_home_moonwalk_yaw_deg);
+    read(search, "post_home_moonwalk_yaw_tolerance_deg", config.search_post_home_moonwalk_yaw_tolerance_deg);
+    read(search, "post_home_moonwalk_yaw_kp", config.search_post_home_moonwalk_yaw_kp);
+    read(search, "post_home_moonwalk_timeout_seconds", config.search_post_home_moonwalk_timeout_seconds);
+    read(search, "post_home_turn_yaw_kp", config.search_post_home_turn_yaw_kp);
+    read(search, "post_home_turn_yaw_tolerance_deg", config.search_post_home_turn_yaw_tolerance_deg);
+    read(search, "post_home_reverse_mps", config.search_post_home_reverse_mps);
+    read(search, "post_home_reverse_seconds", config.search_post_home_reverse_seconds);
     const cv::FileNode detector = file["detector"];
     read(detector, "backend", config.detector_backend);
     read(detector, "model", config.detector_model);

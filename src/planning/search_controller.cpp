@@ -21,7 +21,10 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
         return {};
     }
     if (complete_) return {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
-    if (direct_return_home_) {
+    // The explicit operator command and the automatic lost-target recovery
+    // share the same post-home trajectory once recovery has committed to the
+    // home leg.
+    if (direct_return_home_ || center_search_complete_) {
         SearchResult result;
         if (!navigation_allowed) {
             result.phase = SearchPhase::hold_for_localization;
@@ -35,15 +38,71 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                 result.phase = SearchPhase::navigate_center;
                 result.command = navigate(pose, config_.center_x_m, config_.center_y_m,
                                           config_.center_entry_radius_m, dt_s);
+            } else if (post_home_phase_ == PostHomePhase::none) {
+                result.phase = SearchPhase::return_home;
+                result.command = navigate(pose, config_.home_x_m, config_.home_y_m,
+                                          config_.home_stop_radius_m, dt_s);
+                if (std::hypot(pose.x_m - config_.home_x_m, pose.y_m - config_.home_y_m) <=
+                    config_.home_stop_radius_m) {
+                    post_home_phase_ = PostHomePhase::moonwalk;
+                    post_home_phase_started_ = now;
+                    result = {.command = {}, .phase = SearchPhase::post_home_moonwalk,
+                              .lost_seconds = 0};
+                }
+            } else if (post_home_phase_ == PostHomePhase::moonwalk) {
+                result.phase = SearchPhase::post_home_moonwalk;
+                const double target_yaw = config_.post_home_moonwalk_yaw_deg *
+                                          std::numbers::pi / 180.0;
+                const double yaw_error = wrap(target_yaw - pose.yaw_rad);
+                if (std::abs(yaw_error) <= config_.post_home_moonwalk_yaw_tolerance_deg *
+                                               std::numbers::pi / 180.0) {
+                    post_home_phase_ = PostHomePhase::turn;
+                    post_home_phase_started_ = now;
+                    post_home_turn_target_yaw_rad_ = wrap(pose.yaw_rad + std::numbers::pi);
+                    result = {.command = {}, .phase = SearchPhase::post_home_turn,
+                              .lost_seconds = 0};
+                } else if (now - post_home_phase_started_ >=
+                           std::chrono::duration<double>(config_.post_home_moonwalk_timeout_seconds)) {
+                    result = {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
+                    complete_ = true;
+                } else {
+                    // Reuse the field-frame position controller, but command
+                    // the requested heading instead of facing the waypoint.
+                    result.command = navigate(pose, config_.post_home_moonwalk_x_m,
+                                              config_.post_home_moonwalk_y_m, 0, dt_s);
+                    result.command.forward_mps *=
+                        config_.post_home_moonwalk_translation_kp /
+                        config_.navigate_translation_kp;
+                    result.command.left_mps *=
+                        config_.post_home_moonwalk_translation_kp /
+                        config_.navigate_translation_kp;
+                    result.command.yaw_radps = std::clamp(
+                        config_.post_home_moonwalk_yaw_kp * yaw_error,
+                        -config_.maximum_yaw_radps, config_.maximum_yaw_radps);
+                }
+            } else if (post_home_phase_ == PostHomePhase::turn) {
+                result.phase = SearchPhase::post_home_turn;
+                const double yaw_error = wrap(post_home_turn_target_yaw_rad_ - pose.yaw_rad);
+                if (std::abs(yaw_error) <= config_.post_home_turn_yaw_tolerance_deg *
+                                               std::numbers::pi / 180.0) {
+                    post_home_phase_ = PostHomePhase::reverse;
+                    post_home_phase_started_ = now;
+                    result = {.command = {}, .phase = SearchPhase::post_home_reverse,
+                              .lost_seconds = 0};
+                } else {
+                    result.command.yaw_radps = std::clamp(
+                        config_.post_home_turn_yaw_kp * yaw_error,
+                        -config_.maximum_yaw_radps, config_.maximum_yaw_radps);
+                }
             } else {
-            result.phase = SearchPhase::return_home;
-            result.command = navigate(pose, config_.home_x_m, config_.home_y_m,
-                                      config_.home_stop_radius_m, dt_s);
-            if (std::hypot(pose.x_m - config_.home_x_m, pose.y_m - config_.home_y_m) <=
-                config_.home_stop_radius_m) {
-                result = {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
-                complete_ = true;
-            }
+                result.phase = SearchPhase::post_home_reverse;
+                if (now - post_home_phase_started_ >=
+                    std::chrono::duration<double>(config_.post_home_reverse_seconds)) {
+                    result = {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
+                    complete_ = true;
+                } else {
+                    result.command.forward_mps = -config_.post_home_reverse_mps;
+                }
             }
         }
         const double linear_step = .4 * std::clamp(dt_s, 0.0, .2);
@@ -157,6 +216,9 @@ void SearchController::reset() {
     center_search_complete_ = false;
     direct_return_home_ = false;
     complete_ = false;
+    post_home_phase_ = PostHomePhase::none;
+    post_home_phase_started_ = {};
+    post_home_turn_target_yaw_rad_ = 0;
 }
 
 const char* to_string(SearchPhase phase) {
@@ -167,6 +229,9 @@ const char* to_string(SearchPhase phase) {
     case SearchPhase::rotate_center: return "rotate_center";
     case SearchPhase::hold_for_localization: return "hold_for_localization";
     case SearchPhase::return_home: return "return_home";
+    case SearchPhase::post_home_moonwalk: return "post_home_moonwalk";
+    case SearchPhase::post_home_turn: return "post_home_turn";
+    case SearchPhase::post_home_reverse: return "post_home_reverse";
     case SearchPhase::complete: return "complete";
     }
     return "unknown";

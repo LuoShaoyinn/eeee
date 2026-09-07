@@ -19,6 +19,21 @@ struct SearchConfig {
     double navigate_yaw_kp = 1.0;
     double maximum_linear_mps = .20;
     double maximum_yaw_radps = .6;
+    // Fixed recovery trajectory after reaching the home docking corner.
+    // The interior waypoint prevents the post-home turn from tracing a fixed
+    // body-frame arc through a fence. Translation is closed-loop in the
+    // arena frame, then transformed into mecanum forward/left commands.
+    double post_home_moonwalk_x_m = .55;
+    double post_home_moonwalk_y_m = .50;
+    double post_home_moonwalk_translation_kp = .55;
+    double post_home_moonwalk_yaw_deg = -145.0;
+    double post_home_moonwalk_yaw_tolerance_deg = 10.0;
+    double post_home_moonwalk_yaw_kp = 1.5;
+    double post_home_moonwalk_timeout_seconds = 10.0;
+    double post_home_turn_yaw_kp = 1.5;
+    double post_home_turn_yaw_tolerance_deg = 5.0;
+    double post_home_reverse_mps = .30;
+    double post_home_reverse_seconds = 1.0;
 };
 
 enum class SearchPhase {
@@ -28,6 +43,9 @@ enum class SearchPhase {
     rotate_center,
     hold_for_localization,
     return_home,
+    post_home_moonwalk,
+    post_home_turn,
+    post_home_reverse,
     complete,
 };
 
@@ -61,6 +79,10 @@ private:
     bool center_search_complete_ = false;
     bool direct_return_home_ = false;
     bool complete_ = false;
+    enum class PostHomePhase { none, moonwalk, turn, reverse };
+    PostHomePhase post_home_phase_ = PostHomePhase::none;
+    Timestamp post_home_phase_started_{};
+    double post_home_turn_target_yaw_rad_ = 0;
 };
 
 const char* to_string(SearchPhase phase);

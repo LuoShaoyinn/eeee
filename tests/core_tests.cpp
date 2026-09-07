@@ -298,9 +298,9 @@ int main() {
     if (!require(search_result.phase == robot::SearchPhase::return_home,
                  "completed center search returns home")) return 1;
     search_result = search.update({.x_m = .25, .y_m = .2}, false, now + 16s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::complete &&
+    if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk &&
                      search_result.command.forward_mps == 0,
-                 "home radius permanently stops search")) return 1;
+                 "automatic return-home begins the post-home trajectory")) return 1;
     search_result = search.update({.x_m = .25, .y_m = .2}, true, now + 13s, .1);
     if (!require(search_result.phase == robot::SearchPhase::tracking &&
                      search_result.command.forward_mps == 0,
@@ -321,9 +321,35 @@ int main() {
                      std::hypot(search_result.command.forward_mps,
                                 search_result.command.left_mps) > 0,
                  "explicit return-home leaves center directly for the corner")) return 1;
-    search_result = return_home.update({.x_m = .22, .y_m = .27}, true, now + 2s, .1);
+    search_result = return_home.update({.x_m = .22, .y_m = .27, .yaw_rad = 0}, true, now + 2s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk,
+                 "explicit return-home begins the post-home moonwalk at the corner")) return 1;
+    search_result = return_home.update({.x_m = .22, .y_m = .27, .yaw_rad = 0}, true, now + 2s + 100ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk &&
+                     std::hypot(search_result.command.forward_mps, search_result.command.left_mps) > 0 &&
+                     search_result.command.yaw_radps < 0,
+                 "moonwalk translates toward the interior waypoint while yawing toward minus 145 degrees")) return 1;
+    search_result = return_home.update({.x_m = .22, .y_m = .27,
+                                        .yaw_rad = -145.0 * std::numbers::pi / 180.0},
+                                       true, now + 3s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_turn,
+                 "moonwalk heading window transitions into the 180-degree turn")) return 1;
+    search_result = return_home.update({.x_m = .22, .y_m = .27,
+                                        .yaw_rad = 35.0 * std::numbers::pi / 180.0},
+                                       true, now + 4s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_reverse,
+                 "completed turn begins the timed reverse")) return 1;
+    search_result = return_home.update({.x_m = .22, .y_m = .27,
+                                        .yaw_rad = 35.0 * std::numbers::pi / 180.0},
+                                       true, now + 4s + 100ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_reverse &&
+                     search_result.command.forward_mps < 0,
+                 "post-home reverse commands backward motion")) return 1;
+    search_result = return_home.update({.x_m = .22, .y_m = .27,
+                                        .yaw_rad = 35.0 * std::numbers::pi / 180.0},
+                                       true, now + 6s, .1);
     if (!require(search_result.phase == robot::SearchPhase::complete,
-                 "explicit return-home completes inside the corner radius")) return 1;
+                 "explicit return-home stops after its one-second reverse")) return 1;
 
     robot::DetectionFrame home_frame{
         .timestamp = now,

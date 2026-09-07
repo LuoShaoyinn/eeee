@@ -111,6 +111,17 @@ struct RuntimeConfig {
     double search_rotation_speed_radps = .35;
     double search_maximum_linear_mps = .20;
     double search_maximum_yaw_radps = .6;
+    double search_post_home_moonwalk_x_m = .55;
+    double search_post_home_moonwalk_y_m = .50;
+    double search_post_home_moonwalk_translation_kp = .55;
+    double search_post_home_moonwalk_yaw_deg = -145;
+    double search_post_home_moonwalk_yaw_tolerance_deg = 10;
+    double search_post_home_moonwalk_yaw_kp = 1.5;
+    double search_post_home_moonwalk_timeout_seconds = 10;
+    double search_post_home_turn_yaw_kp = 1.5;
+    double search_post_home_turn_yaw_tolerance_deg = 5;
+    double search_post_home_reverse_mps = .30;
+    double search_post_home_reverse_seconds = 1;
 
     std::string detector_backend = "vip_lite";
     std::string detector_model = "models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb";
