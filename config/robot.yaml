@@ -134,6 +134,7 @@ search:
   post_home_moonwalk_yaw_tolerance_deg: 10.
   post_home_moonwalk_yaw_kp: 1.5
   post_home_moonwalk_timeout_seconds: 10.
+  post_home_turn_degrees: 180.
   post_home_turn_yaw_kp: 1.5
   post_home_turn_yaw_tolerance_deg: 5.
   post_home_reverse_mps: .30

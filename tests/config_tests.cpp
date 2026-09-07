@@ -72,6 +72,7 @@ int main() {
             config.search_post_home_moonwalk_y_m != .50 ||
             config.search_post_home_moonwalk_yaw_deg != -145. ||
             config.search_post_home_moonwalk_yaw_tolerance_deg != 10. ||
+            config.search_post_home_turn_degrees != 180. ||
             config.search_post_home_reverse_mps != .30 ||
             config.search_post_home_reverse_seconds != 2.) {
             std::cerr << "unexpected search controller configuration\n";

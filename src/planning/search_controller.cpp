@@ -58,7 +58,8 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                                                std::numbers::pi / 180.0) {
                     post_home_phase_ = PostHomePhase::turn;
                     post_home_phase_started_ = now;
-                    post_home_turn_target_yaw_rad_ = wrap(pose.yaw_rad + std::numbers::pi);
+                    post_home_turn_target_yaw_rad_ = wrap(
+                        pose.yaw_rad + config_.post_home_turn_degrees * std::numbers::pi / 180.0);
                     result = {.command = {}, .phase = SearchPhase::post_home_turn,
                               .lost_seconds = 0};
                 } else if (now - post_home_phase_started_ >=
