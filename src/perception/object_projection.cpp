@@ -73,6 +73,8 @@ std::vector<TrackedObject> project_collectibles(
             .object_class = detection.object_class,
             .x_m = x,
             .y_m = y,
+            .camera_forward_m = relative.x,
+            .camera_left_m = relative.y,
             .uncertainty_m = std::clamp(.02 + .04 * range, .02, .20),
             .confidence = detection.confidence,
             .last_seen = frame.timestamp,

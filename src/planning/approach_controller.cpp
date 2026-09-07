@@ -53,7 +53,7 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         return result;
     }
 
-    const double yaw_error = wrap_angle(std::atan2(dy, dx) - pose.yaw_rad);
+    const double yaw_error = std::atan2(left_error, forward_error);
     if (!initialized_) {
         previous_forward_error_ = forward_error;
         previous_left_error_ = left_error;

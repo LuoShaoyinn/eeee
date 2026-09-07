@@ -1115,9 +1115,20 @@ int main(int argc, char** argv) {
                 search_result = search_controller.update(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                     true, capture_time, std::min(dt_s, .2));
+                // Target selection belongs in the arena frame, but the last
+                // camera contact projection is the stable control error. Do
+                // not let a particle-filter correction rotate/translate the
+                // target error below the camera between detector frames.
+                robot::TrackedObject camera_target = *target;
+                const double cosine = std::cos(pose.yaw_rad);
+                const double sine = std::sin(pose.yaw_rad);
+                camera_target.x_m = pose.x_m + cosine * target->camera_forward_m -
+                                    sine * target->camera_left_m;
+                camera_target.y_m = pose.y_m + sine * target->camera_forward_m +
+                                    cosine * target->camera_left_m;
                 approach_result = approach_controller.update(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
-                    *target, capture_time, std::min(dt_s, .2));
+                    camera_target, capture_time, std::min(dt_s, .2));
             } else {
                 approach_result = approach_controller.continue_capture(
                     // The capture pass is a commanded chassis-relative distance.

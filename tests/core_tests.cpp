@@ -138,7 +138,10 @@ int main() {
     if (!require(projected.size() == 1, "collectible projects onto arena") ||
         !require(std::abs(projected[0].x_m - .5) < 1e-6 &&
                      std::abs(projected[0].y_m - 1.5) < 1e-6,
-                 "camera-relative target transforms to arena frame")) return 1;
+                 "camera-relative target transforms to arena frame") ||
+        !require(std::abs(projected[0].camera_forward_m - 1.0) < 1e-6 &&
+                     std::abs(projected[0].camera_left_m) < 1e-6,
+                 "collectible retains direct camera-relative control vector")) return 1;
     detections.detections.push_back({.object_class = robot::ObjectClass::opponent_robot,
                                      .confidence = .9F,
                                      .box = {.left = -.05F, .top = -.1F,

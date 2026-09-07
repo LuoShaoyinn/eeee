@@ -36,6 +36,8 @@ void WorldModel::update_objects(std::vector<TrackedObject> observations, Timesta
         const double alpha = std::clamp(.25 + .50 * observation.confidence, .25, .75);
         track.x_m += alpha * (observation.x_m - track.x_m);
         track.y_m += alpha * (observation.y_m - track.y_m);
+        track.camera_forward_m = observation.camera_forward_m;
+        track.camera_left_m = observation.camera_left_m;
         track.uncertainty_m = std::max(observation.uncertainty_m,
                                        (1.0 - alpha) * track.uncertainty_m);
         track.confidence = observation.confidence;
