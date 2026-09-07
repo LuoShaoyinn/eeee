@@ -33,7 +33,7 @@ class DebugGui:
         root.geometry("1000x720")
         toolbar = tk.Frame(root)
         toolbar.pack(fill=tk.X, padx=8, pady=8)
-        self.auto_button = tk.Button(toolbar, text="Start Auto", width=10,
+        self.auto_button = tk.Button(toolbar, text="Reload + Start", width=13,
                                      command=self.start_auto, bg="#b7d7b0")
         self.auto_button.pack(side=tk.LEFT)
         tk.Button(toolbar, text="STOP", width=10, command=self.stop_motion,
@@ -71,7 +71,7 @@ class DebugGui:
 
     def start_auto(self):
         try:
-            self.runtime_command("start")
+            self.restart_runtime_and_start()
         except Exception as error:
             self.events.put(("error", "cannot start autonomous session: {}".format(error)))
             return
@@ -88,7 +88,7 @@ class DebugGui:
         except Exception as error:
             self.events.put(("error", "cannot stop autonomous session: {}".format(error)))
             self.send("stop")
-        self.auto_button.configure(text="Start Auto", bg="#b7d7b0")
+        self.auto_button.configure(text="Reload + Start", bg="#b7d7b0")
         self.update_motion_label()
 
     def runtime_command(self, command):
@@ -100,6 +100,24 @@ class DebugGui:
         if status != 0 or reply.startswith("error:"):
             detail = stderr.read().decode(errors="replace").strip() or reply
             raise RuntimeError(detail or "runtime command failed")
+        return reply
+
+    def restart_runtime_and_start(self):
+        # The service starts disarmed. Only after its fresh control socket is
+        # available do we issue the explicit command that arms the mission.
+        remote = (
+            "sudo -n /bin/systemctl restart robot-runtime && "
+            "for attempt in $(seq 1 50); do "
+            "test -S /tmp/robot-runtime.sock && break; sleep 0.1; "
+            "done && test -S /tmp/robot-runtime.sock && "
+            "cd {} && ./bin/robotctl --socket /tmp/robot-runtime.sock start"
+        ).format(self.args.remote_dir)
+        _, stdout, stderr = self.ssh_client.exec_command(remote)
+        status = stdout.channel.recv_exit_status()
+        reply = stdout.read().decode(errors="replace").strip()
+        if status != 0 or reply.startswith("error:"):
+            detail = stderr.read().decode(errors="replace").strip() or reply
+            raise RuntimeError(detail or "runtime restart failed")
         return reply
 
     def clear_trail(self):
@@ -119,7 +137,7 @@ class DebugGui:
                 except Exception as error:
                     self.events.put(("error", "cannot leave auto mode: {}".format(error)))
             self.auto_running = False
-            self.auto_button.configure(text="Start Auto", bg="#b7d7b0")
+            self.auto_button.configure(text="Reload + Start", bg="#b7d7b0")
         if key == "w": self.vx = min(self.args.max_linear, self.vx + self.args.linear_step)
         elif key == "s": self.vx = max(-self.args.max_linear, self.vx - self.args.linear_step)
         elif key == "a": self.vy = min(self.args.max_linear, self.vy + self.args.linear_step)
