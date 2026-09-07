@@ -70,6 +70,18 @@ class DebugGui:
             self.auto_running = False
 
     def start_auto(self):
+        # The runtime owns the search state.  A new operator-started mission must
+        # begin with a fresh search timer rather than inherit a prior safe-stop.
+        try:
+            _, stdout, stderr = self.ssh_client.exec_command(
+                "sudo /bin/systemctl restart robot-runtime")
+            status = stdout.channel.recv_exit_status()
+            if status != 0:
+                raise RuntimeError(stderr.read().decode(errors="replace").strip() or
+                                   "runtime restart failed")
+        except Exception as error:
+            self.events.put(("error", "cannot start autonomous session: {}".format(error)))
+            return
         self.vx = self.vy = self.wz = 0.0
         self.send("stop")
         self.auto_running = True
