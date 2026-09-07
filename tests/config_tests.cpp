@@ -68,8 +68,6 @@ int main() {
             config.search_home_stop_radius_m != .20 ||
             config.search_rotation_speed_radps != 1.80 ||
             config.search_maximum_yaw_radps != 2.0 ||
-            config.search_post_home_moonwalk_x_m != .55 ||
-            config.search_post_home_moonwalk_y_m != .50 ||
             config.search_post_home_moonwalk_yaw_deg != -145. ||
             config.search_post_home_moonwalk_yaw_tolerance_deg != 10. ||
             config.search_post_home_turn_degrees != 180. ||

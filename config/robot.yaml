@@ -124,12 +124,8 @@ search:
   # Closed-loop travel to center and home. Rotation-only search is unaffected.
   maximum_linear_mps: .60
   maximum_yaw_radps: 2.0
-  # After return-home reaches the home center, translate with a
-  # field-frame PID toward this interior point while yawing to -145 deg
-  # (+/-10). This prevents a fixed sideways command from crossing a fence.
-  post_home_moonwalk_x_m: .55
-  post_home_moonwalk_y_m: .50
-  post_home_moonwalk_translation_kp: .55
+  # After return-home reaches the home center, hold translation at zero while
+  # yawing to -145 deg (+/-10).
   post_home_moonwalk_yaw_deg: -145.
   post_home_moonwalk_yaw_tolerance_deg: 10.
   post_home_moonwalk_yaw_kp: 1.5

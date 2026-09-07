@@ -326,9 +326,9 @@ int main() {
                  "explicit return-home begins the post-home moonwalk at the corner")) return 1;
     search_result = return_home.update({.x_m = .15, .y_m = .20, .yaw_rad = 0}, true, now + 2s + 100ms, .1);
     if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk &&
-                     std::hypot(search_result.command.forward_mps, search_result.command.left_mps) > 0 &&
+                     search_result.command.forward_mps == 0 && search_result.command.left_mps == 0 &&
                      search_result.command.yaw_radps < 0,
-                 "moonwalk translates toward the interior waypoint while yawing toward minus 145 degrees")) return 1;
+                 "post-home yaw alignment holds translation at the home center")) return 1;
     search_result = return_home.update({.x_m = .15, .y_m = .20,
                                         .yaw_rad = -145.0 * std::numbers::pi / 180.0},
                                        true, now + 3s, .1);

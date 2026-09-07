@@ -67,16 +67,6 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                     result = {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
                     complete_ = true;
                 } else {
-                    // Reuse the field-frame position controller, but command
-                    // the requested heading instead of facing the waypoint.
-                    result.command = navigate(pose, config_.post_home_moonwalk_x_m,
-                                              config_.post_home_moonwalk_y_m, 0, dt_s);
-                    result.command.forward_mps *=
-                        config_.post_home_moonwalk_translation_kp /
-                        config_.navigate_translation_kp;
-                    result.command.left_mps *=
-                        config_.post_home_moonwalk_translation_kp /
-                        config_.navigate_translation_kp;
                     result.command.yaw_radps = std::clamp(
                         config_.post_home_moonwalk_yaw_kp * yaw_error,
                         -config_.maximum_yaw_radps, config_.maximum_yaw_radps);
