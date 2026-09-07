@@ -46,7 +46,41 @@ int main() {
     assert(output.forward_mps == 0.0);
     output = ground_mission.update({.localization_valid = true,
                                     .detections = {ground_object(robot::ObjectClass::yellow, .12, .01)}});
-    assert(output.forward_mps == .18);
+    assert(output.forward_mps == 0.0);
+
+    // Mecanum visual servo: a lateral miss closes the forward gate while the
+    // robot strafes and yaws; a centred object then releases forward PID.
+    robot::MissionConfig servo_config;
+    servo_config.expected_collectibles = 0;
+    robot::MissionController servo_mission(servo_config);
+    (void)servo_mission.update({.localization_valid = true, .detections = {}});
+    output = servo_mission.update({.localization_valid = true, .control_dt_s = .10,
+                                   .detections = {ground_object(robot::ObjectClass::yellow, .60, .16)}});
+    assert(output.forward_mps == 0.0);
+    assert(output.left_mps > 0.0);
+    assert(output.yaw_radps > 0.0);
+    output = servo_mission.update({.localization_valid = true, .control_dt_s = .10,
+                                   .detections = {ground_object(robot::ObjectClass::yellow, .60, .01)}});
+    assert(output.forward_mps > .30);
+    assert(output.left_mps == 0.0);
+    assert(output.yaw_radps == 0.0);
+
+    // Being close in range alone must never be treated as a collected object:
+    // the intake must also be centred before the collection-confirmation wait.
+    robot::MissionController missed_intake_mission(config);
+    (void)missed_intake_mission.update({.localization_valid = true, .detections = {}});
+    output = missed_intake_mission.update({.localization_valid = true,
+                                           .detections = {ground_object(robot::ObjectClass::yellow, .14, .09)}});
+    assert(output.forward_mps == 0.0 && output.left_mps > 0.0);
+    output = missed_intake_mission.update({.localization_valid = true, .detections = {}});
+    assert(output.state == robot::MissionState::approaching_target);
+
+    robot::MissionController aligned_intake_mission(config);
+    (void)aligned_intake_mission.update({.localization_valid = true, .detections = {}});
+    (void)aligned_intake_mission.update({.localization_valid = true,
+                                         .detections = {ground_object(robot::ObjectClass::yellow, .14, .01)}});
+    output = aligned_intake_mission.update({.localization_valid = true, .detections = {}});
+    assert(output.state == robot::MissionState::returning_home);
 
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::other_robot, .7)}});

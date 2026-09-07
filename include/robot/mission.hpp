@@ -65,7 +65,25 @@ struct MissionConfig {
     double home_dock_forward_m = 0.18;
     double ground_lateral_deadband_m = 0.045;
     double ground_turn_in_place_bearing_rad = 0.26;
+    // Ground-projection Mecanum visual-servo gains.  The controller targets
+    // (collect_forward_m, 0): longitudinal approach, lateral centring, then
+    // heading correction all use the same collector-centred ground point.
+    double ground_forward_kp = 0.80;
+    double ground_forward_ki = 0.04;
+    double ground_forward_kd = 0.08;
+    double ground_lateral_kp = 1.10;
+    double ground_lateral_ki = 0.03;
+    double ground_lateral_kd = 0.06;
     double ground_steering_gain = 2.60;
+    double ground_yaw_ki = 0.03;
+    double ground_yaw_kd = 0.08;
+    double ground_integral_limit_m_s = 0.25;
+    double ground_max_lateral_mps = 0.20;
+    double ground_yaw_deadband_rad = 0.035;
+    // Do not advance until the collector can pass over the target.  Mecanum
+    // lateral motion and yaw remain active while this gate is closed.
+    double ground_advance_lateral_m = 0.065;
+    double ground_advance_bearing_rad = 0.13;
     // A target remains locked while its observed bearing stays within this
     // gate.  This stops a nearer red/yellow object from stealing pursuit.
     double target_bearing_jump_rad = 0.40;
@@ -79,6 +97,9 @@ struct MissionConfig {
 struct MissionInput {
     bool localization_valid = false;
     bool collection_sensor_triggered = false;
+    // Actual elapsed time between vision frames.  The live runner supplies
+    // this so PID integral/derivative terms remain stable at variable NPU FPS.
+    double control_dt_s = 0.10;
     std::vector<Detection> detections;
 };
 
@@ -109,11 +130,21 @@ private:
         const std::vector<Detection>& detections) const;
     [[nodiscard]] std::optional<Detection> locked_collectible(
         const std::vector<Detection>& detections) const;
-    [[nodiscard]] MissionOutput drive_to(const Detection& detection, bool home) const;
+    [[nodiscard]] MissionOutput drive_to(const Detection& detection, bool home, double dt_s);
     [[nodiscard]] MissionOutput output_for_state() const;
     [[nodiscard]] bool already_collected(ObjectClass object_class) const;
+    [[nodiscard]] bool ground_target_reached(const Detection& detection, bool home) const;
     [[nodiscard]] Detection stabilize_target(const Detection& detection);
     void begin_collection_wait();
+    void reset_visual_servo();
+
+    struct PidState {
+        double integral = 0.0;
+        double previous_error = 0.0;
+        bool initialized = false;
+    };
+    [[nodiscard]] double pid_step(PidState& state, double error, double kp, double ki, double kd,
+                                  double dt_s) const;
 
     MissionConfig config_;
     MissionState state_ = MissionState::initializing;
@@ -125,6 +156,9 @@ private:
     int missing_target_frames_ = 0;
     int lost_target_frames_ = 0;
     int dock_frames_ = 0;
+    PidState forward_pid_;
+    PidState lateral_pid_;
+    PidState yaw_pid_;
 };
 
 const char* to_string(MissionState state);

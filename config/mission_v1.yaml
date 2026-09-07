@@ -18,6 +18,19 @@ home_dock_forward_m: 0.18
 ground_lateral_deadband_m: 0.045
 ground_turn_in_place_bearing_rad: 0.26
 ground_steering_gain: 2.60
+ground_forward_kp: 0.80
+ground_forward_ki: 0.04
+ground_forward_kd: 0.08
+ground_lateral_kp: 1.10
+ground_lateral_ki: 0.03
+ground_lateral_kd: 0.06
+ground_yaw_ki: 0.03
+ground_yaw_kd: 0.08
+ground_integral_limit_m_s: 0.25
+ground_max_lateral_mps: 0.20
+ground_yaw_deadband_rad: 0.035
+ground_advance_lateral_m: 0.065 # No forward motion beyond this lateral miss.
+ground_advance_bearing_rad: 0.13 # Approximately 7.5 degrees.
 target_bearing_jump_rad: 0.40 # Keep lock unless a detection moves this far in bearing.
 steering_gain: 2.60
 max_yaw_radps: 1.80

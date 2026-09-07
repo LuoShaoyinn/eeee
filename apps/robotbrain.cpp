@@ -6,7 +6,9 @@
 // because robotd deliberately stops a stale twist after 250 ms.
 
 #include <atomic>
+#include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <csignal>
 #include <cstring>
 #include <iomanip>
@@ -158,9 +160,19 @@ int main(int argc, char** argv) {
         std::signal(SIGINT, handle_signal);
         std::signal(SIGTERM, handle_signal);
         std::string line;
+        auto previous_frame_time = std::chrono::steady_clock::now();
+        bool received_frame = false;
         while (g_running && std::getline(std::cin, line)) {
             if (line.empty() || line.starts_with('#')) continue;
-            robot::MissionOutput output = mission.update(parse_frame(line));
+            robot::MissionInput frame = parse_frame(line);
+            const auto frame_time = std::chrono::steady_clock::now();
+            if (received_frame) {
+                frame.control_dt_s = std::clamp(std::chrono::duration<double>(frame_time - previous_frame_time).count(),
+                                                .02, .50);
+            }
+            previous_frame_time = frame_time;
+            received_frame = true;
+            robot::MissionOutput output = mission.update(frame);
             // Dump direction is mechanical configuration.  Do not move the
             // rear servo unless an operator explicitly supplied its pulse.
             if (!dump_pulse) output.servo_pulse_us.reset();
