@@ -265,6 +265,10 @@ bool FenceParticleFilter::update_landmark(const cv::Point2d& observed_relative,
     }
     if (total <= 1e-20) return false;
     for (auto& particle : particles_) particle.weight /= total;
+    const double ess_inverse = std::accumulate(
+        particles_.begin(), particles_.end(), 0.0,
+        [](double sum, const Particle& item) { return sum + item.weight * item.weight; });
+    if (ess_inverse > 0 && 1.0 / ess_inverse < particles_.size() * .55) resample();
     return true;
 }
 

@@ -986,6 +986,7 @@ int main(int argc, char** argv) {
         robot::SearchResult search_result;
         robot::SoloMission mission;
         robot::HomeObservation home_observation;
+        std::optional<robot::Timestamp> last_home_landmark_update;
         std::unique_ptr<RuntimeControlServer> control_server;
         if (options.telemetry_replay_path.empty()) {
             control_server = std::make_unique<RuntimeControlServer>(options.control_socket);
@@ -1244,7 +1245,9 @@ int main(int argc, char** argv) {
             if (auto detections = detector_worker.take()) {
                 raw_detections = detections->frame.detections;
                 const auto landmark = robot::measure_home_landmark(detections->frame, object_projector);
-                if (landmark.valid) {
+                const bool landmark_due = !last_home_landmark_update ||
+                    detections->frame.timestamp - *last_home_landmark_update >= 1s;
+                if (landmark.valid && landmark_due) {
                     const double cosine = std::cos(detections->odometry_pose.yaw_rad);
                     const double sine = std::sin(detections->odometry_pose.yaw_rad);
                     const double arena_x = detections->odometry_pose.x_m + cosine * landmark.relative.x - sine * landmark.relative.y;
@@ -1252,10 +1255,12 @@ int main(int argc, char** argv) {
                     // A detection can only constrain pose when capture-time odometry puts
                     // it inside the physical arena. This rejects background black regions.
                     if (arena_x >= 0 && arena_x <= 3.0 && arena_y >= 0 && arena_y <= 1.985) {
-                        (void)filter.update_landmark(landmark.relative, options.home_landmark,
-                                                     options.home_landmark_sigma_m,
-                                                     options.home_landmark_maximum_error_m);
-                        pose = filter.estimate();
+                        if (filter.update_landmark(landmark.relative, options.home_landmark,
+                                                   options.home_landmark_sigma_m,
+                                                   options.home_landmark_maximum_error_m)) {
+                            last_home_landmark_update = detections->frame.timestamp;
+                            pose = filter.estimate();
+                        }
                     }
                 }
                 home_observation = robot::check_home_box(
