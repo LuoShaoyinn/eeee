@@ -118,6 +118,8 @@ def main() -> int:
     parser.add_argument("--expected-objects", type=int, default=2)
     parser.add_argument("--object-servo-test", action="store_true",
                         help="collect one ground-projected target, then stop without home navigation")
+    parser.add_argument("--global-home", action="store_true",
+                        help="return to the configured field Home pose after collection")
     parser.add_argument("--socket", default="/tmp/robotd.sock")
     parser.add_argument("--dump-pulse", type=int, default=2000,
                         help="rear-flap dump pulse; explicit authorization for servo motion")
@@ -137,7 +139,7 @@ def main() -> int:
     command += ["--dump-pulse", str(args.dump_pulse)]
     if args.object_servo_test:
         command.append("--object-servo-test")
-    else:
+    elif args.global_home:
         command.append("--global-home")
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, bufsize=1)

@@ -128,6 +128,8 @@ class RobotDashboard:
                        "--expected-objects", str(self.expected_collectibles)]
             if object_servo_test:
                 command.append("--object-servo-test")
+            elif mode == "collect_and_home":
+                command.append("--global-home")
             self._mission_process = subprocess.Popen(
                 command,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

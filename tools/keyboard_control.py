@@ -21,6 +21,8 @@ def request(socket_path, command):
 
 
 def main():
+    script_dir = __import__("pathlib").Path(__file__).resolve().parent
+    repo_dir = script_dir.parent
     parser = argparse.ArgumentParser()
     parser.add_argument("--socket", default="/tmp/robotd.sock")
     parser.add_argument("--linear", type=float, default=.10,
@@ -41,8 +43,8 @@ def main():
                         help="lowest active S3 calibration pulse in microseconds")
     parser.add_argument("--servo-max-pulse", type=int, default=2000,
                         help="highest S3 calibration pulse in microseconds")
-    parser.add_argument("--mission-runner", default="tools/live_mission.py")
-    parser.add_argument("--robotbrain", default="build/robotbrain")
+    parser.add_argument("--mission-runner", default=str(script_dir / "live_mission.py"))
+    parser.add_argument("--robotbrain", default=str(repo_dir / "build" / "robotbrain"))
     parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt")
     parser.add_argument("--mission-status-file", default="/tmp/robot-mission-status.json")
     parser.add_argument("--expected-objects", type=int, default=2)
@@ -132,8 +134,8 @@ def main():
             return
         mission_process = subprocess.Popen([sys.executable, args.mission_runner,
             "--robotbrain", args.robotbrain, "--protocol-file", args.protocol_file,
-            "--status-file", args.mission_status_file, "--expected-objects",
-            str(args.expected_objects), "--socket", args.socket])
+                   "--status-file", args.mission_status_file, "--expected-objects",
+                   str(args.expected_objects), "--socket", args.socket, "--global-home"])
         print("global decision validation started")
 
     def stop_global_mission():
