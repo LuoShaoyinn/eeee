@@ -39,6 +39,10 @@ enum class MissionState {
 
 struct MissionConfig {
     int expected_collectibles = 0;
+    // Supervised single-object intake validation. This intentionally bypasses
+    // global blue-fence localization, never returns home, and stops after the
+    // first confirmed collection.
+    bool object_servo_test = false;
     int frames_to_confirm_collection = 4;
     int frames_to_confirm_dock = 8;
     int max_lost_target_frames = 8;

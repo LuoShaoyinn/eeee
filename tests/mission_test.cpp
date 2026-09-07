@@ -82,6 +82,19 @@ int main() {
     output = aligned_intake_mission.update({.localization_valid = true, .detections = {}});
     assert(output.state == robot::MissionState::returning_home);
 
+    // The supervised object-servo test intentionally freezes global
+    // localization dependencies: it collects one centred object and stops.
+    robot::MissionConfig object_test_config;
+    object_test_config.object_servo_test = true;
+    object_test_config.frames_to_confirm_collection = 1;
+    robot::MissionController object_test_mission(object_test_config);
+    output = object_test_mission.update({.localization_valid = false, .detections = {}});
+    assert(output.state == robot::MissionState::searching);
+    (void)object_test_mission.update({.localization_valid = false,
+                                     .detections = {ground_object(robot::ObjectClass::yellow, .14, .01)}});
+    output = object_test_mission.update({.localization_valid = false, .detections = {}});
+    assert(output.state == robot::MissionState::done && output.collector_percent == 0);
+
     output = mission.update({.localization_valid = true,
                              .detections = {object(robot::ObjectClass::other_robot, .7)}});
     assert(output.state == robot::MissionState::avoiding_robot);

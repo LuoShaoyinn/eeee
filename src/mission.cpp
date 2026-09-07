@@ -225,11 +225,12 @@ void MissionController::begin_collection_wait() {
 }
 
 MissionOutput MissionController::update(const MissionInput& input) {
-    if (!input.localization_valid && state_ != MissionState::initializing && state_ != MissionState::fault) {
+    if (!config_.object_servo_test && !input.localization_valid && state_ != MissionState::initializing &&
+        state_ != MissionState::fault) {
         state_ = MissionState::fault;
     }
     if (state_ == MissionState::initializing) {
-        if (input.localization_valid) state_ = MissionState::searching;
+        if (input.localization_valid || config_.object_servo_test) state_ = MissionState::searching;
         return output_for_state();
     }
     if (state_ == MissionState::fault) {
@@ -267,6 +268,11 @@ MissionOutput MissionController::update(const MissionInput& input) {
                     active_target_.reset();
                     filtered_target_.reset();
                     missing_target_frames_ = 0;
+                    if (config_.object_servo_test) {
+                        reset_visual_servo();
+                        state_ = MissionState::done;
+                        return output_for_state();
+                    }
                 } else {
                     reset_visual_servo();
                     MissionOutput output = output_for_state();

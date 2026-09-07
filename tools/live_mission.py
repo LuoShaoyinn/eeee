@@ -97,6 +97,8 @@ def main() -> int:
     parser.add_argument("--protocol-file", default="/tmp/robotvision-frame.txt")
     parser.add_argument("--status-file", default="/tmp/robot-mission-status.json")
     parser.add_argument("--expected-objects", type=int, default=2)
+    parser.add_argument("--object-servo-test", action="store_true",
+                        help="collect one ground-projected target, then stop without home navigation")
     parser.add_argument("--socket", default="/tmp/robotd.sock")
     parser.add_argument("--max-frame-age", type=float, default=1.50)
     parser.add_argument("--heartbeat-seconds", type=float, default=.08)
@@ -111,6 +113,8 @@ def main() -> int:
     protocol_file = Path(args.protocol_file)
     status_file = Path(args.status_file)
     command = [args.robotbrain, "--live", "--expected-objects", str(args.expected_objects)]
+    if args.object_servo_test:
+        command.append("--object-servo-test")
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, bufsize=1)
     state = "starting"

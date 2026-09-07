@@ -109,7 +109,7 @@ class RobotDashboard:
             self._mission_process.kill()
             self._mission_process.wait(timeout=2)
 
-    def start_mission(self, mode: str) -> None:
+    def start_mission(self, mode: str, object_servo_test: bool = False) -> None:
         """Launch the supervised V1 mission only after the operator clicks it."""
         if self.e_stop_latched:
             self.last_error = "release the emergency-stop lock before auto collection"
@@ -123,10 +123,13 @@ class RobotDashboard:
                 raise RuntimeError(f"vision/localization frame is stale ({age:.2f}s)")
             self.robotd("ga25 0")
             self.robotd("stop")
+            command = [sys.executable, self.mission_runner, "--robotbrain", self.robotbrain,
+                       "--protocol-file", str(self.protocol_file), "--status-file", str(self.mission_status_file),
+                       "--expected-objects", str(self.expected_collectibles)]
+            if object_servo_test:
+                command.append("--object-servo-test")
             self._mission_process = subprocess.Popen(
-                [sys.executable, self.mission_runner, "--robotbrain", self.robotbrain,
-                 "--protocol-file", str(self.protocol_file), "--status-file", str(self.mission_status_file),
-                 "--expected-objects", str(self.expected_collectibles)],
+                command,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self.mode = mode
             self.last_error = ""
@@ -141,6 +144,9 @@ class RobotDashboard:
     def start_collect_and_home(self) -> None:
         self.start_mission("collect_and_home")
 
+    def start_object_servo_test(self) -> None:
+        self.start_mission("object_servo_test", object_servo_test=True)
+
     def mission_status(self) -> dict:
         status = {"running": False, "state": "idle", "error": ""}
         # A status file can survive a dashboard restart or a power cycle. It
@@ -154,7 +160,7 @@ class RobotDashboard:
         except (OSError, json.JSONDecodeError) as error:
             status["error"] = str(error)
         if self._mission_process is not None and self._mission_process.poll() is not None and \
-                self.mode in {"auto_collect", "collect_and_home"}:
+                self.mode in {"auto_collect", "collect_and_home", "object_servo_test"}:
             self.mode = "mission_finished" if not status.get("error") else "mission_fault"
         return status
 
@@ -358,6 +364,8 @@ def handler_factory(dashboard: RobotDashboard):
                 dashboard.start_auto_collect()
             elif path == "/api/collect-and-home":
                 dashboard.start_collect_and_home()
+            elif path == "/api/object-servo-test":
+                dashboard.start_object_servo_test()
             elif path == "/api/reset-localization":
                 dashboard.reset_localization()
             else:

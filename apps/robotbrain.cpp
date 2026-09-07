@@ -144,12 +144,13 @@ int main(int argc, char** argv) {
         if (argument == "--live") live = true;
         else if (argument == "--socket") socket = value("--socket");
         else if (argument == "--expected-objects") config.expected_collectibles = std::stoi(value("--expected-objects"));
+        else if (argument == "--object-servo-test") config.object_servo_test = true;
         else if (argument == "--dump-pulse") {
             config.dump_servo_pulse_us = std::stoi(value("--dump-pulse"));
             dump_pulse = config.dump_servo_pulse_us;
         }
         else if (argument == "--help") {
-            std::cout << "robotbrain [--live] [--socket PATH] --expected-objects N [--dump-pulse US]\n"
+            std::cout << "robotbrain [--live] [--socket PATH] [--expected-objects N] [--object-servo-test] [--dump-pulse US]\n"
                          "Read YOLO/localization frames from stdin. --live is required to command robotd.\n";
             return 0;
         } else throw std::runtime_error("unknown option: " + argument);
