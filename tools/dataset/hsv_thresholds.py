@@ -10,6 +10,9 @@ DEFAULT_THRESHOLDS = {
     "blue_fence": [[[92, 75, 45], [135, 255, 255]]],
     "white_ground": [[[0, 0, 165], [180, 70, 255]]],
     "home_black": [[[0, 0, 0], [180, 255, 65]]],
+    # The physical home pad is tan/yellow under the robot, distinct from the
+    # earlier black semantic region used in arena experiments.
+    "home": [[[10, 25, 80], [45, 255, 255]]],
     "red_cube": [[[0, 95, 55], [10, 255, 255]], [[170, 95, 55], [180, 255, 255]]],
     "yellow_cylinder": [[[18, 90, 70], [42, 255, 255]]],
 }
