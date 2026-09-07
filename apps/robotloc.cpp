@@ -1000,7 +1000,10 @@ int main(int argc, char** argv) {
                     *target, capture_time, std::min(dt_s, .2));
             } else {
                 approach_result = approach_controller.continue_capture(
-                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                    // The capture pass is a commanded chassis-relative distance.
+                    // Use incremental wheel/IMU odometry, not the independently
+                    // corrected global fence estimate.
+                    odometry_pose,
                     capture_time, std::min(dt_s, .2));
                 if (approach_result.target_valid) {
                     search_result = search_controller.update(

@@ -43,9 +43,6 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         return result;
     }
 
-    capture_finish_pending_ = false;
-    capture_finish_active_ = false;
-
     const double cosine = std::cos(pose.yaw_rad);
     const double sine = std::sin(pose.yaw_rad);
     const double forward_error = cosine * dx + sine * dy;
