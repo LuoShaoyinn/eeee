@@ -127,6 +127,16 @@ int main() {
     search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 7s, .1);
     if (!require(search_result.phase == robot::SearchPhase::rotate_center,
                  "search rotates after reaching center")) return 1;
+    search_result = search.update({.x_m = 1.76, .y_m = .9925}, false, now + 8s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::rotate_center,
+                 "center exit hysteresis tolerates localization noise")) return 1;
+    search_result = search.update({.x_m = 1.86, .y_m = .9925}, false, now + 9s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::navigate_center,
+                 "center search resumes translation outside exit tolerance")) return 1;
+    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 9s, .1, false);
+    if (!require(search_result.phase == robot::SearchPhase::hold_for_localization &&
+                 search_result.command.forward_mps == 0 && search_result.command.left_mps == 0,
+                 "uncertain localization never permits center translation")) return 1;
     search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 11s, .1);
     if (!require(search_result.phase == robot::SearchPhase::return_home,
                  "ten-second loss returns home")) return 1;

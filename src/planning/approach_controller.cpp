@@ -50,6 +50,11 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         initialized_ = true;
     }
 
+    // A reacquired target on the other side of the intake must not inherit
+    // accumulated lateral/forward correction from the old target lock.
+    if (forward_error * previous_forward_error_ < 0) forward_integral_ = 0;
+    if (left_error * previous_left_error_ < 0) left_integral_ = 0;
+
     forward_integral_ = std::clamp(forward_integral_ + forward_error * dt_s,
                                    -config_.integral_limit_m_s, config_.integral_limit_m_s);
     left_integral_ = std::clamp(left_integral_ + left_error * dt_s,

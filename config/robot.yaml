@@ -68,6 +68,16 @@ approach:
   maximum_yaw_accel_radps2: 1.5
   stopping_distance_m: 1.7999999999999999e-01
   target_timeout_ms: 300
+search:
+  local_rotate_seconds: 5.
+  center_rotate_seconds: 5.
+  # Enter the center search region at 0.25 m and only leave it after drifting
+  # beyond 0.35 m, preventing pose noise from oscillating translation.
+  center_entry_radius_m: .25
+  center_exit_radius_m: .35
+  rotation_speed_radps: .35
+  maximum_linear_mps: .20
+  maximum_yaw_radps: .60
 detector:
   backend: vip_lite
   model: models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb

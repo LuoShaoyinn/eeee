@@ -42,6 +42,14 @@ int main() {
             std::cerr << "unexpected approach controller configuration\n";
             return 1;
         }
+        if (config.search_local_rotate_seconds != 5.0 ||
+            config.search_center_rotate_seconds != 5.0 ||
+            config.search_center_entry_radius_m != .25 ||
+            config.search_center_exit_radius_m != .35 ||
+            config.search_rotation_speed_radps != .35) {
+            std::cerr << "unexpected search controller configuration\n";
+            return 1;
+        }
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
         return 1;

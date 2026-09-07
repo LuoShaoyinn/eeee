@@ -38,6 +38,13 @@ void validate(const RuntimeConfig& config) {
         config.approach_stopping_distance_m <= 0 || config.approach_target_timeout_ms <= 0) {
         throw std::runtime_error("approach controller configuration is invalid");
     }
+    if (config.search_local_rotate_seconds < 0 || config.search_center_rotate_seconds <= 0 ||
+        config.search_center_entry_radius_m <= 0 ||
+        config.search_center_exit_radius_m < config.search_center_entry_radius_m ||
+        config.search_rotation_speed_radps <= 0 || config.search_maximum_linear_mps <= 0 ||
+        config.search_maximum_yaw_radps <= 0) {
+        throw std::runtime_error("search controller configuration is invalid");
+    }
     if (config.fence_hsv_h_min < 0 || config.fence_hsv_h_max > 179 ||
         config.fence_hsv_s_min < 0 || config.fence_hsv_s_max > 255 ||
         config.fence_hsv_v_min < 0 || config.fence_hsv_v_max > 255 ||
@@ -137,6 +144,14 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(approach, "maximum_yaw_accel_radps2", config.approach_maximum_yaw_accel_radps2);
     read(approach, "stopping_distance_m", config.approach_stopping_distance_m);
     read(approach, "target_timeout_ms", config.approach_target_timeout_ms);
+    const cv::FileNode search = file["search"];
+    read(search, "local_rotate_seconds", config.search_local_rotate_seconds);
+    read(search, "center_rotate_seconds", config.search_center_rotate_seconds);
+    read(search, "center_entry_radius_m", config.search_center_entry_radius_m);
+    read(search, "center_exit_radius_m", config.search_center_exit_radius_m);
+    read(search, "rotation_speed_radps", config.search_rotation_speed_radps);
+    read(search, "maximum_linear_mps", config.search_maximum_linear_mps);
+    read(search, "maximum_yaw_radps", config.search_maximum_yaw_radps);
     const cv::FileNode detector = file["detector"];
     read(detector, "backend", config.detector_backend);
     read(detector, "model", config.detector_model);

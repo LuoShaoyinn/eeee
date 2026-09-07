@@ -99,6 +99,7 @@ struct Options {
     std::string detector_model;
     double detector_hz = 30;
     robot::ApproachControllerConfig approach;
+    robot::SearchConfig search;
 };
 
 struct EspState {
@@ -548,6 +549,13 @@ Options parse_options(int argc, char** argv) {
     options.approach.maximum_yaw_accel_radps2 = config.approach_maximum_yaw_accel_radps2;
     options.approach.stopping_distance_m = config.approach_stopping_distance_m;
     options.approach.target_timeout = std::chrono::milliseconds(config.approach_target_timeout_ms);
+    options.search.local_rotate_seconds = config.search_local_rotate_seconds;
+    options.search.center_search_seconds = config.search_center_rotate_seconds;
+    options.search.center_entry_radius_m = config.search_center_entry_radius_m;
+    options.search.center_exit_radius_m = config.search_center_exit_radius_m;
+    options.search.rotation_speed_radps = config.search_rotation_speed_radps;
+    options.search.maximum_linear_mps = config.search_maximum_linear_mps;
+    options.search.maximum_yaw_radps = config.search_maximum_yaw_radps;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         const auto value = [&](const char* name) -> const char* {
@@ -622,6 +630,7 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
                   const robot::VisualGeometryEstimate& visual_geometry,
                   size_t lower_fence_count, size_t upper_fence_count,
                   bool visual_certain, bool visual_very_certain,
+                  bool navigation_allowed,
                   bool imu_yaw_reset, double gyro_bias_degps,
                   const std::vector<robot::TrackedObject>& objects,
                   const robot::ApproachResult& approach,
@@ -662,6 +671,7 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"visual_yaw_sigma_rad\":" << visual_geometry.yaw_sigma_rad
         << ",\"visual_certain\":" << (visual_certain ? "true" : "false")
         << ",\"visual_very_certain\":" << (visual_very_certain ? "true" : "false")
+        << ",\"navigation_allowed\":" << (navigation_allowed ? "true" : "false")
         << ",\"imu_yaw_reset\":" << (imu_yaw_reset ? "true" : "false")
         << ",\"gyro_bias_degps\":" << gyro_bias_degps
         << ",\"visual_geometry_candidates\":[";
@@ -784,9 +794,10 @@ int main(int argc, char** argv) {
         robot::WorldModel world;
         robot::ApproachController approach_controller(options.approach);
         robot::ApproachResult approach_result;
-        robot::SearchController search_controller;
+        robot::SearchController search_controller(options.search);
         robot::SearchResult search_result;
         robot::HomeObservation home_observation;
+        std::optional<robot::Timestamp> last_navigation_ready;
 #ifdef ROBOT_A733_NPU
         DetectorWorker detector_worker(robot::make_a733_detector(options.detector_model),
                                        options.detector_hz);
@@ -917,6 +928,7 @@ int main(int argc, char** argv) {
                         std::min(visual_geometry.axis_certainty[0],
                                  visual_geometry.axis_certainty[1]) >= .80 &&
                         visual_geometry.axis_certainty[2] >= .85;
+                    if (visual_certain) last_navigation_ready = capture_time;
                     filter.correct_toward_axes(
                         current_candidate, visual_geometry.axis_certainty,
                         options.visual_pull_gain, options.visual_axis_max_pull_gain,
@@ -951,6 +963,10 @@ int main(int argc, char** argv) {
                 }
             }
             const robot::PoseEstimate pose = filter.estimate();
+            const bool navigation_allowed =
+                last_navigation_ready && capture_time >= *last_navigation_ready &&
+                capture_time - *last_navigation_ready <= std::chrono::milliseconds(1500) &&
+                pose.position_sigma_m <= .25;
 #ifdef ROBOT_A733_NPU
             if (auto detections = detector_worker.take()) {
                 home_observation = robot::check_home_box(
@@ -967,7 +983,7 @@ int main(int argc, char** argv) {
             if (target && capture_time - target->last_seen > options.approach.target_timeout) {
                 target.reset();
             }
-            if (target) {
+            if (target && navigation_allowed) {
                 search_result = search_controller.update(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
                     true, capture_time, std::min(dt_s, .2));
@@ -978,7 +994,7 @@ int main(int argc, char** argv) {
                 approach_controller.reset();
                 search_result = search_controller.update(
                     {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
-                    false, capture_time, std::min(dt_s, .2));
+                    false, capture_time, std::min(dt_s, .2), navigation_allowed);
                 approach_result = {.command = search_result.command,
                                    .target_valid = search_result.phase != robot::SearchPhase::complete,
                                    .target_reached = search_result.phase == robot::SearchPhase::complete};
@@ -988,7 +1004,7 @@ int main(int argc, char** argv) {
             write_record(record, frame_count, time_ns, state, telemetry_valid, telemetry_sequence,
                          telemetry_age_ms, wheel, visual, fused, odometry_pose, pose,
                          visual_geometry, lower_fence_count, upper_fence_count,
-                         visual_certain, visual_very_certain, imu_yaw_reset,
+                         visual_certain, visual_very_certain, navigation_allowed, imu_yaw_reset,
                          gyro_bias_radps / kDegreesToRadians, world.objects(), approach_result,
                          search_result, home_observation);
             if (options.record_log) log << record.str();

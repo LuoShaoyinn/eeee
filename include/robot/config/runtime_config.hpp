@@ -73,6 +73,14 @@ struct RuntimeConfig {
     double approach_stopping_distance_m = .18;
     int approach_target_timeout_ms = 300;
 
+    double search_local_rotate_seconds = 5;
+    double search_center_rotate_seconds = 5;
+    double search_center_entry_radius_m = .25;
+    double search_center_exit_radius_m = .35;
+    double search_rotation_speed_radps = .35;
+    double search_maximum_linear_mps = .20;
+    double search_maximum_yaw_radps = .6;
+
     std::string detector_backend = "vip_lite";
     std::string detector_model = "models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb";
     double detector_inference_hz = 30;

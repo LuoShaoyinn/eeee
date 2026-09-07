@@ -186,6 +186,13 @@ continuous loss it returns to the center of the home rectangle at `(0.10,
 box is projected from its center and logged as consistent only when it agrees
 with the known home rectangle.
 
+The center search goal has a 0.25 m entry radius and 0.35 m exit radius, so
+small localization changes do not repeatedly start and stop translation.
+Translation proposals require recent, sufficiently certain fence localization;
+otherwise the planner only proposes slow rotation. Approach PID integral state
+is cleared when a reacquired target crosses the intake centerline. These are
+logged proposals only: `robot-runtime` does not send actuator commands.
+
 ## ESP32 UART OTA
 
 The firmware on the `esp32` branch has two OTA application partitions. The
