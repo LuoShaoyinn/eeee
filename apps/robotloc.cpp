@@ -1079,8 +1079,9 @@ int main(int argc, char** argv) {
                             response = std::string("ok mission active; collector unavailable: ") + error.what();
                         }
                     } else if (request->command == "return-home") {
-                        // This deliberately does not arm collection. It is an
-                        // operator-invoked localization and return-path test.
+                        // This is the post-finish cargo-calibration path. Keep
+                        // the collector running through the wall-contact and
+                        // return-home sequence, then stop it at safe completion.
                         mission_active = true;
                         return_home_active = true;
                         mission.reset();
@@ -1095,7 +1096,9 @@ int main(int argc, char** argv) {
                         world.replace_objects({});
                         local_target_tracker.reset();
                         try {
-                            response = "ok return-home active; " + request_robotd(options.socket, "stop");
+                            (void)request_robotd(options.socket, "stop");
+                            response = "ok return-home active; " +
+                                       request_robotd(options.socket, "collector start");
                         } catch (const std::exception& error) {
                             response = std::string("ok return-home active; stop unavailable: ") + error.what();
                         }
