@@ -761,7 +761,7 @@ void app_main(void) {
     },
         .encoder_pulses_per_output_rev=86.4f,.no_load_output_rpm=620,.rated_output_rpm=450,
         .control_period_ms=20,.command_timeout_ms=500,.max_duty_percent=100,
-        .wheel_target_accel_per_second=.60f};
+        .wheel_target_accel_per_second=.50f};
     ESP_ERROR_CHECK(mecanum_drive_init(&config));
     const standard_servo_config_t s3_config = {
         .signal_gpio = S3_SERVO_GPIO, .speed_mode = LEDC_LOW_SPEED_MODE,
