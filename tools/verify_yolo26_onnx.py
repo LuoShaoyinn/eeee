@@ -14,20 +14,21 @@ import onnxruntime as ort
 
 
 CLASSES = ["other_robot", "red_cube", "yellow_cylinder", "home"]
-INPUT_SIZE = 640
+INPUT_ROWS = 384
+INPUT_COLS = 640
 SCORE_THRESHOLD = 0.35
 NMS_THRESHOLD = 0.45
 
 
 def prepare(image: np.ndarray) -> tuple[np.ndarray, float, float, float]:
     height, width = image.shape[:2]
-    scale = min(INPUT_SIZE / height, INPUT_SIZE / width)
+    scale = min(INPUT_ROWS / height, INPUT_COLS / width)
     resized_width = round(width * scale)
     resized_height = round(height * scale)
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     resized = cv2.resize(rgb, (resized_width, resized_height))
-    pad_x = (INPUT_SIZE - resized_width) / 2
-    pad_y = (INPUT_SIZE - resized_height) / 2
+    pad_x = (INPUT_COLS - resized_width) / 2
+    pad_y = (INPUT_ROWS - resized_height) / 2
     padded = cv2.copyMakeBorder(
         resized,
         round(pad_y - 0.1),
@@ -69,17 +70,25 @@ def main() -> None:
         raise ValueError(f"Could not read {args.image}")
     tensor, scale, pad_x, pad_y = prepare(image)
     session = create_session(args.model)
-    output = session.run(None, {session.get_inputs()[0].name: tensor})[0][0]
+    outputs = session.run(None, {session.get_inputs()[0].name: tensor})
+    # The deployment graph exposes box coordinates and class scores as separate
+    # tensors so their INT8 quantization scales remain independent.  Accept
+    # that form as well as the original combined [1, 8, candidates] graph.
+    if len(outputs) == 2:
+        boxes_output, scores_output = (item[0] for item in outputs)
+    else:
+        combined = outputs[0][0]
+        boxes_output, scores_output = combined[:4], combined[4:]
 
     annotated = image.copy()
     total = 0
     for class_id, class_name in enumerate(CLASSES):
-        class_scores = output[4 + class_id]
+        class_scores = scores_output[class_id]
         indexes = np.flatnonzero(class_scores >= SCORE_THRESHOLD)
         boxes = []
         scores = []
         for index in indexes:
-            center_x, center_y, width, height = output[:4, index]
+            center_x, center_y, width, height = boxes_output[:, index]
             x = int(np.floor((center_x - width / 2 - pad_x) / scale))
             y = int(np.floor((center_y - height / 2 - pad_y) / scale))
             right = int(np.ceil((center_x + width / 2 - pad_x) / scale))

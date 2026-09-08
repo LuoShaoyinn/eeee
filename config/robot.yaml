@@ -172,7 +172,7 @@ search:
   cargo_calibration_linear_accel_mps2: 2.0
 detector:
   backend: vip_lite
-  model: models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb
+  model: models/yolo26n_reviewed714_newrun714_640x384_a733.nb
   inference_hz: 30.
   confidence_threshold: 3.5000000000000003e-01
   nms_threshold: 4.4999999999999996e-01
