@@ -117,16 +117,16 @@ search:
   center_entry_radius_m: .25
   center_exit_radius_m: .35
   # Center of the 0.20 x 0.30 m home area.
-  home_x_m: .30
-  home_y_m: .40
-  home_stop_radius_m: .10
+  home_x_m: .25
+  home_y_m: .35
+  home_stop_radius_m: .05
   # Search only: turn briskly when no collectible is visible. This does not
   # raise the normal object-approach yaw limit.
   rotation_speed_radps: 1.80
   # Shared PID for center/home travel. Start P-only until tuned on the arena.
   go_to_pos_translation_kp: 2.0
   go_to_pos_translation_ki: 0.
-  go_to_pos_translation_kd: 1.0
+  go_to_pos_translation_kd: 1.3
   go_to_pos_yaw_kp: 2.0
   go_to_pos_yaw_ki: 0.
   go_to_pos_yaw_kd: 1.0
@@ -135,19 +135,18 @@ search:
   maximum_yaw_radps: 2.0
   post_home_moonwalk_yaw_deg: -120.
   post_home_moonwalk_yaw_tolerance_deg: 10.
-  post_home_moonwalk_yaw_kp: 1.5
-  post_home_moonwalk_timeout_seconds: 10.
-  # Absolute arena yaw after the moonwalk, rather than a relative turn.
-  post_home_turn_yaw_deg: 145.
-  post_home_turn_yaw_kp: 1.5
-  post_home_turn_yaw_tolerance_deg: 5.
+  post_home_moonwalk_yaw_kp: 2.5
+  post_home_moonwalk_timeout_seconds: 20.
+  post_home_turn_yaw_deg: 45.
+  post_home_turn_yaw_kp: 2.5
+  post_home_turn_yaw_tolerance_deg: 10.
   post_home_reverse_mps: .20
   post_home_reverse_seconds: 2.
   cargo_calibration_x_m: 1.0
   cargo_calibration_y_m: 1.0
   cargo_calibration_stop_radius_m: .15
   cargo_calibration_yaw_deg: 0.
-  cargo_calibration_yaw_tolerance_deg: 5.
+  cargo_calibration_yaw_tolerance_deg: 20.
   cargo_calibration_yaw_kp: 1.5
   # Each reverse step is timeout-bounded and may complete early on an IMU hit.
   cargo_calibration_steps:
@@ -164,7 +163,7 @@ search:
       until: "imu_detect"
   cargo_calibration_linear_accel_mps2: 2.0
   cargo_wall_hit_enabled: 1
-  cargo_wall_hit_accel_threshold_g: .35
+  cargo_wall_hit_accel_threshold_g: .25
   cargo_wall_hit_arm_ms: 300
   cargo_wall_hit_max_imu_age_ms: 150
 detector:

@@ -71,19 +71,19 @@ int main() {
             config.search_center_x_m != 1.5 || config.search_center_y_m != .9925 ||
             config.search_center_entry_radius_m != .25 ||
             config.search_center_exit_radius_m != .35 ||
-            config.search_home_x_m != .30 || config.search_home_y_m != .40 ||
-            config.search_home_stop_radius_m != .10 ||
+            config.search_home_x_m != .25 || config.search_home_y_m != .35 ||
+            config.search_home_stop_radius_m != .05 ||
             config.search_rotation_speed_radps != 1.80 ||
             config.search_go_to_pos_translation_kp != 2. ||
             config.search_go_to_pos_translation_ki != 0. ||
-            config.search_go_to_pos_translation_kd != 1. ||
+            config.search_go_to_pos_translation_kd != 1.3 ||
             config.search_go_to_pos_yaw_kp != 2.0 ||
             config.search_go_to_pos_yaw_ki != 0. ||
             config.search_go_to_pos_yaw_kd != 1. ||
             config.search_maximum_yaw_radps != 2.0 ||
             config.search_post_home_moonwalk_yaw_deg != -120. ||
             config.search_post_home_moonwalk_yaw_tolerance_deg != 10. ||
-            config.search_post_home_turn_yaw_deg != 145. ||
+            config.search_post_home_turn_yaw_deg != 45. ||
             config.search_post_home_reverse_mps != .20 ||
             config.search_post_home_reverse_seconds != 2. ||
             config.search_cargo_calibration_x_m != 1.0 ||
@@ -101,7 +101,7 @@ int main() {
             config.search_cargo_calibration_steps[2].timeout_s != 2.5 ||
             !config.search_cargo_calibration_steps[2].until_imu_detect ||
             !config.search_cargo_wall_hit_enabled ||
-            config.search_cargo_wall_hit_accel_threshold_g != .35 ||
+            config.search_cargo_wall_hit_accel_threshold_g != .25 ||
             config.search_cargo_wall_hit_arm_ms != 300 ||
             config.search_cargo_wall_hit_max_imu_age_ms != 150) {
             std::cerr << "unexpected search controller configuration\n";
