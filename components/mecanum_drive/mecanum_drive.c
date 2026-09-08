@@ -34,12 +34,13 @@
 #define SPEED_SYNC_MIN_RPM 50.0f
 #define SPEED_SYNC_LEAD_RATIO 1.10f
 #define SPEED_SYNC_FILTER_ALPHA 0.35f
+#define WHEEL_TARGET_ACCEL_PER_SECOND .60f
 
 typedef enum { WHEEL_RUNNING, WHEEL_BRAKING, WHEEL_SETTLING } wheel_state_t;
 typedef struct {
     jga25_2430_ce_handle_t motor;
     pcnt_unit_handle_t encoder;
-    float target, controller_target, duty, wanted_duty, integral, rpm;
+    float requested_target, target, controller_target, duty, wanted_duty, integral, rpm;
     uint32_t edges, speed_edges, quiet_windows;
     uint64_t total_edges;
     int sign, requested_sign;
@@ -52,7 +53,7 @@ typedef struct {
 static const char *TAG = "mecanum_drive";
 static wheel_t s_wheels[MECANUM_DRIVE_WHEEL_COUNT];
 static uint32_t s_period_ms, s_timeout_ms, s_no_load_rpm, s_rated_rpm, s_max_duty;
-static float s_ppr;
+static float s_ppr, s_wheel_target_accel_per_second;
 static float s_kp = SPEED_KP, s_ki = SPEED_KI;
 static float s_sync_reference_rpm;
 static int64_t s_last_command_us;
@@ -64,6 +65,12 @@ static int sign_of(float v) { return (v > .001f) - (v < -.001f); }
 static float ramp_duty(float current, float target, float increase_step, float decrease_step) {
     if (target > current) return fminf(target, current + increase_step);
     return fmaxf(target, current - decrease_step);
+}
+static float ramp_target(float current, float target) {
+    const float step = s_wheel_target_accel_per_second *
+                       ((float)s_period_ms / 1000.0f);
+    if (target > current) return fminf(target, current + step);
+    return fmaxf(target, current - step);
 }
 static esp_err_t set_direction(wheel_t *wheel, int sign) {
     bool reverse = sign < 0;
@@ -102,6 +109,7 @@ static bool read_encoder(wheel_t *wheel, int64_t now_us) {
 static void update_wheel(wheel_t *wheel, bool fresh, bool speed_updated, int64_t now_us) {
     if (!fresh) {
         // A lost controller link is an immediate, coasting safety stop.
+        wheel->target = 0;
         wheel->integral = 0; wheel->controller_target = 0; wheel->wanted_duty = 0;
         wheel->requested_sign = 0; wheel->state = WHEEL_RUNNING; apply_duty(wheel, 0); return;
     }
@@ -223,6 +231,13 @@ static void control_task(void *unused) {
         bool speed_updated[MECANUM_DRIVE_WHEEL_COUNT] = {false};
         for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i)
             speed_updated[i] = !s_wheels[i].open_loop && read_encoder(&s_wheels[i], now_us);
+        if (fresh) {
+            for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) {
+                wheel_t *wheel = &s_wheels[i];
+                if (!wheel->open_loop)
+                    wheel->target = ramp_target(wheel->target, wheel->requested_target);
+            }
+        }
         update_speed_sync_reference(speed_updated);
         for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i)
             update_wheel(&s_wheels[i], fresh, speed_updated[i], now_us);
@@ -237,6 +252,8 @@ esp_err_t mecanum_drive_init(const mecanum_drive_config_t *config) {
     s_no_load_rpm = config->no_load_output_rpm ?: NO_LOAD_OUTPUT_RPM;
     s_rated_rpm = config->rated_output_rpm ?: RATED_OUTPUT_RPM;
     s_max_duty = config->max_duty_percent ?: MAX_DUTY_PERCENT;
+    s_wheel_target_accel_per_second = config->wheel_target_accel_per_second > 0 ?
+        config->wheel_target_accel_per_second : WHEEL_TARGET_ACCEL_PER_SECOND;
     if (s_period_ms < 20 || s_max_duty > 100) return ESP_ERR_INVALID_ARG;
     s_lock = xSemaphoreCreateMutex(); if (!s_lock) return ESP_ERR_NO_MEM;
     for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) {
@@ -259,9 +276,10 @@ esp_err_t mecanum_drive_init(const mecanum_drive_config_t *config) {
     }
     s_initialized = true; s_last_command_us = 0; s_soft_stop_requested = true;
     if (xTaskCreate(control_task, "drive_control", 4096, NULL, 8, NULL) != pdPASS) return ESP_ERR_NO_MEM;
-    ESP_LOGI(TAG, "ready: %ums, %.1f PPR, %u RPM no-load, %u RPM rated, %u%% cap",
+    ESP_LOGI(TAG, "ready: %ums, %.1f PPR, %u RPM no-load, %u RPM rated, %u%% cap, %.2f wheel/s",
              (unsigned)s_period_ms, (double)s_ppr, (unsigned)s_no_load_rpm,
-             (unsigned)s_rated_rpm, (unsigned)s_max_duty);
+             (unsigned)s_rated_rpm, (unsigned)s_max_duty,
+             (double)s_wheel_target_accel_per_second);
     return ESP_OK;
 }
 esp_err_t mecanum_drive_set_twist(float forward, float strafe, float turn) {
@@ -272,8 +290,8 @@ esp_err_t mecanum_drive_set_twist(float forward, float strafe, float turn) {
     bool targets_changed = false;
     for(size_t i=0;i<MECANUM_DRIVE_WHEEL_COUNT;i++) {
         const float target = clamp(raw[i]/scale);
-        targets_changed |= s_wheels[i].open_loop || fabsf(s_wheels[i].target - target) > .001f;
-        s_wheels[i].target=target;
+        targets_changed |= s_wheels[i].open_loop || fabsf(s_wheels[i].requested_target - target) > .001f;
+        s_wheels[i].requested_target=target;
         s_wheels[i].open_loop=false;
     }
     if (targets_changed) s_speed_sync_active = false;
@@ -285,10 +303,10 @@ esp_err_t mecanum_drive_set_wheel(mecanum_wheel_t wheel, float speed) {
     if (!s_initialized || wheel >= MECANUM_DRIVE_WHEEL_COUNT || speed < -1 || speed > 1) return ESP_ERR_INVALID_ARG;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) {
-        s_wheels[i].target = 0;
+        s_wheels[i].requested_target = 0;
         s_wheels[i].open_loop = false;
     }
-    s_wheels[wheel].target = speed;
+    s_wheels[wheel].requested_target = speed;
     s_speed_sync_active = false;
     s_soft_stop_requested = speed == 0;
     s_last_command_us = esp_timer_get_time();
@@ -300,9 +318,10 @@ esp_err_t mecanum_drive_set_wheel_open_loop(mecanum_wheel_t wheel, int duty_perc
         duty_percent < -100 || duty_percent > 100) return ESP_ERR_INVALID_ARG;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     for (size_t i = 0; i < MECANUM_DRIVE_WHEEL_COUNT; ++i) {
-        s_wheels[i].target = 0;
+        s_wheels[i].requested_target = 0;
         s_wheels[i].open_loop = false;
     }
+    s_wheels[wheel].requested_target = duty_percent / 100.0f;
     s_wheels[wheel].target = duty_percent / 100.0f;
     s_wheels[wheel].open_loop = duty_percent != 0;
     s_speed_sync_active = false;

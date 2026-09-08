@@ -34,6 +34,9 @@ typedef struct {
     uint32_t control_period_ms;
     uint32_t command_timeout_ms;
     uint32_t max_duty_percent;
+    // Maximum change in each normalized wheel-speed target per second. This
+    // constrains traction independently of the upstream chassis controller.
+    float wheel_target_accel_per_second;
 } mecanum_drive_config_t;
 
 typedef struct {
