@@ -20,9 +20,6 @@
 #define RATED_OUTPUT_RPM 450
 #define MAX_DUTY_PERCENT 50
 #define ENCODER_GLITCH_FILTER_NS 10000
-#define REVERSE_SETTLE_WINDOWS 5
-#define REVERSE_SETTLE_MS 500
-#define DIRECTION_SETTLE_MS 100
 #define SPEED_MEASUREMENT_PERIOD_MS 60
 #define SPEED_FILTER_ALPHA .45f
 #define DUTY_ACCEL_PER_TICK 2.5f
@@ -36,15 +33,15 @@
 #define SPEED_SYNC_FILTER_ALPHA 0.35f
 #define WHEEL_TARGET_ACCEL_PER_SECOND .50f
 
-typedef enum { WHEEL_RUNNING, WHEEL_BRAKING, WHEEL_SETTLING } wheel_state_t;
+typedef enum { WHEEL_RUNNING, WHEEL_BRAKING } wheel_state_t;
 typedef struct {
     jga25_2430_ce_handle_t motor;
     pcnt_unit_handle_t encoder;
     float requested_target, target, controller_target, duty, wanted_duty, integral, rpm;
-    uint32_t edges, speed_edges, quiet_windows;
+    uint32_t edges, speed_edges;
     uint64_t total_edges;
     int sign, requested_sign;
-    int64_t state_started_us, speed_sample_started_us;
+    int64_t speed_sample_started_us;
     wheel_state_t state;
     bool invert_direction, open_loop;
     bool has_speed_sample;
@@ -115,30 +112,21 @@ static void update_wheel(wheel_t *wheel, bool fresh, bool speed_updated, int64_t
     }
     const int target_sign = sign_of(wheel->target);
     if (wheel->state == WHEEL_BRAKING) {
-        // Do not switch DIR under load. First remove drive with a bounded
-        // PWM slope, then wait for a quiet encoder before changing direction.
+        // The requested wheel target already slews through zero. Keep the
+        // bridge unpowered while its remaining PWM ramps down, then reverse
+        // immediately; do not add an encoder-quiet or fixed settle delay.
         if (target_sign == wheel->sign && target_sign != 0) wheel->state = WHEEL_RUNNING;
         else {
             wheel->requested_sign = target_sign;
             wheel->integral = 0; wheel->wanted_duty = 0;
             apply_duty(wheel, ramp_duty(wheel->duty, 0, DUTY_ACCEL_PER_TICK, DUTY_DECEL_PER_TICK));
-            if (wheel->duty > .5f) { wheel->quiet_windows = 0; return; }
+            if (wheel->duty > .5f) return;
             if (!wheel->requested_sign) {
                 wheel->sign = 0; wheel->state = WHEEL_RUNNING; return;
             }
-            if (!wheel->open_loop) {
-                wheel->quiet_windows = wheel->edges ? 0 : wheel->quiet_windows + 1;
-            }
-            const bool settled = wheel->open_loop ?
-                (now_us - wheel->state_started_us) / 1000 >= REVERSE_SETTLE_MS :
-                wheel->quiet_windows >= REVERSE_SETTLE_WINDOWS &&
-                (now_us - wheel->state_started_us) / 1000 >= REVERSE_SETTLE_MS;
-            if (settled) {
-                ESP_ERROR_CHECK(set_direction(wheel, wheel->requested_sign));
-                wheel->sign = wheel->requested_sign;
-                wheel->state = WHEEL_SETTLING;
-                wheel->state_started_us = now_us;
-            }
+            ESP_ERROR_CHECK(set_direction(wheel, wheel->requested_sign));
+            wheel->sign = wheel->requested_sign;
+            wheel->state = WHEEL_RUNNING;
             return;
         }
     }
@@ -148,18 +136,12 @@ static void update_wheel(wheel_t *wheel, bool fresh, bool speed_updated, int64_t
         // 20 ms tick, making telemetry report a false reversal state.
         if (wheel->sign == 0 && wheel->duty <= .5f && wheel->state == WHEEL_RUNNING) return;
         wheel->state = WHEEL_BRAKING; wheel->requested_sign = 0;
-        wheel->state_started_us = now_us; wheel->quiet_windows = 0;
         return;
     }
     if (wheel->state == WHEEL_RUNNING && wheel->sign && target_sign != wheel->sign) {
-        wheel->state = WHEEL_BRAKING; wheel->requested_sign = target_sign; wheel->quiet_windows = 0;
-        wheel->state_started_us = now_us; wheel->integral = 0;
+        wheel->state = WHEEL_BRAKING; wheel->requested_sign = target_sign;
+        wheel->integral = 0;
         return;
-    }
-    if (wheel->state == WHEEL_SETTLING) {
-        apply_duty(wheel, 0);
-        if ((now_us - wheel->state_started_us) / 1000 < DIRECTION_SETTLE_MS) return;
-        wheel->state = WHEEL_RUNNING;
     }
     if (wheel->sign != target_sign) { ESP_ERROR_CHECK(set_direction(wheel, target_sign)); wheel->sign = target_sign; wheel->integral = 0; }
     if (wheel->open_loop) {
