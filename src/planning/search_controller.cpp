@@ -18,9 +18,14 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                                       Timestamp now, double dt_s, bool navigation_allowed) {
     if (target_visible && !direct_return_home_ &&
         cargo_calibration_phase_ == CargoCalibrationPhase::none) {
-        reset();
+        if (target_visible_since_ == Timestamp{}) target_visible_since_ = now;
+        if (now - target_visible_since_ >=
+            std::chrono::duration<double>(config_.target_reset_seconds)) {
+            reset();
+        }
         return {};
     }
+    target_visible_since_ = {};
     if (complete_) return {.command = {}, .phase = SearchPhase::complete, .lost_seconds = 0};
     if (cargo_calibration_phase_ != CargoCalibrationPhase::none) {
         SearchResult result;
@@ -343,6 +348,7 @@ bool SearchController::cargo_wall_contact_armed() const {
 
 void SearchController::reset() {
     lost_since_ = {};
+    target_visible_since_ = {};
     center_search_started_ = {};
     previous_command_ = {};
     center_reached_ = false;

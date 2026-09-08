@@ -705,6 +705,7 @@ Options parse_options(int argc, char** argv) {
     options.approach.target_timeout = std::chrono::milliseconds(config.approach_target_timeout_ms);
     options.search.local_rotate_seconds = config.search_local_rotate_seconds;
     options.search.center_search_seconds = config.search_center_rotate_seconds;
+    options.search.target_reset_seconds = config.search_target_reset_seconds;
     options.search.center_x_m = config.search_center_x_m;
     options.search.center_y_m = config.search_center_y_m;
     options.search.center_entry_radius_m = config.search_center_entry_radius_m;

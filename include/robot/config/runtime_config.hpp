@@ -110,6 +110,7 @@ struct RuntimeConfig {
 
     double search_local_rotate_seconds = 5;
     double search_center_rotate_seconds = 5;
+    double search_target_reset_seconds = 2;
     double search_center_x_m = 1.5;
     double search_center_y_m = .9925;
     double search_center_entry_radius_m = .25;

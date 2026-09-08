@@ -35,8 +35,6 @@ localization:
   visual_axis_max_correction_m: 1.
   visual_axis_max_correction_deg: 30.
   visual_axis_max_pull_gain: 8.0000000000000004e-01
-  # Detection landmark is the home rectangle's center, separate from the
-  # field-facing docking corner at (.20, .30).
   home_landmark_x_m: .10
   home_landmark_y_m: .15
   home_landmark_sigma_m: .20
@@ -57,14 +55,11 @@ servo:
   operational_max_pulse_us: 2000
   firmware_min_pulse_us: 1550
   firmware_max_pulse_us: 2125
-  # Paired targets: interpolate to each pulse over its duration. Repeating
-  # 1600 holds S3 open for one second after the three-second opening ramp.
-  unload_pulse_us: [1600, 1600, 1800, 2000]
-  unload_duration_ms: [3000, 1000, 500, 0]
+  # Paired targets: interpolate to each pulse over its duration.
+  unload_pulse_us: [1600, 2000, 1600, 2000]
+  unload_duration_ms: [000, 1000, 0, 1000]
 control:
-  # Allows the center/home position controller to use its 0.60 m/s cap.
-  # Object approach has an independent 0.45 m/s cap below.
-  max_linear_mps: 5.9999999999999998e-01
+  max_linear_mps: 1.0
   max_yaw_radps: 2.
   max_linear_accel_mps2: 5.9999999999999998e-01
   max_yaw_accel_radps2: 2.5
@@ -72,33 +67,33 @@ control:
   minimum_moving_left_mps: 0
   minimum_moving_yaw_radps: 0
 approach:
-  translation_kp: 3.0
+  translation_kp: 4.0
   translation_ki: 4.0000000000000001e-02
-  translation_kd: 1.0
-  lateral_kp: 2.0
+  translation_kd: 0.8
+  lateral_kp: 2.3
   lateral_ki: 4.0000000000000001e-02
   lateral_kd: 1.3
   # Normal yaw tracking while approaching the object.
-  yaw_kp: 2.4
-  yaw_kd: 2.0
+  yaw_kp: 1.3
+  yaw_kd: 1.5
   # Used only by the rotate-to-target alignment phase.
-  alignment_yaw_kp: 2.4
-  alignment_yaw_kd: 1.0
-  maximum_linear_mps: 4.5000000000000001e-01
-  maximum_yaw_radps: 1.4
-  maximum_linear_accel_mps2: 1.2
-  maximum_yaw_accel_radps2: 3.
+  alignment_yaw_kp: 1.0
+  alignment_yaw_kd: 2.0
+  maximum_linear_mps: 0.8
+  maximum_yaw_radps: 0.8
+  maximum_linear_accel_mps2: 0.8
+  maximum_yaw_accel_radps2: 1.0
   # PID ends when the object contact reaches this robot-relative point;
   # collection then immediately performs the intake dash.
   target_forward_m: .20
-  target_left_m: .01
-  target_tolerance_m: .06
-  alignment_enter_yaw_deg: 30
+  target_left_m: -0.03
+  target_tolerance_m: .04
+  alignment_enter_yaw_deg: 45
   alignment_exit_yaw_deg: 60
   # Filter detector-scale PID output noise before the forward minimum command.
-  forward_command_deadband_mps: .04
-  left_command_deadband_mps: .04
-  yaw_command_deadband_radps: .05
+  forward_command_deadband_mps: .00
+  left_command_deadband_mps: .03
+  yaw_command_deadband_radps: .1
   capture_finish_distance_m: 3.0000000000000000e-01
   capture_finish_speed_mps: 3.5000000000000000e-01
   capture_finish_timeout_ms: 1800
@@ -107,79 +102,66 @@ approach:
   alignment_settle_ms: 0
   # Keep the locally tracked static target through short detector dropouts.
   target_timeout_ms: 3000
-  # Correct the local object memory aggressively from fresh NPU detections.
-  target_measurement_gain: .60
-  # Require persistent evidence before a new object can interrupt search. A
-  # one-frame detector flash therefore cannot reset the no-object timeout.
-  target_confirmation_ms: 200
+  # During search, acquire immediately from a fresh detector result. Collection
+  # suppression still prevents the just-collected object from being reacquired.
+  target_confirmation_ms: 0
   target_confirmation_gap_ms: 150
-  target_minimum_observations: 3
-  # The completed intake dash is a probable-collection latch. Ignore stale
-  # boxes at that location while the collector clears the camera view.
-  collection_suppression_ms: 8000
+  target_minimum_observations: 1
 search:
   local_rotate_seconds: 10.
   center_rotate_seconds: 10.
-  center_x_m: 1.5
-  center_y_m: .9925
+  # Only a sustained target track restarts the no-object search timer.
+  target_reset_seconds: 2.
   # Enter the center search region at 0.25 m and only leave it after drifting
   # beyond 0.35 m, preventing pose noise from oscillating translation.
   center_entry_radius_m: .25
   center_exit_radius_m: .35
-  # Return to the center of the 0.20 x 0.30 m home zone.
-  home_x_m: .10
-  home_y_m: .15
-  home_stop_radius_m: .20
+  # Center of the 0.20 x 0.30 m home area.
+  home_x_m: .30
+  home_y_m: .40
+  home_stop_radius_m: .10
   # Search only: turn briskly when no collectible is visible. This does not
   # raise the normal object-approach yaw limit.
   rotation_speed_radps: 1.80
-  # Shared PID for travel to the arena center and home center. Keep I/D at
-  # zero until position localization and drivetrain response are tuned.
-  go_to_pos_translation_kp: .55
+  # Shared PID for center/home travel. Start P-only until tuned on the arena.
+  go_to_pos_translation_kp: 2.0
   go_to_pos_translation_ki: 0.
-  go_to_pos_translation_kd: 0.
-  go_to_pos_yaw_kp: 1.0
+  go_to_pos_translation_kd: 1.0
+  go_to_pos_yaw_kp: 2.0
   go_to_pos_yaw_ki: 0.
-  go_to_pos_yaw_kd: 0.
+  go_to_pos_yaw_kd: 1.0
   # Closed-loop travel to center and home. Rotation-only search is unaffected.
-  maximum_linear_mps: .60
+  maximum_linear_mps: .80
   maximum_yaw_radps: 2.0
-  # After return-home reaches the home center, hold translation at zero while
-  # yawing to -145 deg (+/-10).
-  post_home_moonwalk_yaw_deg: -145.
+  post_home_moonwalk_yaw_deg: -120.
   post_home_moonwalk_yaw_tolerance_deg: 10.
   post_home_moonwalk_yaw_kp: 1.5
   post_home_moonwalk_timeout_seconds: 10.
   post_home_turn_degrees: 180.
   post_home_turn_yaw_kp: 1.5
   post_home_turn_yaw_tolerance_deg: 5.
-  post_home_reverse_mps: .30
+  post_home_reverse_mps: .20
   post_home_reverse_seconds: 2.
-  # Terminal cargo calibration: enter the waypoint, align yaw, run the three
-  # timed longitudinal legs, return to center, then proceed home and unload.
   cargo_calibration_x_m: 1.0
   cargo_calibration_y_m: 1.0
   cargo_calibration_stop_radius_m: .15
   cargo_calibration_yaw_deg: 0.
   cargo_calibration_yaw_tolerance_deg: 5.
   cargo_calibration_yaw_kp: 1.5
-  # Each step always has a timeout as a safety fallback. `until: imu_detect`
-  # permits a wall-contact event to advance that step early.
+  # Each reverse step is timeout-bounded and may complete early on an IMU hit.
   cargo_calibration_steps:
     -
-      forward_mps: -1.0
-      timeout_s: 1.5
+      forward_mps: -0.5
+      timeout_s: 10.0
       until: "imu_detect"
     -
       forward_mps: .30
       timeout_s: 2.0
     -
-      forward_mps: -1.0
-      timeout_s: 1.0
+      forward_mps: -0.5
+      timeout_s: 2.5
       until: "imu_detect"
   cargo_calibration_linear_accel_mps2: 2.0
-  # The IMU is +X forward. A sustained reverse command followed by a +X
-  # acceleration spike indicates wall contact and advances the leg early.
   cargo_wall_hit_enabled: 1
   cargo_wall_hit_accel_threshold_g: .35
   cargo_wall_hit_arm_ms: 300

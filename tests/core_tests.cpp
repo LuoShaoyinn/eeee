@@ -61,6 +61,30 @@ int main() {
                  "target ahead commands forward motion") ||
         !require(approach_result.command.left_mps == 0,
                  "one-centimeter intake offset remains inside lateral PID deadband")) return 1;
+    robot::ApproachController constrained_approach({
+        .translation_kp = 4.0,
+        .lateral_kp = 4.0,
+        .yaw_kp = 4.0,
+        .maximum_linear_mps = .8,
+        .maximum_yaw_radps = .8,
+        .maximum_linear_accel_mps2 = 100.0,
+        .maximum_yaw_accel_radps2 = 100.0,
+        .alignment_enter_yaw_rad = 10.0,
+        .alignment_exit_yaw_rad = 10.0,
+    });
+    robot::TrackedObject constrained_target{.id = 7,
+                                             .object_class = robot::ObjectClass::yellow_cylinder,
+                                             .x_m = 1.0,
+                                             .y_m = .5,
+                                             .last_seen = now};
+    const auto constrained_result = constrained_approach.update({}, constrained_target, now, .1);
+    const double constrained_demand = std::hypot(
+        std::hypot(constrained_result.command.forward_mps, constrained_result.command.left_mps) / .8,
+        std::abs(constrained_result.command.yaw_radps) / .8);
+    if (!require(constrained_demand <= 1.0 + 1e-9 &&
+                     constrained_result.command.forward_mps < .8 &&
+                     std::abs(constrained_result.command.yaw_radps) < .8,
+                 "approach shares the motion envelope between translation and yaw")) return 1;
     approach.reset();
     target.x_m = 0;
     target.y_m = 1;
@@ -75,23 +99,37 @@ int main() {
                      approach_result.command.forward_mps == 0 &&
                      approach_result.command.left_mps == 0,
                  "stale target stops approach")) return 1;
-    target.x_m = .2;
+    target.x_m = .19;
     target.y_m = .01;
     target.last_seen = now;
     approach_result = approach.update({}, target, now, .1);
     if (!require(approach_result.target_valid && !approach_result.target_reached &&
-                 approach_result.command.forward_mps == 0 &&
+                 approach_result.command.forward_mps > 0 &&
                  approach_result.command.left_mps == 0,
-                 "target at intake position settles a preceding yaw reversal")) return 1;
+                 "target crossing intake plane starts the dash without yaw settling")) return 1;
+    robot::ApproachController lateral_deadband_approach({
+        .maximum_linear_accel_mps2 = 100.0,
+        .maximum_yaw_accel_radps2 = 100.0,
+    });
+    robot::TrackedObject lateral_deadband_target{.id = 10,
+                                                  .object_class = robot::ObjectClass::red_cube,
+                                                  .x_m = .5,
+                                                  .y_m = .04,
+                                                  .last_seen = now};
+    const auto lateral_deadband_result = lateral_deadband_approach.update(
+        {}, lateral_deadband_target, now, .1);
+    if (!require(!lateral_deadband_result.aligning &&
+                 lateral_deadband_result.command.yaw_radps == 0,
+                 "lateral intake deadband suppresses yaw correction")) return 1;
     target.last_seen = now + 100ms;
     approach_result = approach.update({}, target, now + 100ms, .1);
-    if (!require(approach_result.target_valid && approach_result.command.forward_mps == 0 &&
+    if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0 &&
                  approach_result.command.left_mps == 0,
-                 "capture settle holds zero chassis command for its full interval")) return 1;
+                 "capture dash continues without a yaw-settle pause")) return 1;
     target.last_seen = now + 800ms;
     approach_result = approach.update({}, target, now + 800ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
-                 "capture dash begins after yaw settle")) return 1;
+                 "capture dash remains active while the target is visible")) return 1;
     approach_result = approach.continue_capture({}, now + 1001ms, .1);
     if (!require(approach_result.target_valid && approach_result.command.forward_mps > 0,
                  "lost close target drives capture finish")) return 1;
@@ -316,31 +354,42 @@ int main() {
     if (!require(search_result.phase == robot::SearchPhase::rotate_local &&
                      search_result.command.yaw_radps > 0,
                  "lost target starts local rotation")) return 1;
-    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 6s, .1);
+    search_result = search.update({.x_m = .2, .y_m = .2}, true, now + 1s, .1);
+    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 1100ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::rotate_local &&
+                 search_result.lost_seconds >= 1.0,
+                 "brief target track does not reset search timeout")) return 1;
+    search_result = search.update({.x_m = .2, .y_m = .2}, true, now + 2s, .1);
+    search_result = search.update({.x_m = .2, .y_m = .2}, true, now + 4100ms, .1);
+    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 4200ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::rotate_local &&
+                 search_result.lost_seconds < .01,
+                 "two-second target track resets search timeout")) return 1;
+    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 10s, .1);
     if (!require(search_result.phase == robot::SearchPhase::navigate_center &&
                      std::hypot(search_result.command.forward_mps,
                                 search_result.command.left_mps) > 0,
                  "five-second loss navigates to center")) return 1;
-    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 7s, .1);
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 11s, .1);
     if (!require(search_result.phase == robot::SearchPhase::rotate_center,
                  "search rotates after reaching center")) return 1;
-    search_result = search.update({.x_m = 1.76, .y_m = .9925}, false, now + 8s, .1);
+    search_result = search.update({.x_m = 1.76, .y_m = .9925}, false, now + 12s, .1);
     if (!require(search_result.phase == robot::SearchPhase::rotate_center,
                  "center exit hysteresis tolerates localization noise")) return 1;
-    search_result = search.update({.x_m = 1.86, .y_m = .9925}, false, now + 9s, .1);
+    search_result = search.update({.x_m = 1.86, .y_m = .9925}, false, now + 13s, .1);
     if (!require(search_result.phase == robot::SearchPhase::navigate_center,
                  "center search resumes translation outside exit tolerance")) return 1;
-    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 9s, .1, false);
+    search_result = search.update({.x_m = .2, .y_m = .2}, false, now + 14s, .1, false);
     if (!require(search_result.phase == robot::SearchPhase::hold_for_localization &&
                  search_result.command.forward_mps == 0 && search_result.command.left_mps == 0,
                  "uncertain localization never permits center translation")) return 1;
-    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 10s, .1);
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 15s, .1);
     if (!require(search_result.phase == robot::SearchPhase::rotate_center,
                  "center dwell begins after returning to the center")) return 1;
-    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 14s, .1);
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 19s, .1);
     if (!require(search_result.phase == robot::SearchPhase::rotate_center,
                  "center travel does not consume the center-search dwell")) return 1;
-    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 15s, .1);
+    search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 20s, .1);
     if (!require(search_result.phase == robot::SearchPhase::navigate_cargo_calibration,
                  "completed center search enters cargo calibration before home")) return 1;
 

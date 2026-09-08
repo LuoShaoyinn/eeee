@@ -15,6 +15,22 @@ double slew(double requested, double previous, double maximum_delta) {
     return previous + std::clamp(requested - previous, -maximum_delta, maximum_delta);
 }
 
+Twist2 constrain_twist(Twist2 command, const ApproachControllerConfig& config) {
+    const double linear_fraction =
+        std::hypot(command.forward_mps, command.left_mps) / config.maximum_linear_mps;
+    const double yaw_fraction = std::abs(command.yaw_radps) / config.maximum_yaw_radps;
+    // Translation and yaw share the available traction budget. A hard turn
+    // deliberately reduces translation rather than asking mecanum wheels to
+    // deliver an infeasible combination.
+    const double demand = std::hypot(linear_fraction, yaw_fraction);
+    if (demand > 1.0) {
+        command.forward_mps /= demand;
+        command.left_mps /= demand;
+        command.yaw_radps /= demand;
+    }
+    return command;
+}
+
 }  // namespace
 
 ApproachController::ApproachController(ApproachControllerConfig config) : config_(config) {}
@@ -37,15 +53,38 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
     const double forward_control_error = forward_error - config_.target_forward_m;
     result.distance_m = std::hypot(forward_control_error, left_error);
     result.target_valid = true;
-    const double yaw_error = std::atan2(left_error, forward_error);
-    // A target already inside the intake's forward reach should start the
-    // capture pass without waiting for its projected x coordinate to settle
-    // exactly at target_forward_m. Keep the lateral contact requirement.
+    // The intake's lateral deadband also defines when bearing correction is
+    // useful. Without this, a close object produces a large bearing from a
+    // harmless lateral residual and can consume the shared traction budget.
+    const bool lateral_in_yaw_deadband =
+        std::abs(left_error) <= config_.left_command_deadband_mps;
+    const double yaw_error = lateral_in_yaw_deadband ? 0 : std::atan2(left_error, forward_error);
+    // Capture only once the target has crossed the intake plane while staying
+    // laterally inside the collector. Do not use radial proximity here: it can
+    // start a dash before a close off-axis target has actually reached intake.
     const bool capture_gate =
-        result.distance_m <= config_.target_tolerance_m ||
-        (forward_error > 0 && forward_error < config_.target_forward_m &&
-         std::abs(left_error) <= config_.target_tolerance_m);
+        forward_error > 0 && forward_error < config_.target_forward_m &&
+        std::abs(left_error) <= config_.target_tolerance_m;
     result.capture_eligible = capture_gate;
+
+    // Once the object is inside the intake gate, go straight into its dash.
+    // A tracked target may still have a substantial bearing near the camera;
+    // requiring it to finish a rotate-only phase here made capture wait for a
+    // full yaw stop before the intake could advance.
+    if (capture_gate) {
+        capture_finish_pending_ = true;
+        capture_finish_active_ = true;
+        capture_finish_origin_ = pose;
+        capture_finish_started_ = now;
+        forward_integral_ = left_integral_ = 0;
+        previous_forward_error_ = previous_left_error_ = previous_yaw_error_ = 0;
+        initialized_ = false;
+        alignment_active_ = false;
+        alignment_settle_required_ = false;
+        capture_alignment_settling_ = false;
+        capture_alignment_settled_at_ = {};
+        return continue_capture(pose, now, dt_s);
+    }
 
     if (!initialized_) {
         previous_forward_error_ = forward_control_error;
@@ -67,21 +106,13 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         forward_integral_ = left_integral_ = 0;
     }
 
-    // Pause only after a real rotate-only alignment. A normal tracking command
-    // may contain a small yaw correction; treating that as alignment would
-    // force an unnecessary zero-command state before every dash.
-    if (capture_gate &&
-        (alignment_active_ || alignment_settle_required_)) {
-        alignment_active_ = true;
-        capture_alignment_settling_ = true;
-    }
-
     if (alignment_active_) {
-        const double yaw_derivative = wrap_angle(yaw_error - previous_yaw_error_) / dt_s;
-        double requested_yaw = capture_alignment_settling_ &&
+        const double yaw_derivative = lateral_in_yaw_deadband
+            ? 0 : wrap_angle(yaw_error - previous_yaw_error_) / dt_s;
+        double requested_yaw = lateral_in_yaw_deadband || (capture_alignment_settling_ &&
                 std::abs(yaw_error) <= config_.alignment_enter_yaw_rad
-            ? 0 : config_.alignment_yaw_kp * yaw_error +
-                  config_.alignment_yaw_kd * yaw_derivative;
+            ) ? 0 : config_.alignment_yaw_kp * yaw_error +
+                       config_.alignment_yaw_kd * yaw_derivative;
         requested_yaw = std::clamp(requested_yaw,
                                    -config_.maximum_yaw_radps, config_.maximum_yaw_radps);
         if (std::abs(requested_yaw) < config_.yaw_command_deadband_radps) requested_yaw = 0;
@@ -117,22 +148,6 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         }
     }
 
-    if (capture_gate) {
-        // Do not wait for the model to lose the object. The intake sequence
-        // starts on this same control frame, while the target is still valid.
-        capture_finish_pending_ = true;
-        capture_finish_active_ = true;
-        capture_finish_origin_ = pose;
-        capture_finish_started_ = now;
-        forward_integral_ = left_integral_ = 0;
-        previous_forward_error_ = previous_left_error_ = previous_yaw_error_ = 0;
-        // Start the dash from a neutral command instead of decelerating a
-        // potentially lateral/reverse PID command through zero first.
-        previous_command_ = {};
-        initialized_ = false;
-        return continue_capture(pose, now, dt_s);
-    }
-
     // A reacquired target on the other side of the intake must not inherit
     // accumulated lateral/forward correction from the old target lock.
     if (forward_control_error * previous_forward_error_ < 0) forward_integral_ = 0;
@@ -144,7 +159,8 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
                                 -config_.integral_limit_m_s, config_.integral_limit_m_s);
     const double forward_derivative = (forward_control_error - previous_forward_error_) / dt_s;
     const double left_derivative = (left_error - previous_left_error_) / dt_s;
-    const double yaw_derivative = wrap_angle(yaw_error - previous_yaw_error_) / dt_s;
+    const double yaw_derivative = lateral_in_yaw_deadband
+        ? 0 : wrap_angle(yaw_error - previous_yaw_error_) / dt_s;
 
     Twist2 requested{
         .forward_mps = config_.translation_kp * forward_control_error +
@@ -153,15 +169,10 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
         .left_mps = config_.lateral_kp * left_error +
                     config_.lateral_ki * left_integral_ +
                     config_.lateral_kd * left_derivative,
-        .yaw_radps = config_.yaw_kp * yaw_error + config_.yaw_kd * yaw_derivative,
+        .yaw_radps = lateral_in_yaw_deadband
+            ? 0 : config_.yaw_kp * yaw_error + config_.yaw_kd * yaw_derivative,
     };
-    const double magnitude = std::hypot(requested.forward_mps, requested.left_mps);
-    if (magnitude > config_.maximum_linear_mps) {
-        requested.forward_mps *= config_.maximum_linear_mps / magnitude;
-        requested.left_mps *= config_.maximum_linear_mps / magnitude;
-    }
-    requested.yaw_radps = std::clamp(requested.yaw_radps,
-                                     -config_.maximum_yaw_radps, config_.maximum_yaw_radps);
+    requested = constrain_twist(requested, config_);
     if (std::abs(requested.forward_mps) < config_.forward_command_deadband_mps) {
         requested.forward_mps = 0;
     }
@@ -177,6 +188,7 @@ ApproachResult ApproachController::update(const Pose2& pose, const TrackedObject
                                    config_.maximum_linear_accel_mps2 * dt_s);
     result.command.yaw_radps = slew(requested.yaw_radps, previous_command_.yaw_radps,
                                     config_.maximum_yaw_accel_radps2 * dt_s);
+    result.command = constrain_twist(result.command, config_);
     previous_forward_error_ = forward_control_error;
     previous_left_error_ = left_error;
     previous_yaw_error_ = yaw_error;

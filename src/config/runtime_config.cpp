@@ -90,6 +90,7 @@ void validate(const RuntimeConfig& config) {
         }
     }
     if (config.search_local_rotate_seconds < 0 || config.search_center_rotate_seconds <= 0 ||
+        config.search_target_reset_seconds <= 0 ||
         config.search_center_x_m < 0 || config.search_center_x_m > config.arena_length_m ||
         config.search_center_y_m < 0 || config.search_center_y_m > config.arena_width_m ||
         config.search_center_entry_radius_m <= 0 ||
@@ -263,6 +264,7 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     const cv::FileNode search = file["search"];
     read(search, "local_rotate_seconds", config.search_local_rotate_seconds);
     read(search, "center_rotate_seconds", config.search_center_rotate_seconds);
+    read(search, "target_reset_seconds", config.search_target_reset_seconds);
     read(search, "center_x_m", config.search_center_x_m);
     read(search, "center_y_m", config.search_center_y_m);
     read(search, "center_entry_radius_m", config.search_center_entry_radius_m);

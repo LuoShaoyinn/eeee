@@ -15,6 +15,8 @@ struct CargoCalibrationStep {
 struct SearchConfig {
     double local_rotate_seconds = 5.0;
     double center_search_seconds = 5.0;
+    // A brief false-positive target must not restart an almost-complete scan.
+    double target_reset_seconds = 2.0;
     double center_x_m = 1.5;
     double center_y_m = .9925;
     double center_entry_radius_m = .25;
@@ -103,6 +105,7 @@ private:
     void reset_go_to_pos_pid();
     SearchConfig config_;
     Timestamp lost_since_{};
+    Timestamp target_visible_since_{};
     // The center-search dwell begins only after the chassis reaches the
     // center region. Travel time and localization holds do not consume it.
     Timestamp center_search_started_{};
