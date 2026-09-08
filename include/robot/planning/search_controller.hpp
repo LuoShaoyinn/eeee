@@ -39,7 +39,7 @@ struct SearchConfig {
     double post_home_moonwalk_yaw_tolerance_deg = 10.0;
     double post_home_moonwalk_yaw_kp = 1.5;
     double post_home_moonwalk_timeout_seconds = 10.0;
-    double post_home_turn_degrees = 180.0;
+    double post_home_turn_yaw_deg = 145.0;
     double post_home_turn_yaw_kp = 1.5;
     double post_home_turn_yaw_tolerance_deg = 5.0;
     double post_home_reverse_mps = .30;

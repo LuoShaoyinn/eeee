@@ -137,6 +137,12 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                     config_.home_stop_radius_m) {
                     post_home_phase_ = PostHomePhase::moonwalk;
                     post_home_phase_started_ = now;
+                    // Moonwalk is a rotation-only phase. Do not slew in the
+                    // residual translation from the return-home controller.
+                    // The ESP32 still applies its per-wheel acceleration
+                    // limit as those components decay physically.
+                    previous_command_.forward_mps = 0;
+                    previous_command_.left_mps = 0;
                     result = {.command = {}, .phase = SearchPhase::post_home_moonwalk,
                               .lost_seconds = 0};
                 }
@@ -150,7 +156,7 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                     post_home_phase_ = PostHomePhase::turn;
                     post_home_phase_started_ = now;
                     post_home_turn_target_yaw_rad_ = wrap(
-                        pose.yaw_rad + config_.post_home_turn_degrees * std::numbers::pi / 180.0);
+                        config_.post_home_turn_yaw_deg * std::numbers::pi / 180.0);
                     result = {.command = {}, .phase = SearchPhase::post_home_turn,
                               .lost_seconds = 0};
                 } else if (now - post_home_phase_started_ >=
@@ -169,6 +175,9 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                                                std::numbers::pi / 180.0) {
                     post_home_phase_ = PostHomePhase::reverse;
                     post_home_phase_started_ = now;
+                    // The reverse leg must not inherit the completed turn's
+                    // yaw rate, otherwise it begins as an unintended arc.
+                    previous_command_.yaw_radps = 0;
                     result = {.command = {}, .phase = SearchPhase::post_home_reverse,
                               .lost_seconds = 0};
                 } else {

@@ -131,7 +131,7 @@ struct RuntimeConfig {
     double search_post_home_moonwalk_yaw_tolerance_deg = 10;
     double search_post_home_moonwalk_yaw_kp = 1.5;
     double search_post_home_moonwalk_timeout_seconds = 10;
-    double search_post_home_turn_degrees = 180;
+    double search_post_home_turn_yaw_deg = 145;
     double search_post_home_turn_yaw_kp = 1.5;
     double search_post_home_turn_yaw_tolerance_deg = 5;
     double search_post_home_reverse_mps = .30;

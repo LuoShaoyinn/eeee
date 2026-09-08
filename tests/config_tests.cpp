@@ -83,7 +83,7 @@ int main() {
             config.search_maximum_yaw_radps != 2.0 ||
             config.search_post_home_moonwalk_yaw_deg != -120. ||
             config.search_post_home_moonwalk_yaw_tolerance_deg != 10. ||
-            config.search_post_home_turn_degrees != 180. ||
+            config.search_post_home_turn_yaw_deg != 145. ||
             config.search_post_home_reverse_mps != .20 ||
             config.search_post_home_reverse_seconds != 2. ||
             config.search_cargo_calibration_x_m != 1.0 ||

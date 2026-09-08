@@ -726,7 +726,7 @@ Options parse_options(int argc, char** argv) {
     options.search.post_home_moonwalk_yaw_tolerance_deg = config.search_post_home_moonwalk_yaw_tolerance_deg;
     options.search.post_home_moonwalk_yaw_kp = config.search_post_home_moonwalk_yaw_kp;
     options.search.post_home_moonwalk_timeout_seconds = config.search_post_home_moonwalk_timeout_seconds;
-    options.search.post_home_turn_degrees = config.search_post_home_turn_degrees;
+    options.search.post_home_turn_yaw_deg = config.search_post_home_turn_yaw_deg;
     options.search.post_home_turn_yaw_kp = config.search_post_home_turn_yaw_kp;
     options.search.post_home_turn_yaw_tolerance_deg = config.search_post_home_turn_yaw_tolerance_deg;
     options.search.post_home_reverse_mps = config.search_post_home_reverse_mps;

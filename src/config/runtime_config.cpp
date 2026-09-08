@@ -111,8 +111,8 @@ void validate(const RuntimeConfig& config) {
         config.search_post_home_moonwalk_yaw_tolerance_deg >= 180 ||
         config.search_post_home_moonwalk_yaw_kp <= 0 ||
         config.search_post_home_moonwalk_timeout_seconds <= 0 ||
-        config.search_post_home_turn_degrees <= 0 ||
-        config.search_post_home_turn_degrees > 360 ||
+        config.search_post_home_turn_yaw_deg < -180 ||
+        config.search_post_home_turn_yaw_deg > 180 ||
         config.search_post_home_turn_yaw_kp <= 0 ||
         config.search_post_home_turn_yaw_tolerance_deg <= 0 ||
         config.search_post_home_turn_yaw_tolerance_deg >= 180 ||
@@ -285,7 +285,7 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(search, "post_home_moonwalk_yaw_tolerance_deg", config.search_post_home_moonwalk_yaw_tolerance_deg);
     read(search, "post_home_moonwalk_yaw_kp", config.search_post_home_moonwalk_yaw_kp);
     read(search, "post_home_moonwalk_timeout_seconds", config.search_post_home_moonwalk_timeout_seconds);
-    read(search, "post_home_turn_degrees", config.search_post_home_turn_degrees);
+    read(search, "post_home_turn_yaw_deg", config.search_post_home_turn_yaw_deg);
     read(search, "post_home_turn_yaw_kp", config.search_post_home_turn_yaw_kp);
     read(search, "post_home_turn_yaw_tolerance_deg", config.search_post_home_turn_yaw_tolerance_deg);
     read(search, "post_home_reverse_mps", config.search_post_home_reverse_mps);

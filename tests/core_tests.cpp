@@ -448,6 +448,31 @@ int main() {
     search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 2300ms, .1);
     if (!require(search_result.phase == robot::SearchPhase::cargo_calibration_forward_slow,
                  "cargo calibration enters its slow forward leg after reverse")) return 1;
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 4400ms, .1);
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 4500ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::cargo_calibration_reverse_final,
+                 "cargo calibration enters its final reverse leg")) return 1;
+    if (!require(return_home.report_cargo_wall_hit(now + 4600ms),
+                 "IMU wall contact completes the final cargo reverse leg")) return 1;
+    search_result = return_home.update({.x_m = 1.5, .y_m = .9925, .yaw_rad = 0}, true, now + 4700ms, .1);
+    search_result = return_home.update({.x_m = .10, .y_m = .15, .yaw_rad = 0}, true, now + 4800ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk,
+                 "cargo calibration returns through center and enters home moonwalk")) return 1;
+    search_result = return_home.update({.x_m = .10, .y_m = .15,
+                                         .yaw_rad = -145. * std::numbers::pi / 180.},
+                                       true, now + 4900ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_turn,
+                 "moonwalk transitions to the final absolute yaw turn")) return 1;
+    search_result = return_home.update({.x_m = .10, .y_m = .15,
+                                         .yaw_rad = 145. * std::numbers::pi / 180.},
+                                       true, now + 5s, .1);
+    if (!require(search_result.phase == robot::SearchPhase::post_home_reverse,
+                 "final turn accepts the configured positive 145-degree yaw")) return 1;
+    search_result = return_home.update({.x_m = .10, .y_m = .15,
+                                         .yaw_rad = 145. * std::numbers::pi / 180.},
+                                       true, now + 7100ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::complete,
+                 "home and exit path completes after its configured reverse leg")) return 1;
 
     robot::DetectionFrame home_frame{
         .timestamp = now,
