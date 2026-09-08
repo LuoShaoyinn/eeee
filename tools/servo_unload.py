@@ -77,7 +77,12 @@ def main():
     except (OSError, RuntimeError) as error:
         print("unload aborted: {}".format(error), file=sys.stderr)
         return 1
-    print("S3 unload complete: holding {} us".format(previous))
+    try:
+        request(args.socket, "s3 release")
+    except (OSError, RuntimeError) as error:
+        print("unload close complete, but release failed: {}".format(error), file=sys.stderr)
+        return 1
+    print("S3 unload complete: released after {} us".format(previous))
     return 0
 
 

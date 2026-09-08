@@ -95,8 +95,8 @@ python3 tools/servo_unload.py --config config/robot.yaml
 
 The tool sends only `s3 pulse` through `robotd` to the ESP32. Its paired
 `servo.unload_pulse_us` and `servo.unload_duration_ms` arrays define linear
-segments; it leaves S3 holding the final pulse and intentionally never sends
-the ESP32 `stop` command.
+segments. It then sends `s3 release` after the final pulse and intentionally
+never sends the ESP32 `stop` command.
 
 For manual control over SSH, run this on the Cubie:
 

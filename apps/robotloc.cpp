@@ -1398,15 +1398,9 @@ int main(int argc, char** argv) {
                         last_approach_command = {};
                         last_approach_command_at = {};
                         local_target_tracker.reset();
-                        if (telemetry_valid && unload_controller.complete()) {
-                            // Preserve the final S3 close pulse. ESP32 `stop`
-                            // deliberately releases the servo, so use only
-                            // chassis/collector stop commands after unload.
-                            (void)request_robotd(options.socket, "twist 0 0 0");
-                            (void)request_robotd(options.socket, "collector stop");
-                        } else {
-                            (void)request_robotd(options.socket, "stop");
-                        }
+                        // `stop` releases S3 after its final configured pulse,
+                        // and also leaves chassis and collector in their safe state.
+                        (void)request_robotd(options.socket, "stop");
                     } else {
                         robot::Twist2 requested =
                             approach_result.target_valid && !approach_result.target_reached
