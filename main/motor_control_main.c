@@ -595,9 +595,10 @@ static const char *process_command(const char *command, char *reply, size_t repl
         portEXIT_CRITICAL(&s_ga25_lock);
         ga25_current = s_ga25_current_duty;
         snprintf(reply, reply_size,
-                 "state ms %lu imu_age %lu gyro %.1f %.1f %.1f angle %.1f %.1f %.1f rpm %.0f %.0f %.0f %.0f fg %u %u %u %u ga25 %d %d %u %llu\n",
+                 "state ms %lu imu_age %lu accel %.3f %.3f %.3f gyro %.1f %.1f %.1f angle %.1f %.1f %.1f rpm %.0f %.0f %.0f %.0f fg %u %u %u %u ga25 %d %d %u %llu\n",
                  (unsigned long)now_ms,
                  (unsigned long)(imu.accel_valid ? now_ms - imu.last_frame_ms : UINT32_MAX),
+                 imu.accel_g[0], imu.accel_g[1], imu.accel_g[2],
                  imu.gyro_dps[0], imu.gyro_dps[1], imu.gyro_dps[2],
                  imu.angle_deg[0], imu.angle_deg[1], imu.angle_deg[2],
                  telemetry.measured_rpm[0], telemetry.measured_rpm[1],
