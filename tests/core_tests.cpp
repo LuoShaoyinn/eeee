@@ -150,7 +150,10 @@ int main() {
     if (!require(!tracked_world.nearest_collectible({}).has_value(),
                  "stale collectible track expires")) return 1;
 
-    robot::LocalTargetTracker local_tracker({.memory = 3s, .association_gate_m = .75,
+    robot::LocalTargetTracker local_tracker({.memory = 3s, .acquisition_confirmation = 0ms,
+                                             .minimum_observations = 1,
+                                             .collection_suppression = 3s,
+                                             .association_gate_m = .75,
                                              .measurement_gain = .55});
     robot::TrackedObject local_observation{
         .object_class = robot::ObjectClass::yellow_cylinder,
@@ -194,7 +197,9 @@ int main() {
     if (!require(local_tracker.target({.x_m = .3}, now + 3001ms) == std::nullopt,
                  "local target expires after three seconds without a detection")) return 1;
 
-    robot::LocalTargetTracker expired_tracker({.memory = 3s, .association_gate_m = .75,
+    robot::LocalTargetTracker expired_tracker({.memory = 3s, .acquisition_confirmation = 0ms,
+                                               .minimum_observations = 1,
+                                               .association_gate_m = .75,
                                                .measurement_gain = .55});
     expired_tracker.observe({local_observation}, {}, now);
     robot::TrackedObject red_observation{
@@ -217,6 +222,32 @@ int main() {
     local_tracker.observe({local_observation}, {}, now + 8s);
     if (!require(local_tracker.acquire_nearest({}, now + 8s).has_value(),
                  "suppression expires after local target memory interval")) return 1;
+
+    robot::LocalTargetTracker guarded_tracker({.memory = 3s, .acquisition_confirmation = 200ms,
+                                               .confirmation_gap = 150ms,
+                                               .minimum_observations = 3,
+                                               .collection_suppression = 8s,
+                                               .association_gate_m = .75,
+                                               .measurement_gain = .55});
+    guarded_tracker.observe({local_observation}, {}, now);
+    // One or two nearby false boxes must not stop the no-object search.
+    guarded_tracker.observe({local_observation}, {}, now + 100ms);
+    if (!require(!guarded_tracker.acquire_nearest({}, now + 100ms),
+                 "short detector flash cannot acquire a target")) return 1;
+    guarded_tracker.observe({local_observation}, {}, now + 220ms);
+    if (!require(guarded_tracker.acquire_nearest({}, now + 220ms).has_value(),
+                 "persistent detector evidence acquires a target")) return 1;
+    guarded_tracker.mark_collected(now + 220ms);
+    guarded_tracker.observe({local_observation}, {}, now + 400ms);
+    guarded_tracker.observe({local_observation}, {}, now + 620ms);
+    guarded_tracker.observe({local_observation}, {}, now + 840ms);
+    if (!require(!guarded_tracker.acquire_nearest({}, now + 840ms),
+                 "completed capture suppresses stale rediscovery")) return 1;
+    guarded_tracker.observe({local_observation}, {}, now + 9s);
+    guarded_tracker.observe({local_observation}, {}, now + 9100ms);
+    guarded_tracker.observe({local_observation}, {}, now + 9200ms);
+    if (!require(guarded_tracker.acquire_nearest({}, now + 9200ms).has_value(),
+                 "collection suppression eventually expires")) return 1;
 
     const cv::Mat camera_matrix = cv::Mat::eye(3, 3, CV_64F);
     const robot::GroundProjector projector(camera_matrix, 1.0, 45.0);

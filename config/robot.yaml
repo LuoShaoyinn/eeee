@@ -109,6 +109,14 @@ approach:
   target_timeout_ms: 3000
   # Correct the local object memory aggressively from fresh NPU detections.
   target_measurement_gain: .60
+  # Require persistent evidence before a new object can interrupt search. A
+  # one-frame detector flash therefore cannot reset the no-object timeout.
+  target_confirmation_ms: 200
+  target_confirmation_gap_ms: 150
+  target_minimum_observations: 3
+  # The completed intake dash is a probable-collection latch. Ignore stale
+  # boxes at that location while the collector clears the camera view.
+  collection_suppression_ms: 8000
 search:
   local_rotate_seconds: 10.
   center_rotate_seconds: 10.

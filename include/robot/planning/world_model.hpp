@@ -21,6 +21,10 @@ struct TrackedObject {
     double camera_left_m = 0;
     double uncertainty_m = 1;
     float confidence = 0;
+    // Detector evidence for local target acquisition. These are maintained by
+    // LocalTargetTracker and deliberately do not represent physical tracking.
+    Timestamp first_seen{};
+    unsigned observations = 0;
     Timestamp last_seen{};
 };
 

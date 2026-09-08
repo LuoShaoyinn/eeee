@@ -105,6 +105,10 @@ struct Options {
     double maximum_linear_mps = .45;
     double maximum_yaw_radps = 2;
     double target_measurement_gain = .60;
+    int target_confirmation_ms = 200;
+    int target_confirmation_gap_ms = 150;
+    unsigned target_minimum_observations = 3;
+    int collection_suppression_ms = 8000;
     cv::Scalar fence_hsv_lower{96, 128, 82};
     cv::Scalar fence_hsv_upper{121, 255, 255};
     bool stream_json = false;
@@ -643,6 +647,11 @@ Options parse_options(int argc, char** argv) {
     options.maximum_linear_mps = config.max_linear_mps;
     options.maximum_yaw_radps = config.max_yaw_radps;
     options.target_measurement_gain = config.approach_target_measurement_gain;
+    options.target_confirmation_ms = config.approach_target_confirmation_ms;
+    options.target_confirmation_gap_ms = config.approach_target_confirmation_gap_ms;
+    options.target_minimum_observations =
+        static_cast<unsigned>(config.approach_target_minimum_observations);
+    options.collection_suppression_ms = config.approach_collection_suppression_ms;
     options.fence_hsv_lower = cv::Scalar(config.fence_hsv_h_min, config.fence_hsv_s_min,
                                          config.fence_hsv_v_min);
     options.fence_hsv_upper = cv::Scalar(config.fence_hsv_h_max, config.fence_hsv_s_max,
@@ -1013,6 +1022,10 @@ int main(int argc, char** argv) {
         robot::WorldModel world;
         robot::LocalTargetTracker local_target_tracker(
             {.memory = options.approach.target_timeout,
+             .acquisition_confirmation = std::chrono::milliseconds(options.target_confirmation_ms),
+             .confirmation_gap = std::chrono::milliseconds(options.target_confirmation_gap_ms),
+             .minimum_observations = options.target_minimum_observations,
+             .collection_suppression = std::chrono::milliseconds(options.collection_suppression_ms),
              .measurement_gain = options.target_measurement_gain});
         std::vector<robot::Detection> raw_detections;
         robot::ApproachController approach_controller(options.approach);

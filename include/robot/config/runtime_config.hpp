@@ -101,6 +101,10 @@ struct RuntimeConfig {
     int approach_alignment_settle_ms = 700;
     int approach_target_timeout_ms = 3000;
     double approach_target_measurement_gain = .60;
+    int approach_target_confirmation_ms = 200;
+    int approach_target_confirmation_gap_ms = 150;
+    int approach_target_minimum_observations = 3;
+    int approach_collection_suppression_ms = 8000;
 
     double search_local_rotate_seconds = 5;
     double search_center_rotate_seconds = 5;

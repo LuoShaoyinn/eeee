@@ -13,6 +13,16 @@ struct LocalTargetTrackerConfig {
     // long odometry alone may propagate an otherwise static collectable.
     std::chrono::milliseconds memory{3000};
     std::chrono::milliseconds acquisition_freshness{250};
+    // A new candidate must persist across several detector outputs before it
+    // can interrupt search. This prevents a one-frame false positive from
+    // restarting the no-object timer after a successful collection pass.
+    std::chrono::milliseconds acquisition_confirmation{200};
+    std::chrono::milliseconds confirmation_gap{150};
+    unsigned minimum_observations = 3;
+    // Once the intake dash has completed, ignore boxes close to that object
+    // longer than normal target memory. The dash is the collection-success
+    // signal; a stale detector box must not revive the completed target.
+    std::chrono::milliseconds collection_suppression{8000};
     double association_gate_m = .75;
     // Detector ground projection is visibly noisier than wheel/IMU odometry
     // over one inference interval. Use measurements to correct the local
@@ -43,6 +53,7 @@ public:
 private:
     std::optional<TrackedObject> predicted_track(const TrackedObject& track,
                                                   const Pose2& odometry_pose) const;
+    bool confirmed(const TrackedObject& track, Timestamp now) const;
     void discard_expired(Timestamp now);
     LocalTargetTrackerConfig config_;
     std::vector<TrackedObject> tracks_;

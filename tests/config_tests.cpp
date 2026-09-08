@@ -57,7 +57,11 @@ int main() {
             config.approach_maximum_linear_mps != .45 ||
             config.approach_capture_finish_distance_m != .30 ||
             config.approach_target_timeout_ms != 3000 ||
-            config.approach_target_measurement_gain != .60) {
+            config.approach_target_measurement_gain != .60 ||
+            config.approach_target_confirmation_ms != 200 ||
+            config.approach_target_confirmation_gap_ms != 150 ||
+            config.approach_target_minimum_observations != 3 ||
+            config.approach_collection_suppression_ms != 8000) {
             std::cerr << "unexpected approach controller configuration\n";
             return 1;
         }

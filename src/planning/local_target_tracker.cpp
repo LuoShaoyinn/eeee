@@ -16,6 +16,12 @@ bool collectable(ObjectClass object_class) {
 
 LocalTargetTracker::LocalTargetTracker(LocalTargetTrackerConfig config) : config_(config) {}
 
+bool LocalTargetTracker::confirmed(const TrackedObject& track, Timestamp now) const {
+    return track.observations >= config_.minimum_observations &&
+           track.first_seen != Timestamp{} && now >= track.first_seen &&
+           now - track.first_seen >= config_.acquisition_confirmation;
+}
+
 std::optional<TrackedObject> LocalTargetTracker::predicted_track(
     const TrackedObject& track, const Pose2& odometry_pose) const {
     TrackedObject predicted = track;
@@ -74,10 +80,19 @@ void LocalTargetTracker::observe(const std::vector<TrackedObject>& observations,
             track.id = next_track_id_++;
             track.x_m = measured_x;
             track.y_m = measured_y;
+            track.first_seen = now;
+            track.observations = 1;
             track.last_seen = now;
             tracks_.push_back(track);
         } else {
             TrackedObject& track = tracks_[match];
+            if (track.last_seen == Timestamp{} || now < track.last_seen ||
+                now - track.last_seen > config_.confirmation_gap) {
+                track.first_seen = now;
+                track.observations = 1;
+            } else {
+                ++track.observations;
+            }
             track.x_m += config_.measurement_gain * (measured_x - track.x_m);
             track.y_m += config_.measurement_gain * (measured_y - track.y_m);
             track.camera_forward_m = observation.camera_forward_m;
@@ -96,7 +111,8 @@ std::optional<TrackedObject> LocalTargetTracker::acquire_nearest(
     const TrackedObject* best = nullptr;
     double best_distance = std::numeric_limits<double>::infinity();
     for (const TrackedObject& track : tracks_) {
-        if (now - track.last_seen > config_.acquisition_freshness) continue;
+        if (now < track.last_seen || now - track.last_seen > config_.acquisition_freshness ||
+            !confirmed(track, now)) continue;
         const auto predicted = predicted_track(track, odometry_pose);
         const double distance = std::hypot(predicted->camera_forward_m, predicted->camera_left_m);
         if (distance < best_distance) {
@@ -115,9 +131,7 @@ std::optional<TrackedObject> LocalTargetTracker::target(const Pose2& odometry_po
     for (const TrackedObject& track : tracks_) {
         if (track.id != *active_track_id_) continue;
         if (now < track.last_seen || now - track.last_seen > config_.memory) return std::nullopt;
-        auto predicted = predicted_track(track, odometry_pose);
-        predicted->last_seen = now;
-        return predicted;
+        return predicted_track(track, odometry_pose);
     }
     return std::nullopt;
 }
@@ -136,7 +150,7 @@ void LocalTargetTracker::mark_collected(Timestamp now) {
         });
         if (it == tracks_.end()) return;
         suppressed_track_ = *it;
-        suppress_until_ = now + config_.memory;
+        suppress_until_ = now + config_.collection_suppression;
         tracks_.erase(it);
     }
     active_track_id_.reset();

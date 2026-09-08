@@ -74,7 +74,11 @@ void validate(const RuntimeConfig& config) {
         config.approach_alignment_settle_ms < 0 ||
         config.approach_target_timeout_ms <= 0 ||
         config.approach_target_measurement_gain <= 0 ||
-        config.approach_target_measurement_gain > 1) {
+        config.approach_target_measurement_gain > 1 ||
+        config.approach_target_confirmation_ms < 0 ||
+        config.approach_target_confirmation_gap_ms <= 0 ||
+        config.approach_target_minimum_observations == 0 ||
+        config.approach_collection_suppression_ms < config.approach_target_timeout_ms) {
         throw std::runtime_error("approach controller configuration is invalid");
     }
     if (config.search_local_rotate_seconds < 0 || config.search_center_rotate_seconds <= 0 ||
@@ -247,6 +251,10 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(approach, "alignment_settle_ms", config.approach_alignment_settle_ms);
     read(approach, "target_timeout_ms", config.approach_target_timeout_ms);
     read(approach, "target_measurement_gain", config.approach_target_measurement_gain);
+    read(approach, "target_confirmation_ms", config.approach_target_confirmation_ms);
+    read(approach, "target_confirmation_gap_ms", config.approach_target_confirmation_gap_ms);
+    read(approach, "target_minimum_observations", config.approach_target_minimum_observations);
+    read(approach, "collection_suppression_ms", config.approach_collection_suppression_ms);
     const cv::FileNode search = file["search"];
     read(search, "local_rotate_seconds", config.search_local_rotate_seconds);
     read(search, "center_rotate_seconds", config.search_center_rotate_seconds);
