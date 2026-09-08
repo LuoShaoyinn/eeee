@@ -15,8 +15,12 @@ struct SearchConfig {
     double home_y_m = .15;
     double home_stop_radius_m = .2;
     double rotation_speed_radps = .35;
-    double navigate_translation_kp = .55;
-    double navigate_yaw_kp = 1.0;
+    double go_to_pos_translation_kp = .55;
+    double go_to_pos_translation_ki = 0;
+    double go_to_pos_translation_kd = 0;
+    double go_to_pos_yaw_kp = 1.0;
+    double go_to_pos_yaw_ki = 0;
+    double go_to_pos_yaw_kd = 0;
     double maximum_linear_mps = .20;
     double maximum_yaw_radps = .6;
     // Fixed recovery trajectory after reaching the home docking corner.
@@ -63,8 +67,9 @@ public:
     void reset();
 
 private:
-    Twist2 navigate(const Pose2& pose, double x_m, double y_m, double stop_radius_m,
-                    double dt_s);
+    Twist2 go_to_position(const Pose2& pose, double x_m, double y_m, double stop_radius_m,
+                          double dt_s);
+    void reset_go_to_pos_pid();
     SearchConfig config_;
     Timestamp lost_since_{};
     // The center-search dwell begins only after the chassis reaches the
@@ -79,6 +84,16 @@ private:
     PostHomePhase post_home_phase_ = PostHomePhase::none;
     Timestamp post_home_phase_started_{};
     double post_home_turn_target_yaw_rad_ = 0;
+    bool go_to_pos_goal_valid_ = false;
+    double go_to_pos_goal_x_m_ = 0;
+    double go_to_pos_goal_y_m_ = 0;
+    double go_to_pos_forward_integral_ = 0;
+    double go_to_pos_left_integral_ = 0;
+    double go_to_pos_yaw_integral_ = 0;
+    double go_to_pos_previous_forward_error_ = 0;
+    double go_to_pos_previous_left_error_ = 0;
+    double go_to_pos_previous_yaw_error_ = 0;
+    bool go_to_pos_previous_error_valid_ = false;
 };
 
 const char* to_string(SearchPhase phase);

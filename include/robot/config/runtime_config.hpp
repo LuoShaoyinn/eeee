@@ -112,6 +112,12 @@ struct RuntimeConfig {
     double search_home_y_m = .15;
     double search_home_stop_radius_m = .2;
     double search_rotation_speed_radps = .35;
+    double search_go_to_pos_translation_kp = .55;
+    double search_go_to_pos_translation_ki = 0;
+    double search_go_to_pos_translation_kd = 0;
+    double search_go_to_pos_yaw_kp = 1.0;
+    double search_go_to_pos_yaw_ki = 0;
+    double search_go_to_pos_yaw_kd = 0;
     double search_maximum_linear_mps = .20;
     double search_maximum_yaw_radps = .6;
     double search_post_home_moonwalk_yaw_deg = -145;

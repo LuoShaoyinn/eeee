@@ -36,12 +36,12 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
             }
             if (!center_reached_) {
                 result.phase = SearchPhase::navigate_center;
-                result.command = navigate(pose, config_.center_x_m, config_.center_y_m,
-                                          config_.center_entry_radius_m, dt_s);
+                result.command = go_to_position(pose, config_.center_x_m, config_.center_y_m,
+                                                config_.center_entry_radius_m, dt_s);
             } else if (post_home_phase_ == PostHomePhase::none) {
                 result.phase = SearchPhase::return_home;
-                result.command = navigate(pose, config_.home_x_m, config_.home_y_m,
-                                          config_.home_stop_radius_m, dt_s);
+                result.command = go_to_position(pose, config_.home_x_m, config_.home_y_m,
+                                                config_.home_stop_radius_m, dt_s);
                 if (std::hypot(pose.x_m - config_.home_x_m, pose.y_m - config_.home_y_m) <=
                     config_.home_stop_radius_m) {
                     post_home_phase_ = PostHomePhase::moonwalk;
@@ -129,8 +129,8 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
             }
             if (!center_reached_) {
                 result.phase = SearchPhase::navigate_center;
-                result.command = navigate(pose, config_.center_x_m, config_.center_y_m,
-                                          config_.center_entry_radius_m, dt_s);
+                result.command = go_to_position(pose, config_.center_x_m, config_.center_y_m,
+                                                config_.center_entry_radius_m, dt_s);
             } else {
                 result.phase = SearchPhase::rotate_center;
                 result.command.yaw_radps = config_.rotation_speed_radps;
@@ -139,8 +139,8 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                     std::chrono::duration<double>(config_.center_search_seconds)) {
                     center_search_complete_ = true;
                     result.phase = SearchPhase::return_home;
-                    result.command = navigate(pose, config_.home_x_m, config_.home_y_m,
-                                              config_.home_stop_radius_m, dt_s);
+                    result.command = go_to_position(pose, config_.home_x_m, config_.home_y_m,
+                                                    config_.home_stop_radius_m, dt_s);
                 }
             }
         }
@@ -150,8 +150,8 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
             result.command = {};
         } else {
             result.phase = SearchPhase::return_home;
-            result.command = navigate(pose, config_.home_x_m, config_.home_y_m,
-                                      config_.home_stop_radius_m, dt_s);
+            result.command = go_to_position(pose, config_.home_x_m, config_.home_y_m,
+                                            config_.home_stop_radius_m, dt_s);
             if (std::hypot(pose.x_m - config_.home_x_m, pose.y_m - config_.home_y_m) <=
                 config_.home_stop_radius_m) {
                 result = {.command = {}, .phase = SearchPhase::complete, .lost_seconds = lost};
@@ -173,17 +173,56 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
     return result;
 }
 
-Twist2 SearchController::navigate(const Pose2& pose, double x_m, double y_m,
-                                  double stop_radius_m, double) {
+Twist2 SearchController::go_to_position(const Pose2& pose, double x_m, double y_m,
+                                        double stop_radius_m, double dt_s) {
     const double dx = x_m - pose.x_m;
     const double dy = y_m - pose.y_m;
     const double distance = std::hypot(dx, dy);
-    if (distance <= stop_radius_m) return {};
+    if (distance <= stop_radius_m) {
+        reset_go_to_pos_pid();
+        return {};
+    }
+    if (!go_to_pos_goal_valid_ || std::hypot(x_m - go_to_pos_goal_x_m_,
+                                             y_m - go_to_pos_goal_y_m_) > 1e-6) {
+        reset_go_to_pos_pid();
+        go_to_pos_goal_valid_ = true;
+        go_to_pos_goal_x_m_ = x_m;
+        go_to_pos_goal_y_m_ = y_m;
+    }
     const double cosine = std::cos(pose.yaw_rad);
     const double sine = std::sin(pose.yaw_rad);
-    Twist2 command{.forward_mps = config_.navigate_translation_kp * (cosine * dx + sine * dy),
-                   .left_mps = config_.navigate_translation_kp * (-sine * dx + cosine * dy),
-                   .yaw_radps = config_.navigate_yaw_kp * wrap(std::atan2(dy, dx) - pose.yaw_rad)};
+    const double forward_error = cosine * dx + sine * dy;
+    const double left_error = -sine * dx + cosine * dy;
+    const double yaw_error = wrap(std::atan2(dy, dx) - pose.yaw_rad);
+    const double bounded_dt = std::clamp(dt_s, 0.0, .2);
+    go_to_pos_forward_integral_ = std::clamp(go_to_pos_forward_integral_ + forward_error * bounded_dt,
+                                              -1.0, 1.0);
+    go_to_pos_left_integral_ = std::clamp(go_to_pos_left_integral_ + left_error * bounded_dt,
+                                           -1.0, 1.0);
+    go_to_pos_yaw_integral_ = std::clamp(go_to_pos_yaw_integral_ + yaw_error * bounded_dt,
+                                          -1.0, 1.0);
+    const double inverse_dt = bounded_dt > 1e-6 ? 1.0 / bounded_dt : 0.0;
+    const double forward_derivative = go_to_pos_previous_error_valid_ ?
+        (forward_error - go_to_pos_previous_forward_error_) * inverse_dt : 0;
+    const double left_derivative = go_to_pos_previous_error_valid_ ?
+        (left_error - go_to_pos_previous_left_error_) * inverse_dt : 0;
+    const double yaw_derivative = go_to_pos_previous_error_valid_ ?
+        wrap(yaw_error - go_to_pos_previous_yaw_error_) * inverse_dt : 0;
+    go_to_pos_previous_forward_error_ = forward_error;
+    go_to_pos_previous_left_error_ = left_error;
+    go_to_pos_previous_yaw_error_ = yaw_error;
+    go_to_pos_previous_error_valid_ = true;
+    Twist2 command{
+        .forward_mps = config_.go_to_pos_translation_kp * forward_error +
+            config_.go_to_pos_translation_ki * go_to_pos_forward_integral_ +
+            config_.go_to_pos_translation_kd * forward_derivative,
+        .left_mps = config_.go_to_pos_translation_kp * left_error +
+            config_.go_to_pos_translation_ki * go_to_pos_left_integral_ +
+            config_.go_to_pos_translation_kd * left_derivative,
+        .yaw_radps = config_.go_to_pos_yaw_kp * yaw_error +
+            config_.go_to_pos_yaw_ki * go_to_pos_yaw_integral_ +
+            config_.go_to_pos_yaw_kd * yaw_derivative,
+    };
     const double magnitude = std::hypot(command.forward_mps, command.left_mps);
     if (magnitude > config_.maximum_linear_mps) {
         command.forward_mps *= config_.maximum_linear_mps / magnitude;
@@ -192,6 +231,14 @@ Twist2 SearchController::navigate(const Pose2& pose, double x_m, double y_m,
     command.yaw_radps = std::clamp(command.yaw_radps,
                                     -config_.maximum_yaw_radps, config_.maximum_yaw_radps);
     return command;
+}
+
+void SearchController::reset_go_to_pos_pid() {
+    go_to_pos_goal_valid_ = false;
+    go_to_pos_forward_integral_ = 0;
+    go_to_pos_left_integral_ = 0;
+    go_to_pos_yaw_integral_ = 0;
+    go_to_pos_previous_error_valid_ = false;
 }
 
 void SearchController::begin_return_home() {
@@ -210,6 +257,7 @@ void SearchController::reset() {
     post_home_phase_ = PostHomePhase::none;
     post_home_phase_started_ = {};
     post_home_turn_target_yaw_rad_ = 0;
+    reset_go_to_pos_pid();
 }
 
 const char* to_string(SearchPhase phase) {

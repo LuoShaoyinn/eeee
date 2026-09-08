@@ -125,6 +125,14 @@ search:
   # Search only: turn briskly when no collectible is visible. This does not
   # raise the normal object-approach yaw limit.
   rotation_speed_radps: 1.80
+  # Shared PID for travel to the arena center and home center. Keep I/D at
+  # zero until position localization and drivetrain response are tuned.
+  go_to_pos_translation_kp: .55
+  go_to_pos_translation_ki: 0.
+  go_to_pos_translation_kd: 0.
+  go_to_pos_yaw_kp: 1.0
+  go_to_pos_yaw_ki: 0.
+  go_to_pos_yaw_kd: 0.
   # Closed-loop travel to center and home. Rotation-only search is unaffected.
   maximum_linear_mps: .60
   maximum_yaw_radps: 2.0

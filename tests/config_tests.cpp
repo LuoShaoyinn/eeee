@@ -69,6 +69,12 @@ int main() {
             config.search_home_x_m != .10 || config.search_home_y_m != .15 ||
             config.search_home_stop_radius_m != .20 ||
             config.search_rotation_speed_radps != 1.80 ||
+            config.search_go_to_pos_translation_kp != .55 ||
+            config.search_go_to_pos_translation_ki != 0. ||
+            config.search_go_to_pos_translation_kd != 0. ||
+            config.search_go_to_pos_yaw_kp != 1.0 ||
+            config.search_go_to_pos_yaw_ki != 0. ||
+            config.search_go_to_pos_yaw_kd != 0. ||
             config.search_maximum_yaw_radps != 2.0 ||
             config.search_post_home_moonwalk_yaw_deg != -145. ||
             config.search_post_home_moonwalk_yaw_tolerance_deg != 10. ||

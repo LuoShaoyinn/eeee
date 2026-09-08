@@ -85,7 +85,14 @@ void validate(const RuntimeConfig& config) {
         config.search_home_x_m < 0 || config.search_home_x_m > config.arena_length_m ||
         config.search_home_y_m < 0 || config.search_home_y_m > config.arena_width_m ||
         config.search_home_stop_radius_m <= 0 ||
-        config.search_rotation_speed_radps <= 0 || config.search_maximum_linear_mps <= 0 ||
+        config.search_rotation_speed_radps <= 0 ||
+        config.search_go_to_pos_translation_kp < 0 ||
+        config.search_go_to_pos_translation_ki < 0 ||
+        config.search_go_to_pos_translation_kd < 0 ||
+        config.search_go_to_pos_yaw_kp < 0 ||
+        config.search_go_to_pos_yaw_ki < 0 ||
+        config.search_go_to_pos_yaw_kd < 0 ||
+        config.search_maximum_linear_mps <= 0 ||
         config.search_maximum_yaw_radps <= 0 ||
         config.search_post_home_moonwalk_yaw_tolerance_deg <= 0 ||
         config.search_post_home_moonwalk_yaw_tolerance_deg >= 180 ||
@@ -236,6 +243,12 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(search, "home_y_m", config.search_home_y_m);
     read(search, "home_stop_radius_m", config.search_home_stop_radius_m);
     read(search, "rotation_speed_radps", config.search_rotation_speed_radps);
+    read(search, "go_to_pos_translation_kp", config.search_go_to_pos_translation_kp);
+    read(search, "go_to_pos_translation_ki", config.search_go_to_pos_translation_ki);
+    read(search, "go_to_pos_translation_kd", config.search_go_to_pos_translation_kd);
+    read(search, "go_to_pos_yaw_kp", config.search_go_to_pos_yaw_kp);
+    read(search, "go_to_pos_yaw_ki", config.search_go_to_pos_yaw_ki);
+    read(search, "go_to_pos_yaw_kd", config.search_go_to_pos_yaw_kd);
     read(search, "maximum_linear_mps", config.search_maximum_linear_mps);
     read(search, "maximum_yaw_radps", config.search_maximum_yaw_radps);
     read(search, "post_home_moonwalk_yaw_deg", config.search_post_home_moonwalk_yaw_deg);

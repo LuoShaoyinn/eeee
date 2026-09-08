@@ -695,6 +695,12 @@ Options parse_options(int argc, char** argv) {
     options.search.home_y_m = config.search_home_y_m;
     options.search.home_stop_radius_m = config.search_home_stop_radius_m;
     options.search.rotation_speed_radps = config.search_rotation_speed_radps;
+    options.search.go_to_pos_translation_kp = config.search_go_to_pos_translation_kp;
+    options.search.go_to_pos_translation_ki = config.search_go_to_pos_translation_ki;
+    options.search.go_to_pos_translation_kd = config.search_go_to_pos_translation_kd;
+    options.search.go_to_pos_yaw_kp = config.search_go_to_pos_yaw_kp;
+    options.search.go_to_pos_yaw_ki = config.search_go_to_pos_yaw_ki;
+    options.search.go_to_pos_yaw_kd = config.search_go_to_pos_yaw_kd;
     options.search.maximum_linear_mps = config.search_maximum_linear_mps;
     options.search.maximum_yaw_radps = config.search_maximum_yaw_radps;
     options.search.post_home_moonwalk_yaw_deg = config.search_post_home_moonwalk_yaw_deg;
