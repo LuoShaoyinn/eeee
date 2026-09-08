@@ -49,6 +49,7 @@ add_library(robot_autonomy
     src/planning/approach_controller.cpp
     src/planning/local_target_tracker.cpp
     src/planning/search_controller.cpp
+    src/planning/servo_unload_controller.cpp
     src/planning/vehicle_geometry.cpp
     src/planning/mission.cpp
     src/planning/world_model.cpp)

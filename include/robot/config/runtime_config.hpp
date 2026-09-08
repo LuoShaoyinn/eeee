@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace robot {
 
@@ -61,6 +62,8 @@ struct RuntimeConfig {
     int servo_operational_max_pulse_us = 2000;
     int servo_firmware_min_pulse_us = 1550;
     int servo_firmware_max_pulse_us = 2125;
+    std::vector<int> servo_unload_pulse_us{1600, 1600, 1800, 2000};
+    std::vector<int> servo_unload_duration_ms{3000, 1000, 500, 0};
 
     double max_linear_mps = .45;
     double max_yaw_radps = 2;

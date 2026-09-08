@@ -25,6 +25,17 @@ void validate(const RuntimeConfig& config) {
         config.servo_operational_max_pulse_us > config.servo_firmware_max_pulse_us) {
         throw std::runtime_error("operational servo range must remain inside the firmware range");
     }
+    if (config.servo_unload_pulse_us.empty() ||
+        config.servo_unload_pulse_us.size() != config.servo_unload_duration_ms.size()) {
+        throw std::runtime_error("servo unload sequence needs equal non-empty pulse and duration arrays");
+    }
+    for (std::size_t index = 0; index < config.servo_unload_pulse_us.size(); ++index) {
+        if (config.servo_unload_pulse_us[index] < config.servo_firmware_min_pulse_us ||
+            config.servo_unload_pulse_us[index] > config.servo_firmware_max_pulse_us ||
+            config.servo_unload_duration_ms[index] < 0) {
+            throw std::runtime_error("servo unload sequence is outside the firmware envelope");
+        }
+    }
     if (config.initial_x_m < 0 || config.initial_x_m > config.arena_length_m ||
         config.initial_y_m < 0 || config.initial_y_m > config.arena_width_m) {
         throw std::runtime_error("configured initial pose lies outside the arena");
@@ -175,6 +186,8 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(servo, "operational_max_pulse_us", config.servo_operational_max_pulse_us);
     read(servo, "firmware_min_pulse_us", config.servo_firmware_min_pulse_us);
     read(servo, "firmware_max_pulse_us", config.servo_firmware_max_pulse_us);
+    read(servo, "unload_pulse_us", config.servo_unload_pulse_us);
+    read(servo, "unload_duration_ms", config.servo_unload_duration_ms);
     const cv::FileNode control = file["control"];
     read(control, "max_linear_mps", config.max_linear_mps);
     read(control, "max_yaw_radps", config.max_yaw_radps);

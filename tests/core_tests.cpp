@@ -10,6 +10,7 @@
 #include "robot/planning/local_target_tracker.hpp"
 #include "robot/planning/mission.hpp"
 #include "robot/planning/search_controller.hpp"
+#include "robot/planning/servo_unload_controller.hpp"
 #include "robot/planning/world_model.hpp"
 #include "robot/planning/vehicle_geometry.hpp"
 
@@ -305,6 +306,27 @@ int main() {
     if (!require(search_result.phase == robot::SearchPhase::tracking &&
                      search_result.command.forward_mps == 0,
                  "a target detection re-arms a completed search")) return 1;
+
+    robot::ServoUnloadController unload({.pulse_us = {1600, 1600, 1800, 2000},
+                                         .duration_ms = {3000, 1000, 500, 0}});
+    if (!require(unload.update(now) == std::optional<int>(2000),
+                 "unload begins from the configured resting close pulse") ||
+        !require(unload.update(now + 1500ms) == std::optional<int>(1800),
+                 "unload linearly opens across its first segment") ||
+        !require(unload.update(now + 3000ms) == std::optional<int>(1600),
+                 "unload reaches the fully open pulse") ||
+        !require(!unload.update(now + 3999ms),
+                 "repeated open target holds without redundant UART commands") ||
+        !require(unload.update(now + 4250ms) == std::optional<int>(1700),
+                 "unload interpolates the quick intermediate segment") ||
+        !require(unload.update(now + 4500ms) == std::optional<int>(2000) && unload.complete(),
+                 "unload closes at the final sequence target")) return 1;
+
+    robot::SoloMission terminal_mission;
+    terminal_mission.start();
+    if (!require(terminal_mission.update({.search_complete = true}) == robot::MissionState::unload &&
+                     terminal_mission.update({.unload_complete = true}) == robot::MissionState::safe_stop,
+                 "completed return-home unloads before terminal stop")) return 1;
 
     robot::SearchController return_home({.center_x_m = 1.5, .center_y_m = .9925,
                                          .center_entry_radius_m = .25,

@@ -57,6 +57,10 @@ servo:
   operational_max_pulse_us: 2000
   firmware_min_pulse_us: 1550
   firmware_max_pulse_us: 2125
+  # Paired targets: interpolate to each pulse over its duration. Repeating
+  # 1600 holds S3 open for one second after the three-second opening ramp.
+  unload_pulse_us: [1600, 1600, 1800, 2000]
+  unload_duration_ms: [3000, 1000, 500, 0]
 control:
   # Allows the center/home position controller to use its 0.60 m/s cap.
   # Object approach has an independent 0.45 m/s cap below.

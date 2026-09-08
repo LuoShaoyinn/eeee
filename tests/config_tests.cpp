@@ -10,7 +10,9 @@ int main() {
         if (config.servo_operational_min_pulse_us != 1600 ||
             config.servo_operational_max_pulse_us != 2000 ||
             config.servo_firmware_min_pulse_us != 1550 ||
-            config.servo_firmware_max_pulse_us != 2125) {
+            config.servo_firmware_max_pulse_us != 2125 ||
+            config.servo_unload_pulse_us != std::vector<int>({1600, 1600, 1800, 2000}) ||
+            config.servo_unload_duration_ms != std::vector<int>({3000, 1000, 500, 0})) {
             std::cerr << "unexpected servo safety envelope\n";
             return 1;
         }

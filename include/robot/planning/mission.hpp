@@ -10,6 +10,7 @@ enum class MissionState {
     align_target,
     approach_target,
     capture_target,
+    unload,
     safe_stop,
 };
 
@@ -19,6 +20,7 @@ struct MissionInputs {
     bool capturing = false;
     bool capture_complete = false;
     bool search_complete = false;
+    bool unload_complete = false;
     bool fault = false;
 };
 

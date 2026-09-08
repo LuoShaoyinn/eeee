@@ -43,6 +43,7 @@
 #include "robot/planning/mission.hpp"
 #include "robot/planning/world_model.hpp"
 #include "robot/planning/search_controller.hpp"
+#include "robot/planning/servo_unload_controller.hpp"
 #include "robot/planning/vehicle_geometry.hpp"
 #ifdef ROBOT_A733_NPU
 #include "robot/perception/a733_detector.hpp"
@@ -114,6 +115,7 @@ struct Options {
     double detector_hz = 30;
     robot::ApproachControllerConfig approach;
     robot::SearchConfig search;
+    robot::ServoUnloadConfig unload;
 };
 
 struct EspState {
@@ -704,6 +706,8 @@ Options parse_options(int argc, char** argv) {
     options.search.post_home_turn_yaw_tolerance_deg = config.search_post_home_turn_yaw_tolerance_deg;
     options.search.post_home_reverse_mps = config.search_post_home_reverse_mps;
     options.search.post_home_reverse_seconds = config.search_post_home_reverse_seconds;
+    options.unload.pulse_us = config.servo_unload_pulse_us;
+    options.unload.duration_ms = config.servo_unload_duration_ms;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         const auto value = [&](const char* name) -> const char* {
@@ -995,6 +999,7 @@ int main(int argc, char** argv) {
         robot::ApproachController approach_controller(options.approach);
         robot::ApproachResult approach_result;
         robot::SearchController search_controller(options.search);
+        robot::ServoUnloadController unload_controller(options.unload);
         robot::SearchResult search_result;
         robot::SoloMission mission;
         robot::HomeObservation home_observation;
@@ -1008,6 +1013,7 @@ int main(int argc, char** argv) {
         bool runtime_has_command = false;
         robot::Twist2 last_approach_command;
         robot::Timestamp last_approach_command_at{};
+        std::optional<int> pending_unload_pulse_us;
 #ifdef ROBOT_A733_NPU
         DetectorWorker detector_worker(robot::make_a733_detector(options.detector_model),
                                        options.detector_hz);
@@ -1030,6 +1036,8 @@ int main(int argc, char** argv) {
                         last_approach_command_at = {};
                         approach_controller.reset();
                         search_controller.reset();
+                        unload_controller.reset();
+                        pending_unload_pulse_us.reset();
                         world.replace_objects({});
                         local_target_tracker.reset();
                         try {
@@ -1050,6 +1058,8 @@ int main(int argc, char** argv) {
                         last_approach_command_at = {};
                         approach_controller.reset();
                         search_controller.begin_return_home();
+                        unload_controller.reset();
+                        pending_unload_pulse_us.reset();
                         world.replace_objects({});
                         local_target_tracker.reset();
                         try {
@@ -1066,6 +1076,8 @@ int main(int argc, char** argv) {
                         last_approach_command_at = {};
                         approach_controller.reset();
                         search_controller.reset();
+                        unload_controller.reset();
+                        pending_unload_pulse_us.reset();
                         local_target_tracker.reset();
                         try {
                             response = "ok mission inactive; " + request_robotd(options.socket, "stop");
@@ -1352,7 +1364,13 @@ int main(int argc, char** argv) {
                 .capturing = approach_result.capturing,
                 .capture_complete = approach_result.target_reached,
                 .search_complete = search_result.phase == robot::SearchPhase::complete,
+                .unload_complete = unload_controller.complete(),
             });
+            if (mission_state == robot::MissionState::unload) {
+                if (const auto pulse = unload_controller.update(capture_time)) {
+                    pending_unload_pulse_us = *pulse;
+                }
+            }
             if (return_home_active && mission_state == robot::MissionState::safe_stop) {
                 return_home_active = false;
             }
@@ -1374,7 +1392,15 @@ int main(int argc, char** argv) {
                         last_approach_command = {};
                         last_approach_command_at = {};
                         local_target_tracker.reset();
-                        (void)request_robotd(options.socket, "stop");
+                        if (telemetry_valid && unload_controller.complete()) {
+                            // Preserve the final S3 close pulse. ESP32 `stop`
+                            // deliberately releases the servo, so use only
+                            // chassis/collector stop commands after unload.
+                            (void)request_robotd(options.socket, "twist 0 0 0");
+                            (void)request_robotd(options.socket, "collector stop");
+                        } else {
+                            (void)request_robotd(options.socket, "stop");
+                        }
                     } else {
                         robot::Twist2 requested =
                             approach_result.target_valid && !approach_result.target_reached
@@ -1404,6 +1430,11 @@ int main(int argc, char** argv) {
                             options.minimum_moving_yaw_radps),
                             options.maximum_linear_mps, options.maximum_yaw_radps);
                         (void)request_robotd(options.socket, twist_command(command));
+                        if (pending_unload_pulse_us) {
+                            (void)request_robotd(options.socket,
+                                "s3 pulse " + std::to_string(*pending_unload_pulse_us));
+                            pending_unload_pulse_us.reset();
+                        }
                         runtime_has_command = true;
                     }
                 } catch (const std::exception& error) {
