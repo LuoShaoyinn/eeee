@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "robot/planning/search_controller.hpp"
+
 namespace robot {
 
 struct RuntimeConfig {
@@ -139,13 +141,16 @@ struct RuntimeConfig {
     double search_cargo_calibration_yaw_deg = 0;
     double search_cargo_calibration_yaw_tolerance_deg = 5;
     double search_cargo_calibration_yaw_kp = 1.5;
-    double search_cargo_calibration_fast_reverse_mps = 1.0;
-    double search_cargo_calibration_fast_reverse_seconds = 1.5;
-    double search_cargo_calibration_slow_forward_mps = .30;
-    double search_cargo_calibration_slow_forward_seconds = 2.0;
-    double search_cargo_calibration_final_reverse_mps = 1.0;
-    double search_cargo_calibration_final_reverse_seconds = 1.0;
+    std::vector<CargoCalibrationStep> search_cargo_calibration_steps{
+        {.forward_mps = -1.0, .timeout_s = 1.5, .until_imu_detect = true},
+        {.forward_mps = .30, .timeout_s = 2.0},
+        {.forward_mps = -1.0, .timeout_s = 1.0, .until_imu_detect = true},
+    };
     double search_cargo_calibration_linear_accel_mps2 = 2.0;
+    bool search_cargo_wall_hit_enabled = true;
+    double search_cargo_wall_hit_accel_threshold_g = .35;
+    int search_cargo_wall_hit_arm_ms = 300;
+    int search_cargo_wall_hit_max_imu_age_ms = 150;
 
     std::string detector_backend = "vip_lite";
     std::string detector_model = "models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb";

@@ -13,6 +13,7 @@
 #include "robot/planning/servo_unload_controller.hpp"
 #include "robot/planning/world_model.hpp"
 #include "robot/planning/vehicle_geometry.hpp"
+#include "robot/planning/wall_contact_detector.hpp"
 
 namespace {
 
@@ -107,6 +108,19 @@ int main() {
     const auto close_result = close_approach.update({}, close_target, now, .1);
     if (!require(close_result.capturing && close_result.command.forward_mps > 0,
                  "a laterally aligned target inside 0.2m enters capture")) return 1;
+
+    robot::WallContactDetector wall_contact({.impact_threshold_g = .35,
+                                             .reverse_arm_time = 300ms,
+                                             .maximum_imu_age = 150ms});
+    if (!require(!wall_contact.update(false, 0, 10ms, now) &&
+                     !wall_contact.update(true, -.1, 10ms, now + 100ms) &&
+                     !wall_contact.update(true, .5, 10ms, now + 350ms) &&
+                     wall_contact.update(true, .5, 10ms, now + 450ms) &&
+                     !wall_contact.update(true, .5, 10ms, now + 500ms),
+                 "IMU impact is armed only after sustained reverse motion")) return 1;
+    if (!require(!wall_contact.update(false, 0, 10ms, now + 600ms) &&
+                     !wall_contact.update(true, .5, 200ms, now + 1100ms),
+                 "stale IMU sample cannot report wall contact")) return 1;
 
     robot::WorldModel world;
     world.replace_objects({
@@ -358,9 +372,12 @@ int main() {
                                          .cargo_calibration_x_m = 1.0,
                                          .cargo_calibration_y_m = 1.0,
                                          .cargo_calibration_stop_radius_m = .15,
-                                         .cargo_calibration_fast_reverse_seconds = 1.5,
-                                         .cargo_calibration_slow_forward_seconds = 2.0,
-                                         .cargo_calibration_final_reverse_seconds = 1.0});
+                                         .cargo_calibration_steps = {
+                                             {.forward_mps = -1.0, .timeout_s = 1.5,
+                                              .until_imu_detect = true},
+                                             {.forward_mps = .30, .timeout_s = 2.0},
+                                             {.forward_mps = -1.0, .timeout_s = 1.0,
+                                              .until_imu_detect = true}}});
     return_home.begin_return_home();
     search_result = return_home.update({.x_m = .3, .y_m = 1.0}, true, now, .1);
     if (!require(search_result.phase == robot::SearchPhase::navigate_cargo_calibration &&
@@ -377,8 +394,9 @@ int main() {
     if (!require(search_result.phase == robot::SearchPhase::cargo_calibration_reverse_fast &&
                      search_result.command.forward_mps < 0,
                  "cargo calibration starts its fast reverse leg")) return 1;
-    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 4s, .1);
-    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 4900ms, .1);
+    if (!require(return_home.report_cargo_wall_hit(now + 2200ms),
+                 "IMU wall contact advances a tagged cargo step")) return 1;
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 2300ms, .1);
     if (!require(search_result.phase == robot::SearchPhase::cargo_calibration_forward_slow,
                  "cargo calibration enters its slow forward leg after reverse")) return 1;
 

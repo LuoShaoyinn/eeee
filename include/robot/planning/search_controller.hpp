@@ -1,8 +1,16 @@
 #pragma once
 
+#include <vector>
+
 #include "robot/core/types.hpp"
 
 namespace robot {
+
+struct CargoCalibrationStep {
+    double forward_mps = 0;
+    double timeout_s = 0;
+    bool until_imu_detect = false;
+};
 
 struct SearchConfig {
     double local_rotate_seconds = 5.0;
@@ -40,12 +48,11 @@ struct SearchConfig {
     double cargo_calibration_yaw_deg = 0;
     double cargo_calibration_yaw_tolerance_deg = 5;
     double cargo_calibration_yaw_kp = 1.5;
-    double cargo_calibration_fast_reverse_mps = 1.0;
-    double cargo_calibration_fast_reverse_seconds = 1.5;
-    double cargo_calibration_slow_forward_mps = .30;
-    double cargo_calibration_slow_forward_seconds = 2.0;
-    double cargo_calibration_final_reverse_mps = 1.0;
-    double cargo_calibration_final_reverse_seconds = 1.0;
+    std::vector<CargoCalibrationStep> cargo_calibration_steps{
+        {.forward_mps = -1.0, .timeout_s = 1.5, .until_imu_detect = true},
+        {.forward_mps = .30, .timeout_s = 2.0},
+        {.forward_mps = -1.0, .timeout_s = 1.0, .until_imu_detect = true},
+    };
     double cargo_calibration_linear_accel_mps2 = 2.0;
 };
 
@@ -64,6 +71,7 @@ enum class SearchPhase {
     cargo_calibration_reverse_fast,
     cargo_calibration_forward_slow,
     cargo_calibration_reverse_final,
+    cargo_calibration_motion,
     navigate_center_after_cargo,
     complete,
 };
@@ -83,6 +91,9 @@ public:
     // visits the arena center and then the physical home corner without
     // searching for targets or running the collector.
     void begin_return_home();
+    // Called by the IMU wall-contact detector. A detected impact completes
+    // the active reverse leg early instead of continuing to drive into wall.
+    bool report_cargo_wall_hit(Timestamp now);
     void reset();
 
 private:
@@ -100,14 +111,13 @@ private:
     bool direct_return_home_ = false;
     bool complete_ = false;
     enum class PostHomePhase { none, moonwalk, turn, reverse };
-    enum class CargoCalibrationPhase {
-        none, navigate, align, reverse_fast, forward_slow, reverse_final, return_center
-    };
+    enum class CargoCalibrationPhase { none, navigate, align, motion, return_center };
     PostHomePhase post_home_phase_ = PostHomePhase::none;
     Timestamp post_home_phase_started_{};
     double post_home_turn_target_yaw_rad_ = 0;
     CargoCalibrationPhase cargo_calibration_phase_ = CargoCalibrationPhase::none;
     Timestamp cargo_calibration_phase_started_{};
+    std::size_t cargo_calibration_step_ = 0;
     bool go_to_pos_goal_valid_ = false;
     double go_to_pos_goal_x_m_ = 0;
     double go_to_pos_goal_y_m_ = 0;

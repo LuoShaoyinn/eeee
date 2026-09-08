@@ -163,13 +163,19 @@ search:
   cargo_calibration_yaw_deg: 0.
   cargo_calibration_yaw_tolerance_deg: 5.
   cargo_calibration_yaw_kp: 1.5
-  cargo_calibration_fast_reverse_mps: 1.0
-  cargo_calibration_fast_reverse_seconds: 1.5
-  cargo_calibration_slow_forward_mps: .30
-  cargo_calibration_slow_forward_seconds: 2.
-  cargo_calibration_final_reverse_mps: 1.0
-  cargo_calibration_final_reverse_seconds: 1.
+  # Each step always has a timeout as a safety fallback. `until: imu_detect`
+  # permits a wall-contact event to advance that step early.
+  cargo_calibration_steps:
+    - { forward_mps: -1.0, timeout_s: 1.5, until: imu_detect }
+    - { forward_mps: .30, timeout_s: 2.0 }
+    - { forward_mps: -1.0, timeout_s: 1.0, until: imu_detect }
   cargo_calibration_linear_accel_mps2: 2.0
+  # The IMU is +X forward. A sustained reverse command followed by a +X
+  # acceleration spike indicates wall contact and advances the leg early.
+  cargo_wall_hit_enabled: 1
+  cargo_wall_hit_accel_threshold_g: .35
+  cargo_wall_hit_arm_ms: 300
+  cargo_wall_hit_max_imu_age_ms: 150
 detector:
   backend: vip_lite
   model: models/yolo26n_reviewed714_newrun714_640x384_a733.nb

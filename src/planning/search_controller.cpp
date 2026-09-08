@@ -47,7 +47,8 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                                                   std::numbers::pi / 180.0 - pose.yaw_rad);
                 if (std::abs(yaw_error) <= config_.cargo_calibration_yaw_tolerance_deg *
                                                std::numbers::pi / 180.0) {
-                    cargo_calibration_phase_ = CargoCalibrationPhase::reverse_fast;
+                    cargo_calibration_phase_ = CargoCalibrationPhase::motion;
+                    cargo_calibration_step_ = 0;
                     cargo_calibration_phase_started_ = now;
                 } else {
                     result.command.yaw_radps = std::clamp(
@@ -56,34 +57,29 @@ SearchResult SearchController::update(const Pose2& pose, bool target_visible,
                 }
                 break;
             }
-            case CargoCalibrationPhase::reverse_fast:
-                result.phase = SearchPhase::cargo_calibration_reverse_fast;
-                result.command.forward_mps = -config_.cargo_calibration_fast_reverse_mps;
+            case CargoCalibrationPhase::motion: {
+                const CargoCalibrationStep& step =
+                    config_.cargo_calibration_steps[cargo_calibration_step_];
+                result.phase = cargo_calibration_step_ == 0
+                    ? SearchPhase::cargo_calibration_reverse_fast
+                    : cargo_calibration_step_ == 1
+                        ? SearchPhase::cargo_calibration_forward_slow
+                        : cargo_calibration_step_ == 2
+                            ? SearchPhase::cargo_calibration_reverse_final
+                            : SearchPhase::cargo_calibration_motion;
+                result.command.forward_mps = step.forward_mps;
                 if (now - cargo_calibration_phase_started_ >=
-                    std::chrono::duration<double>(config_.cargo_calibration_fast_reverse_seconds)) {
-                    cargo_calibration_phase_ = CargoCalibrationPhase::forward_slow;
+                    std::chrono::duration<double>(step.timeout_s)) {
+                    ++cargo_calibration_step_;
                     cargo_calibration_phase_started_ = now;
+                    if (cargo_calibration_step_ == config_.cargo_calibration_steps.size()) {
+                        cargo_calibration_phase_ = CargoCalibrationPhase::return_center;
+                        reset_go_to_pos_pid();
+                        result.command = {};
+                    }
                 }
                 break;
-            case CargoCalibrationPhase::forward_slow:
-                result.phase = SearchPhase::cargo_calibration_forward_slow;
-                result.command.forward_mps = config_.cargo_calibration_slow_forward_mps;
-                if (now - cargo_calibration_phase_started_ >=
-                    std::chrono::duration<double>(config_.cargo_calibration_slow_forward_seconds)) {
-                    cargo_calibration_phase_ = CargoCalibrationPhase::reverse_final;
-                    cargo_calibration_phase_started_ = now;
-                }
-                break;
-            case CargoCalibrationPhase::reverse_final:
-                result.phase = SearchPhase::cargo_calibration_reverse_final;
-                result.command.forward_mps = -config_.cargo_calibration_final_reverse_mps;
-                if (now - cargo_calibration_phase_started_ >=
-                    std::chrono::duration<double>(config_.cargo_calibration_final_reverse_seconds)) {
-                    cargo_calibration_phase_ = CargoCalibrationPhase::return_center;
-                    reset_go_to_pos_pid();
-                    result.command = {};
-                }
-                break;
+            }
             case CargoCalibrationPhase::return_center:
                 result.phase = SearchPhase::navigate_center_after_cargo;
                 result.command = go_to_position(pose, config_.center_x_m, config_.center_y_m,
@@ -326,6 +322,19 @@ void SearchController::begin_return_home() {
     cargo_calibration_phase_ = CargoCalibrationPhase::navigate;
 }
 
+bool SearchController::report_cargo_wall_hit(Timestamp now) {
+    if (cargo_calibration_phase_ != CargoCalibrationPhase::motion ||
+        cargo_calibration_step_ >= config_.cargo_calibration_steps.size() ||
+        !config_.cargo_calibration_steps[cargo_calibration_step_].until_imu_detect) return false;
+    ++cargo_calibration_step_;
+    cargo_calibration_phase_started_ = now;
+    if (cargo_calibration_step_ == config_.cargo_calibration_steps.size()) {
+        cargo_calibration_phase_ = CargoCalibrationPhase::return_center;
+        reset_go_to_pos_pid();
+    }
+    return true;
+}
+
 void SearchController::reset() {
     lost_since_ = {};
     center_search_started_ = {};
@@ -339,6 +348,7 @@ void SearchController::reset() {
     post_home_turn_target_yaw_rad_ = 0;
     cargo_calibration_phase_ = CargoCalibrationPhase::none;
     cargo_calibration_phase_started_ = {};
+    cargo_calibration_step_ = 0;
     reset_go_to_pos_pid();
 }
 
@@ -358,6 +368,7 @@ const char* to_string(SearchPhase phase) {
     case SearchPhase::cargo_calibration_reverse_fast: return "cargo_calibration_reverse_fast";
     case SearchPhase::cargo_calibration_forward_slow: return "cargo_calibration_forward_slow";
     case SearchPhase::cargo_calibration_reverse_final: return "cargo_calibration_reverse_final";
+    case SearchPhase::cargo_calibration_motion: return "cargo_calibration_motion";
     case SearchPhase::navigate_center_after_cargo: return "navigate_center_after_cargo";
     case SearchPhase::complete: return "complete";
     }

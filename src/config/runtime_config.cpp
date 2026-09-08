@@ -81,6 +81,14 @@ void validate(const RuntimeConfig& config) {
         config.approach_collection_suppression_ms < config.approach_target_timeout_ms) {
         throw std::runtime_error("approach controller configuration is invalid");
     }
+    if (config.search_cargo_calibration_steps.empty()) {
+        throw std::runtime_error("cargo calibration needs at least one motion step");
+    }
+    for (const CargoCalibrationStep& step : config.search_cargo_calibration_steps) {
+        if (step.forward_mps == 0 || step.timeout_s <= 0) {
+            throw std::runtime_error("cargo calibration steps need non-zero speed and positive timeout");
+        }
+    }
     if (config.search_local_rotate_seconds < 0 || config.search_center_rotate_seconds <= 0 ||
         config.search_center_x_m < 0 || config.search_center_x_m > config.arena_length_m ||
         config.search_center_y_m < 0 || config.search_center_y_m > config.arena_width_m ||
@@ -117,13 +125,10 @@ void validate(const RuntimeConfig& config) {
         config.search_cargo_calibration_yaw_tolerance_deg <= 0 ||
         config.search_cargo_calibration_yaw_tolerance_deg >= 180 ||
         config.search_cargo_calibration_yaw_kp <= 0 ||
-        config.search_cargo_calibration_fast_reverse_mps <= 0 ||
-        config.search_cargo_calibration_fast_reverse_seconds <= 0 ||
-        config.search_cargo_calibration_slow_forward_mps <= 0 ||
-        config.search_cargo_calibration_slow_forward_seconds <= 0 ||
-        config.search_cargo_calibration_final_reverse_mps <= 0 ||
-        config.search_cargo_calibration_final_reverse_seconds <= 0 ||
-        config.search_cargo_calibration_linear_accel_mps2 <= 0) {
+        config.search_cargo_calibration_linear_accel_mps2 <= 0 ||
+        config.search_cargo_wall_hit_accel_threshold_g <= 0 ||
+        config.search_cargo_wall_hit_arm_ms < 0 ||
+        config.search_cargo_wall_hit_max_imu_age_ms <= 0) {
         throw std::runtime_error("search controller configuration is invalid");
     }
     if (config.fence_hsv_h_min < 0 || config.fence_hsv_h_max > 179 ||
@@ -289,13 +294,30 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(search, "cargo_calibration_yaw_deg", config.search_cargo_calibration_yaw_deg);
     read(search, "cargo_calibration_yaw_tolerance_deg", config.search_cargo_calibration_yaw_tolerance_deg);
     read(search, "cargo_calibration_yaw_kp", config.search_cargo_calibration_yaw_kp);
-    read(search, "cargo_calibration_fast_reverse_mps", config.search_cargo_calibration_fast_reverse_mps);
-    read(search, "cargo_calibration_fast_reverse_seconds", config.search_cargo_calibration_fast_reverse_seconds);
-    read(search, "cargo_calibration_slow_forward_mps", config.search_cargo_calibration_slow_forward_mps);
-    read(search, "cargo_calibration_slow_forward_seconds", config.search_cargo_calibration_slow_forward_seconds);
-    read(search, "cargo_calibration_final_reverse_mps", config.search_cargo_calibration_final_reverse_mps);
-    read(search, "cargo_calibration_final_reverse_seconds", config.search_cargo_calibration_final_reverse_seconds);
     read(search, "cargo_calibration_linear_accel_mps2", config.search_cargo_calibration_linear_accel_mps2);
+    const cv::FileNode cargo_steps = search["cargo_calibration_steps"];
+    if (!cargo_steps.empty()) {
+        std::vector<CargoCalibrationStep> steps;
+        for (const cv::FileNode& node : cargo_steps) {
+            CargoCalibrationStep step;
+            read(node, "forward_mps", step.forward_mps);
+            read(node, "timeout_s", step.timeout_s);
+            std::string until;
+            read(node, "until", until);
+            if (!until.empty() && until != "imu_detect") {
+                throw std::runtime_error("unsupported cargo calibration completion: " + until);
+            }
+            step.until_imu_detect = until == "imu_detect";
+            steps.push_back(step);
+        }
+        config.search_cargo_calibration_steps = std::move(steps);
+    }
+    int cargo_wall_hit_enabled = config.search_cargo_wall_hit_enabled ? 1 : 0;
+    read(search, "cargo_wall_hit_enabled", cargo_wall_hit_enabled);
+    config.search_cargo_wall_hit_enabled = cargo_wall_hit_enabled != 0;
+    read(search, "cargo_wall_hit_accel_threshold_g", config.search_cargo_wall_hit_accel_threshold_g);
+    read(search, "cargo_wall_hit_arm_ms", config.search_cargo_wall_hit_arm_ms);
+    read(search, "cargo_wall_hit_max_imu_age_ms", config.search_cargo_wall_hit_max_imu_age_ms);
     const cv::FileNode detector = file["detector"];
     read(detector, "backend", config.detector_backend);
     read(detector, "model", config.detector_model);

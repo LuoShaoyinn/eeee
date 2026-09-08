@@ -45,6 +45,7 @@
 #include "robot/planning/search_controller.hpp"
 #include "robot/planning/servo_unload_controller.hpp"
 #include "robot/planning/vehicle_geometry.hpp"
+#include "robot/planning/wall_contact_detector.hpp"
 #ifdef ROBOT_A733_NPU
 #include "robot/perception/a733_detector.hpp"
 #endif
@@ -119,12 +120,14 @@ struct Options {
     double detector_hz = 30;
     robot::ApproachControllerConfig approach;
     robot::SearchConfig search;
+    robot::WallContactDetectorConfig cargo_wall_contact;
     robot::ServoUnloadConfig unload;
 };
 
 struct EspState {
     std::uint64_t ms = 0;
     std::uint64_t imu_age_ms = 0;
+    std::array<double, 3> accel_g{};
     double gyro_z_degps = 0;
     std::array<double, 4> rpm{};
     std::array<double, 4> targets{};
@@ -162,6 +165,11 @@ std::vector<ReplaySample> load_telemetry_replay(const std::string& path) {
         json["monotonic_ns"] >> monotonic_ns;
         sample.monotonic_ns = static_cast<std::uint64_t>(std::max(monotonic_ns, 0.0));
         json["gyro_z_degps"] >> state.gyro_z_degps;
+        std::vector<double> accel;
+        json["accel_g"] >> accel;
+        if (accel.size() == state.accel_g.size()) {
+            std::copy(accel.begin(), accel.end(), state.accel_g.begin());
+        }
         std::vector<double> rpm, targets;
         json["rpm"] >> rpm;
         json["targets"] >> targets;
@@ -292,6 +300,7 @@ bool parse_state(const std::string& reply, EspState& state) {
     while (input >> key) {
         if (key == "ms") input >> state.ms;
         else if (key == "imu_age") input >> state.imu_age_ms;
+        else if (key == "accel") { for (double& value : state.accel_g) input >> value; }
         else if (key == "gyro") { double unused; input >> unused >> unused >> state.gyro_z_degps; }
         else if (key == "angle") { double unused; input >> unused >> unused >> unused; }
         else if (key == "rpm") { for (double& value : state.rpm) input >> value; }
@@ -727,13 +736,15 @@ Options parse_options(int argc, char** argv) {
     options.search.cargo_calibration_yaw_deg = config.search_cargo_calibration_yaw_deg;
     options.search.cargo_calibration_yaw_tolerance_deg = config.search_cargo_calibration_yaw_tolerance_deg;
     options.search.cargo_calibration_yaw_kp = config.search_cargo_calibration_yaw_kp;
-    options.search.cargo_calibration_fast_reverse_mps = config.search_cargo_calibration_fast_reverse_mps;
-    options.search.cargo_calibration_fast_reverse_seconds = config.search_cargo_calibration_fast_reverse_seconds;
-    options.search.cargo_calibration_slow_forward_mps = config.search_cargo_calibration_slow_forward_mps;
-    options.search.cargo_calibration_slow_forward_seconds = config.search_cargo_calibration_slow_forward_seconds;
-    options.search.cargo_calibration_final_reverse_mps = config.search_cargo_calibration_final_reverse_mps;
-    options.search.cargo_calibration_final_reverse_seconds = config.search_cargo_calibration_final_reverse_seconds;
+    options.search.cargo_calibration_steps = config.search_cargo_calibration_steps;
     options.search.cargo_calibration_linear_accel_mps2 = config.search_cargo_calibration_linear_accel_mps2;
+    options.cargo_wall_contact.enabled = config.search_cargo_wall_hit_enabled;
+    options.cargo_wall_contact.impact_threshold_g =
+        config.search_cargo_wall_hit_accel_threshold_g;
+    options.cargo_wall_contact.reverse_arm_time =
+        std::chrono::milliseconds(config.search_cargo_wall_hit_arm_ms);
+    options.cargo_wall_contact.maximum_imu_age =
+        std::chrono::milliseconds(config.search_cargo_wall_hit_max_imu_age_ms);
     options.unload.pulse_us = config.servo_unload_pulse_us;
     options.unload.duration_ms = config.servo_unload_duration_ms;
     for (int index = 1; index < argc; ++index) {
@@ -828,6 +839,8 @@ void write_record(std::ostream& log, int frame_index, std::uint64_t time_ns, con
         << ",\"telemetry_sequence\":" << telemetry_sequence
         << ",\"telemetry_age_ms\":" << telemetry_age_ms
         << ",\"esp_ms\":" << state.ms << ",\"imu_age_ms\":" << state.imu_age_ms
+        << ",\"accel_g\":[" << state.accel_g[0] << ',' << state.accel_g[1] << ','
+        << state.accel_g[2] << ']'
         << ",\"gyro_z_degps\":" << state.gyro_z_degps
         << ",\"rpm\":[" << state.rpm[0] << ',' << state.rpm[1] << ',' << state.rpm[2] << ',' << state.rpm[3] << ']'
         << ",\"targets\":[" << state.targets[0] << ',' << state.targets[1] << ',' << state.targets[2] << ',' << state.targets[3] << ']'
@@ -1031,6 +1044,7 @@ int main(int argc, char** argv) {
         robot::ApproachController approach_controller(options.approach);
         robot::ApproachResult approach_result;
         robot::SearchController search_controller(options.search);
+        robot::WallContactDetector cargo_wall_contact(options.cargo_wall_contact);
         robot::ServoUnloadController unload_controller(options.unload);
         robot::SearchResult search_result;
         robot::SoloMission mission;
@@ -1392,6 +1406,23 @@ int main(int argc, char** argv) {
                                        .target_valid = search_result.phase != robot::SearchPhase::complete,
                                        .target_reached = search_result.phase == robot::SearchPhase::complete};
                 }
+            }
+            const bool cargo_reverse =
+                (search_result.phase == robot::SearchPhase::cargo_calibration_reverse_fast ||
+                 search_result.phase == robot::SearchPhase::cargo_calibration_reverse_final) &&
+                search_result.command.forward_mps < 0;
+            if (cargo_wall_contact.update(cargo_reverse, state.accel_g[0],
+                                          std::chrono::milliseconds(state.imu_age_ms),
+                                          capture_time) &&
+                search_controller.report_cargo_wall_hit(capture_time)) {
+                // Advance before the next UART command so a detected impact
+                // does not cause another full-strength reverse cycle.
+                search_result = search_controller.update(
+                    {.x_m = pose.x_m, .y_m = pose.y_m, .yaw_rad = pose.yaw_rad},
+                    false, capture_time, std::min(dt_s, .2), navigation_allowed);
+                approach_result = {.command = search_result.command,
+                                   .target_valid = search_result.phase != robot::SearchPhase::complete,
+                                   .target_reached = search_result.phase == robot::SearchPhase::complete};
             }
             const robot::MissionState mission_state = mission.update({
                 .target_active = target.has_value(),

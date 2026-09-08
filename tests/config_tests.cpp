@@ -89,12 +89,20 @@ int main() {
             config.search_cargo_calibration_y_m != 1.0 ||
             config.search_cargo_calibration_stop_radius_m != .15 ||
             config.search_cargo_calibration_yaw_deg != 0. ||
-            config.search_cargo_calibration_fast_reverse_mps != 1.0 ||
-            config.search_cargo_calibration_fast_reverse_seconds != 1.5 ||
-            config.search_cargo_calibration_slow_forward_mps != .30 ||
-            config.search_cargo_calibration_slow_forward_seconds != 2. ||
-            config.search_cargo_calibration_final_reverse_mps != 1.0 ||
-            config.search_cargo_calibration_final_reverse_seconds != 1.) {
+            config.search_cargo_calibration_steps.size() != 3 ||
+            config.search_cargo_calibration_steps[0].forward_mps != -1.0 ||
+            config.search_cargo_calibration_steps[0].timeout_s != 1.5 ||
+            !config.search_cargo_calibration_steps[0].until_imu_detect ||
+            config.search_cargo_calibration_steps[1].forward_mps != .30 ||
+            config.search_cargo_calibration_steps[1].timeout_s != 2. ||
+            config.search_cargo_calibration_steps[1].until_imu_detect ||
+            config.search_cargo_calibration_steps[2].forward_mps != -1.0 ||
+            config.search_cargo_calibration_steps[2].timeout_s != 1. ||
+            !config.search_cargo_calibration_steps[2].until_imu_detect ||
+            !config.search_cargo_wall_hit_enabled ||
+            config.search_cargo_wall_hit_accel_threshold_g != .35 ||
+            config.search_cargo_wall_hit_arm_ms != 300 ||
+            config.search_cargo_wall_hit_max_imu_age_ms != 150) {
             std::cerr << "unexpected search controller configuration\n";
             return 1;
         }
