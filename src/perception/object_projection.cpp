@@ -1,0 +1,118 @@
+#include "robot/perception/object_projection.hpp"
+
+#include <algorithm>
+#include <cmath>
+
+namespace robot {
+namespace {
+
+bool project_box_center(const Detection& detection, const GroundProjector& projector,
+                        const Pose2& pose, cv::Point2d& arena) {
+    if (detection.box.right <= detection.box.left || detection.box.bottom <= detection.box.top) {
+        return false;
+    }
+    cv::Point2d relative;
+    if (!projector.project({.5F * (detection.box.left + detection.box.right),
+                            .5F * (detection.box.top + detection.box.bottom)}, relative)) return false;
+    const double cosine = std::cos(pose.yaw_rad);
+    const double sine = std::sin(pose.yaw_rad);
+    arena = {pose.x_m + cosine * relative.x - sine * relative.y,
+             pose.y_m + sine * relative.x + cosine * relative.y};
+    return true;
+}
+
+double rectangle_distance(double x, double y) {
+    const double dx = std::max({0.0, -x, x - .2});
+    const double dy = std::max({0.0, -y, y - .3});
+    return std::hypot(dx, dy);
+}
+
+bool overlaps_opponent(const Detection& candidate, const DetectionFrame& frame) {
+    for (const Detection& other : frame.detections) {
+        if (other.object_class != ObjectClass::opponent_robot) continue;
+        const float left = std::max(candidate.box.left, other.box.left);
+        const float top = std::max(candidate.box.top, other.box.top);
+        const float right = std::min(candidate.box.right, other.box.right);
+        const float bottom = std::min(candidate.box.bottom, other.box.bottom);
+        if (right > left && bottom > top) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+HomeLandmarkMeasurement measure_home_landmark(const DetectionFrame& frame,
+                                              const GroundProjector& projector,
+                                              float minimum_confidence) {
+    HomeLandmarkMeasurement best;
+    for (const Detection& detection : frame.detections) {
+        if (detection.object_class != ObjectClass::home || detection.confidence < minimum_confidence ||
+            detection.confidence < best.confidence || detection.box.right - detection.box.left < 16 ||
+            detection.box.bottom - detection.box.top < 16) continue;
+        cv::Point2d relative;
+        if (!projector.project({.5F * (detection.box.left + detection.box.right), detection.box.bottom}, relative)) continue;
+        if (relative.x <= 0 || std::hypot(relative.x, relative.y) > 4.0) continue;
+        best = {.valid = true, .relative = relative, .confidence = detection.confidence};
+    }
+    return best;
+}
+
+std::vector<TrackedObject> project_collectibles(
+    const DetectionFrame& frame, const GroundProjector& projector,
+    const Pose2& robot_pose, ObjectProjectionLimits limits) {
+    std::vector<TrackedObject> objects;
+    for (std::size_t index = 0; index < frame.detections.size(); ++index) {
+        const Detection& detection = frame.detections[index];
+        if ((detection.object_class != ObjectClass::yellow_cylinder &&
+             detection.object_class != ObjectClass::red_cube) ||
+            detection.confidence < limits.minimum_confidence) continue;
+        // A collectable box over an opponent box is usually a duplicate or an
+        // occluded false positive. Do not turn it into a drive target.
+        if (overlaps_opponent(detection, frame)) continue;
+
+        const cv::Point2f contact_pixel{
+            .5F * (detection.box.left + detection.box.right), detection.box.bottom};
+        cv::Point2d relative;
+        if (!projector.project_unbounded(contact_pixel, relative)) continue;
+        const double range = std::hypot(relative.x, relative.y);
+
+        const double cosine = std::cos(robot_pose.yaw_rad);
+        const double sine = std::sin(robot_pose.yaw_rad);
+        const double x = robot_pose.x_m + cosine * relative.x - sine * relative.y;
+        const double y = robot_pose.y_m + sine * relative.x + cosine * relative.y;
+        objects.push_back({
+            .id = (frame.frame_sequence << 16U) | static_cast<std::uint64_t>(index),
+            .object_class = detection.object_class,
+            .x_m = x,
+            .y_m = y,
+            .camera_forward_m = relative.x,
+            .camera_left_m = relative.y,
+            .uncertainty_m = std::clamp(.02 + .04 * range, .02, .20),
+            .confidence = detection.confidence,
+            .last_seen = frame.timestamp,
+        });
+    }
+    return objects;
+}
+
+HomeObservation check_home_box(const DetectionFrame& frame,
+                               const GroundProjector& projector,
+                               const Pose2& robot_pose, float minimum_confidence,
+                               double tolerance_m) {
+    HomeObservation best;
+    for (const Detection& detection : frame.detections) {
+        if (detection.object_class != ObjectClass::home ||
+            detection.confidence < minimum_confidence || detection.confidence < best.confidence) continue;
+        cv::Point2d arena;
+        if (!project_box_center(detection, projector, robot_pose, arena)) continue;
+        best.detected = true;
+        best.x_m = arena.x;
+        best.y_m = arena.y;
+        best.distance_to_home_m = rectangle_distance(arena.x, arena.y);
+        best.consistent = best.distance_to_home_m <= tolerance_m;
+        best.confidence = detection.confidence;
+    }
+    return best;
+}
+
+}  // namespace robot

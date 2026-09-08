@@ -1,0 +1,115 @@
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <random>
+#include <vector>
+
+#include <opencv2/core.hpp>
+
+#include "robot/core/types.hpp"
+
+namespace robot {
+
+using BodyVelocity = Twist2;
+
+struct VisualMotion {
+    bool valid = false;
+    int tracked_features = 0;
+    BodyVelocity velocity;
+};
+
+struct PoseEstimate {
+    double x_m = 1.5;
+    double y_m = .9925;
+    double yaw_rad = 0;
+    double position_sigma_m = 0;
+    double yaw_sigma_rad = 0;
+    double effective_particles = 0;
+};
+
+struct VisualPoseCandidate {
+    Pose2 pose;
+    double wall_residual_m = 0;
+};
+
+struct VisualGeometryEstimate {
+    std::vector<VisualPoseCandidate> candidates;
+    std::array<double, 3> axis_certainty{};
+    std::array<double, 3> axis_sigma{};
+    double point_support = 0;
+    double confidence = 0;
+    double alternative_margin_m = 0;
+    double sigma_major_m = 0;
+    double sigma_minor_m = 0;
+    double major_axis_rad = 0;
+    double yaw_sigma_rad = 0;
+    bool valid = false;
+};
+
+class GroundProjector {
+public:
+    GroundProjector(cv::Mat camera_matrix, double camera_height_m, double pitch_down_deg,
+                    double roll_deg = 0);
+    bool project(const cv::Point2f& pixel, cv::Point2d& ground) const;
+    // Physical ground intersection without the normal navigation envelope.
+    // Object detection uses this so a real object is not discarded merely
+    // because its inferred contact lies outside the mapped arena.
+    bool project_unbounded(const cv::Point2f& pixel, cv::Point2d& ground) const;
+    bool project_to_height(const cv::Point2f& pixel, double height_m,
+                           cv::Point2d& ground) const;
+
+private:
+    cv::Matx33d camera_inverse_;
+    cv::Matx33d rotation_car_from_camera_;
+    double camera_height_m_;
+};
+
+class VisualOdometry {
+public:
+    VisualMotion update(const cv::Mat& gray, const GroundProjector& projector, double dt_s);
+
+private:
+    cv::Mat previous_gray_;
+    std::vector<cv::Point2f> previous_pixels_;
+};
+
+class FenceParticleFilter {
+public:
+    FenceParticleFilter(size_t count, double initial_x_m, double initial_y_m,
+                        double initial_yaw_rad, bool global_initialize = false,
+                        std::uint32_t seed = 1);
+    void predict(const BodyVelocity& body_velocity, double dt_s);
+    void update(const std::vector<cv::Point2d>& lower_fence_points);
+    // Reweight against a known landmark observed in robot-relative ground coordinates.
+    // Returns false when no particle can plausibly explain the observation.
+    bool update_landmark(const cv::Point2d& observed_relative, const cv::Point2d& landmark_arena,
+                         double sigma_m, double maximum_error_m);
+    void correct_toward(const Pose2& target, double gain, double max_distance_m,
+                        double max_yaw_rad, double major_axis_rad = 0,
+                        double major_axis_gain = 1);
+    void correct_toward_axes(const Pose2& target,
+                             const std::array<double, 3>& certainty,
+                             double minimum_gain, double maximum_gain,
+                             double maximum_axis_distance_m,
+                             double maximum_yaw_rad);
+    PoseEstimate estimate() const;
+
+private:
+    struct Particle { double x, y, yaw, weight; };
+    std::vector<Particle> particles_;
+    std::mt19937 generator_;
+    void resample();
+};
+
+BodyVelocity wheel_body_velocity(const std::array<double, 4>& rpm,
+                                 const std::array<double, 4>& targets);
+
+std::vector<VisualPoseCandidate> match_fence_geometry(
+    const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
+    std::size_t maximum_candidates = 4);
+VisualGeometryEstimate estimate_fence_geometry(
+    const std::vector<cv::Point2d>& observations, double yaw_prior_rad,
+    std::size_t maximum_candidates = 4);
+
+}  // namespace robot

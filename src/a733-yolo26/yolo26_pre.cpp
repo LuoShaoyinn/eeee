@@ -15,6 +15,7 @@
 #include <chrono>
 
 #include "model_config.h"
+#include "yolo26_pipeline.h"
 
 /* model_inputmeta.yml file param modify, eg:
 
@@ -99,6 +100,26 @@ int yolo26_preprocess(const char* imagepath, void* buff_ptr, unsigned int buff_s
     return 0;
 }
 
+int yolo26_preprocess_frame(const cv::Mat& sample, void* buff_ptr,
+                            unsigned int buff_size) {
+    const unsigned int required = LETTERBOX_ROWS * LETTERBOX_COLS * 3;
+    if (sample.empty() || buff_size < required) return -1;
+    cv::Mat rgb;
+    cv::cvtColor(sample, rgb, cv::COLOR_BGR2RGB);
+    const float scale = std::min(static_cast<float>(LETTERBOX_ROWS) / rgb.rows,
+                                 static_cast<float>(LETTERBOX_COLS) / rgb.cols);
+    const int width = static_cast<int>(std::round(rgb.cols * scale));
+    const int height = static_cast<int>(std::round(rgb.rows * scale));
+    cv::resize(rgb, rgb, cv::Size(width, height));
+    const int left = (LETTERBOX_COLS - width) / 2;
+    const int right = LETTERBOX_COLS - width - left;
+    const int top = (LETTERBOX_ROWS - height) / 2;
+    const int bottom = LETTERBOX_ROWS - height - top;
+    cv::Mat destination(LETTERBOX_ROWS, LETTERBOX_COLS, CV_8UC3, buff_ptr);
+    cv::copyMakeBorder(rgb, destination, top, bottom, left, right,
+                       cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
+    return 0;
+}
 
 
 

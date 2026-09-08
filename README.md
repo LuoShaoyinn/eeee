@@ -1,137 +1,293 @@
-# YOLO on Radxa Cubie A7S
+# Cubie Robot Runtime
 
-This branch is a reproducible hardware bring-up for the A733 NPU in the Radxa
-Cubie A7S.  It deliberately keeps the vendor kernel, DTB, firmware, `vipcore`
-driver, and VIPLite userspace runtime intact.
+C++ runtime for the Radxa Cubie A7S upper controller. The Cubie owns the
+camera and high-level localization; an ESP32 owns the real-time motor, servo,
+encoder, and IMU interfaces.
 
-The first hardware milestone uses the official Allwinner model-zoo YOLOv5s
-example.  This is preferable to exporting a new PyTorch model before the NPU
-runtime/model ABI has been validated.
+## Layout
 
-## Current result
-
-On 2026-08-21 the supplied `yolov5s_rt_uint8_a733.nb` ran successfully on the
-Cubie at `192.168.1.112`:
-
-- VIPLite driver software: `2.0.3.2-AW-2024-08-30`
-- NPU inference: `22.629 ms` average over 10 runs (about `44.2` inferences/s)
-- whole supplied file-demo loop: `89.713 ms` average
-- detections on `dog.jpg`: dog 91%, car 67%, bicycle 61%
-
-The whole-loop number is not the camera throughput.  The vendor demo decodes
-the same JPEG again during post-processing and writes an annotated PNG on every
-iteration.  A live point-only pipeline should keep the NPU network resident,
-decode each camera frame once, omit drawing/image writes, and return only the
-selected detection centre `(x, y)`.
-
-See [the hardware validation record](docs/hardware-validation-2026-08-21.md)
-for the exact evidence and remaining camera work.
-
-## Reproduce
-
-Requirements on the x86-64 build host:
-
-- `/home/luoshaoyinn/Downloads/allwinner-model-zoo.tar.gz`
-- CMake, curl, tar, unzip, and OpenSSH
-- network access to download Arm GNU Toolchain 10.2 once
-
-Build the Bullseye-compatible AArch64 package:
-
-```sh
-./scripts/build-a733-yolov5.sh
+```text
+apps/       Executable entry points
+config/     Versioned runtime calibration
+include/    Public C++ interfaces grouped by subsystem
+src/        Hardware, localization, planning, and control implementations
+systemd/    Deployment units
+tests/      Passive unit and replay tests
+tools/      Linux control, capture, and calibration utilities
 ```
 
-Deploy into the user's home directory and run ten iterations (SSH/SCP will ask
-for the `radxa` password):
+`dataset/`, `run-log/`, `videos/`, and `build/` are local working data and are
+ignored by Git.
 
-```sh
-./scripts/deploy-a733-yolov5.sh radxa@192.168.1.112
+## Components
+
+- `robotd`: sole owner of `/dev/ttyAS2`; proxies commands to the ESP32 through
+  `/tmp/robotd.sock` and enforces a command heartbeat.
+- `robotctl`: command-line client for `robotd`.
+- `robotloc`: passive camera, wheel, and IMU localization logger. It never
+  sends motion commands.
+- `robot-runtime`: production name for the same passive runtime. Camera work
+  and ESP32 telemetry sampling are decoupled so UART latency does not stall
+  frame processing.
+- `robot_transport`: UART framing and ESP32 transport library.
+- `robot_location`: mecanum odometry, optical flow, ground projection, and
+  fence particle-filter library.
+- `robot_autonomy`: hardware-independent world model, solo mission state
+  machine, and final command safety checks.
+
+The production dependency direction is:
+
+```text
+hardware/perception -> localization -> planning -> control -> hardware
 ```
 
-Everything on the board is contained in `/home/radxa/yolo-a733`.  Removal is
-therefore reversible and does not alter system libraries:
+Perception publishes timestamped detections through the abstract `Detector`
+interface. The YOLO26n backend will implement that interface after its model
+artifact and Cubie NPU conversion are ready. Camera workers publish only the
+newest frame; stale frames are intentionally discarded.
+
+The ESP32 remains responsible for fast velocity PID, direction-change ramps,
+and its independent 500 ms safety watchdog. Cubie localization must not be
+placed in that control loop.
+
+The Cubie safety supervisor independently rejects motion when localization is
+stale or invalid, limits translation by vector magnitude, and reduces speed
+when localization uncertainty is high. Hardware validation is never part of
+the build or test suite.
+
+## Build
+
+The Cubie requires CMake, a C++20 compiler, and OpenCV development packages.
+OpenCV 4.5.1 and OpenCV 5 are both supported.
 
 ```sh
-ssh radxa@192.168.1.112 'rm -r /home/radxa/yolo-a733'
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+cmake --install build --prefix "$HOME/cubie-robot"
 ```
 
-Do not replace `libc`, the kernel driver, or files under `/usr/lib` with the
-bundled runtime.  The launcher uses a private `LD_LIBRARY_PATH` instead.
+## Operate
 
-## Thermal-limited video verification
-
-The deployed `verify_a733_yolov5_video.py` samples frames with the board's
-OpenCV installation and invokes the NPU demo once per sample. It logs NPU
-temperature before and after every inference and stops when the temperature
-reaches 70C by default. This is a verification path, not a real-time pipeline:
-the vendor demo creates and destroys the NPU network for each frame.
-
-Run it on the board after deployment:
+Start the UART daemon before any client:
 
 ```sh
-cd /home/radxa/yolo-a733
-./verify_a733_yolov5_video.py /home/radxa/videos/capture.avi \
-  --sample-fps 1 --max-frames 30 --max-temp-c 70
+./build/robotd /dev/ttyAS2 /tmp/robotd.sock
+./build/robotctl state
+./build/robotctl imu
 ```
 
-Frames, NPU output logs, and `temperatures.csv` are written to a timestamped
-`video-verify-*` directory. Use a lower temperature limit when the board is in
-a warm enclosure.
+The principal drive command is:
 
-## Custom YOLO26n model
+```text
+twist FORWARD_MPS LEFT_MPS YAW_RADPS
+```
 
-The custom model must use two NPU outputs, not one combined `1x8x8400` tensor:
+Other supported commands are `state`, `imu`, `telemetry`, `s3`, `ga25`,
+`wheel`, `raw`, and `stop`. `robotd` refreshes active motion at 25 Hz and
+sends `stop` if its client heartbeat expires after 250 ms.
 
-- boxes: `1x4x8400`
-- sigmoid class scores: `1x4x8400`
+Run the configured S3 unload sequence without starting `robot-runtime`:
 
-Combining the tensors gives coordinates and class probabilities one INT8 output
-scale. The coordinate range is hundreds of pixels, so the 0--1 class scores
-round to zero. `tools/split_yolo26_outputs.py` exposes the two tensors before
-conversion so they are calibrated independently. The board decoder source is
-in `src/a733-yolo26/` and expects outputs in that order.
+```sh
+python3 tools/servo_unload.py --config config/robot.yaml
+```
 
-The validated payload is `official_yolo26n_split_pcq_a733.nb`. On the Cubie it
-ran in 13.55 ms and detected a positive calibration image. `arena-test.jpg`
-is a negative/low-confidence frame (the original ONNX peak score is 0.096),
-so zero detections from that image are expected at the 0.35 score threshold.
+The tool sends only `s3 pulse` through `robotd` to the ESP32. Its paired
+`servo.unload_pulse_us` and `servo.unload_duration_ms` arrays define linear
+segments. It then sends `s3 release` after the final pulse and intentionally
+never sends the ESP32 `stop` command.
 
-## Widescreen model input
+For manual control over SSH, run this on the Cubie:
 
-The existing NBG is statically compiled for `640x640`. NBG graphs cannot
-change their input shape at runtime. For the 16:9 camera stream, export and
-compile a separate `640x384` model. YOLO26 has a stride of 32, so exact
-`640x360` is invalid: a 360-pixel height makes its feature-pyramid branches
-misalign. The `640x384` model retains a 16:9 frame at `640x360` with 12-pixel
-letterbox bands above and below it.
+```sh
+python3 tools/keyboard_control.py
+```
 
-This changes each split output from `1x4x8400` to `1x4x5040`. The A733 source
-derives that candidate count from the configured input dimensions, and
-`tools/split_yolo26_outputs.py` reads the actual ONNX shape rather than
-assuming the square-model count.
+`W/S` control forward motion, `A/D` strafe, and `Q/E` rotate. `[`/`]` change
+the S3 target pulse within its operational range; the host slews the commanded
+pulse and `R` releases output while remembering the last active pulse for the
+next adjustment. `H` starts the ESP32-owned collector recovery loop and `J`
+stops it. Space stops all motion. Escape sends `stop` before exiting. Run the
+program in a real terminal so key handling and emergency-stop behavior remain
+available.
 
-The resulting payload is `official_yolo26n_640x384_split_pcq_a733.nb`. Its
-NPU input is UINT8 `3x640x384x1` (737,280 bytes), so the board sample's RGB
-letterbox buffer and the model have exactly the same layout.
+## Localization
 
-## YOLO26s training record
+Run the passive logger from the repository root so its default configuration
+path resolves correctly:
 
-An official pretrained YOLO26s model was fine-tuned on the arena dataset on
-2026-09-03. The run used 648 training images, 162 validation images, four
-classes, 640-pixel inputs, 100 epochs, and two RTX 4090 GPUs. Global batch 64
-(32 images per GPU) was used because full-precision global batch 128 exceeded
-the 24 GB GPU memory limit.
+```sh
+./build/robot-runtime --config config/robot.yaml \
+  --log "run-log/location-$(date +%Y%m%d-%H%M%S).jsonl"
+```
 
-The best checkpoint was epoch 93:
+`config/robot.yaml` is the versioned source for UART/camera rates, camera
+mount, arena dimensions, motion limits, detector paths, and servo envelopes.
+The normal S3 range is 1600-2000 us; the firmware-only calibration envelope is
+1550-2125 us. Command-line arguments override configuration values for
+diagnostics.
 
-- precision: 0.94021
-- recall: 0.93242
-- mAP50: 0.96401
-- mAP50-95: 0.67573
+The runtime reads only `state` and `telemetry`. Each JSONL frame contains the
+telemetry sequence, age, and validity alongside wheel, IMU, optical-flow,
+fence, and pose results. A temporary telemetry failure is logged as stale and
+does not block camera capture. This process has no actuator command path.
 
-The final epoch reached mAP50-95 0.66728. This improves over the YOLO26n run's
-best mAP50-95 of 0.65124, but the small model remains the default deployment
-candidate: YOLO26s has about 9.5M parameters and 20.7G FLOPs, versus about
-2.4M parameters and 5.4G FLOPs for YOLO26n. The training outputs, including
-`best.pt`, remain on persistent training storage and are deliberately not
-committed to this hardware deployment repository.
+It also sends the same passive JSON records over UDP port 3335. The configured
+destination is the current debug host because the A314 access point filters
+client broadcasts. Start the
+host arena viewer after deploying and starting `robot-runtime` on the Cubie:
+
+```sh
+uv run --project tools python tools/robot_debug_gui.py
+```
+
+Runtime recording is enabled by `camera.record_enabled` and writes a JSONL
+telemetry/pose log plus a rectified MJPEG AVI under `run-log/`. Use
+`--no-video` to keep only the compact JSONL log, or `--no-log` to disable both
+outputs for a short live run.
+
+The GUI draws the fence particle filter in green/orange and independent
+wheel-plus-relative-IMU dead reckoning in blue. This comparison exposes a bad
+fence correction instead of hiding it inside a fused pose. Ranked visual-only fence matches are shown as
+purple `V1..V4` markers with their mean wall residual in metres. Their search
+runs at 1 Hz with a +/-25 degree relative-IMU yaw prior. The GUI draws a
+two-sigma visual uncertainty ellipse. X, Y, and yaw certainty are independent
+scores in `[0, 1]`, combining residual quality, candidate spread, and
+pointwise range support. A point's contribution decays as
+`1 / (1 + (range / 0.75 m)^4)`; certainty below `0.05` disables correction on
+that axis. The map distance field includes both the outer fence and the known
+`0.2 x 0.3 m` home boundary. Certainty is diagnostic, not a calibrated
+probability. The GUI uses UDP
+only for localization display. Chassis commands travel over
+an authenticated persistent SSH session to `robotctl --stream`. It opens
+disarmed, Space always stops, closing an armed window sends `stop`, and it has
+no servo or GA25 controls.
+
+The default camera calibration is
+`config/camera_fisheye_1280x720.yaml`. Override the starting pose with
+`--initial-x`, `--initial-y`, and `--initial-yaw`. Use `--global-initialize`
+only when no approximate start is known.
+
+The current estimator is suitable for broad navigation such as reaching the
+field center. A single visible wall does not constrain position along that
+wall, so precise home docking requires an active view of a corner or two
+nonparallel walls. The particle-filter uncertainty is not yet a certified
+safety bound.
+
+Full-resolution rectification and MJPEG logging reduce the observed Cubie loop
+rate to about 6.4 Hz. Use `--no-video` when localization throughput matters.
+The ESP32 continues its control loop independently at all times.
+
+## Solo Runtime
+
+The autonomous mission progresses through `boot`, `self_test`, `localize`,
+`search_target`, `approach_target`, `acquire_target`, `navigate_home`, and
+`deposit`. Loss of localization enters `recover_localization`; a hardware or
+runtime fault enters the latched `safe_stop` state.
+
+Initial integration stops after approaching a target and returning home.
+Servo and GA25 actions remain disabled until navigation has passed logged
+replay and deliberate low-speed arena validation.
+
+When no collectible is visible, the runtime rotates locally for 5 seconds,
+then moves toward the arena center and rotates there. After 10 seconds of
+continuous loss it returns to the outer, field-facing home corner at `(.20,
+.30)` and latches a stop inside a 0.10 m radius. A detected `home` bounding
+box is projected from its center and logged as consistent only when it agrees
+with the known home rectangle.
+
+The center search goal has a 0.25 m entry radius and 0.35 m exit radius, so
+small localization changes do not repeatedly start and stop translation.
+Translation proposals require recent, sufficiently certain fence localization;
+otherwise the planner only proposes slow rotation. Approach PID integral state
+is cleared when a reacquired target crosses the intake centerline. These are
+logged proposals only: `robot-runtime` does not send actuator commands.
+
+## ESP32 UART OTA
+
+The firmware on the `esp32` branch has two OTA application partitions. The
+UART updater sends `ota SIZE CRC32`, writes and verifies the inactive
+partition, selects it, and reboots automatically. Firmware stops its motors
+and releases the servo before accepting image bytes.
+
+Only one process may own `/dev/ttyAS2`, so stop `robotd` before updating:
+
+```sh
+sudo systemctl stop robotd
+python3 tools/uart_ota_update.py firmware.bin --port /dev/ttyAS2
+sudo systemctl start robotd
+```
+
+OTA is an explicit maintenance operation and is never called by startup,
+builds, or tests. Its UART format is not authenticated, so use only trusted
+firmware images on the trusted Cubie.
+
+## Calibrated 640x384 YOLO
+
+The A733 detector defaults to the RGB-corrected 640x384 model. The runtime
+projects each detection's lower box centre through the calibrated camera model
+to obtain its relative ground position. `tools/robotvision_bridge.py` provides
+the same projection for the external A733 YOLO executable and only emits
+detections; it never commands actuators.
+
+## Camera Tools
+
+The Python environment is managed independently from the C++ build:
+
+```sh
+uv sync --project tools
+```
+
+- `tools/capture_video.py`: continuous local video segments, rectified by
+  default.
+- `tools/camera_preview.py`: host-side SSH preview and frame capture.
+- `tools/capture_fisheye_calibration.py`: collect diverse raw checkerboard
+  views.
+- `tools/calibrate_fisheye_intrinsics.py`: generate a fisheye calibration.
+- `tools/capture_arena_poses.py`: collect measured arena poses for offline
+  localization calibration.
+
+`tools/location/` contains the offline arena-calibration and fence-geometry
+workflow: checkerboard review, mount/IMU regression, HSV tuning, line tagging,
+projective fitting, and BEV diagnostics. It is intentionally separate from the
+production runtime and never controls actuators.
+
+Example arena capture on the Cubie:
+
+```sh
+python3 tools/capture_arena_poses.py \
+  --output-dir "$HOME/arena-calibration/session-$(date +%Y%m%d-%H%M%S)"
+```
+
+Enter `x_m y_m yaw_deg [note]` for each stationary pose. The arena frame uses
+`+x` forward from home along the 3 m side, `+y` left along the 1.985 m side,
+and positive yaw toward `+y`.
+
+## Offline Cubie Benchmark
+
+`robot-runtime` accepts a recorded rectified AVI for passive benchmarking:
+
+```sh
+./build/robot-runtime --camera RUN.avi --rectified-input --no-video \
+  --no-broadcast --socket /tmp/no-robotd --max-frames 300
+```
+
+The resident `src/a733-yolo26/yolo26_video_benchmark` keeps the NPU network
+loaded and reports in-memory preprocessing, inference, and decode/NMS timing.
+On the 2026-09-03 `location-20260903-065016` run, 300-frame concurrent tests
+measured 3.83 FPS for exhaustive fence localization and 51.2 FPS for YOLO26.
+The visual geometry grid search is currently the limiting stage.
+
+## Service
+
+Install `systemd/robotd.service` as `/etc/systemd/system/robotd.service`, then:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now robotd
+```
+
+The service expects the installed binary at
+`/home/radxa/cubie-robot/bin/robotd`. The `radxa` user must remain in the
+`dialout` group, and no second process may open `/dev/ttyAS2`.

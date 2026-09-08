@@ -1,0 +1,25 @@
+%YAML:1.0
+---
+model: rectilinear_after_fisheye_undistortion
+image_width: 1280
+image_height: 720
+K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 400., 0., 640., 0., 400., 360., 0., 0., 1. ]
+D: !!opencv-matrix
+   rows: 4
+   cols: 1
+   dt: d
+   data: [ 0., 0., 0., 0. ]
+camera_mount:
+   reference: level checkerboard plane
+   checkerboard_plane_height_above_ground_m: 0.00464
+   camera_optical_center_height_m: 0.13118257231861272
+   camera_optical_center_height_std_m: 0.00023711165134082725
+   optical_axis_pitch_down_deg: 30.113249818793118
+   optical_axis_pitch_std_deg: 0.057514182207248153
+   pitch_convention: positive means camera optical axis points down from horizontal
+   checkerboard_reprojection_rms_px: 0.20976889289444928
+   sample_count: 6

@@ -10,13 +10,11 @@
 #include <vector>
 
 #include "model_config.h"
+#include "yolo26_pipeline.h"
 
 namespace {
 
-constexpr int kCandidates =
-    (LETTERBOX_ROWS / 8) * (LETTERBOX_COLS / 8) +
-    (LETTERBOX_ROWS / 16) * (LETTERBOX_COLS / 16) +
-    (LETTERBOX_ROWS / 32) * (LETTERBOX_COLS / 32);
+constexpr int kCandidates = 5040;
 
 struct Object {
     cv::Rect rect;
@@ -37,7 +35,7 @@ void decode(const cv::Mat& image, const float* boxes_data, const float* scores_d
     std::vector<cv::Rect> boxes[CLASS_NUM];
     std::vector<float> scores[CLASS_NUM];
 
-    // Each NBG output is planar [4, kCandidates]. Keeping boxes and scores separate
+    // Each NBG output is planar [4, 5040]. Keeping boxes and scores separate
     // prevents coordinate values from collapsing the class-score INT8 scale.
     for (int candidate = 0; candidate < kCandidates; ++candidate) {
         int label = 0;
@@ -113,4 +111,17 @@ int yolo26_postprocess(const char* imagepath, float** output) {
     std::printf("detection num: %zu\n", objects.size());
     draw(image, objects);
     return 0;
+}
+
+std::vector<Yolo26Detection> yolo26_decode_frame(const cv::Size& image_size,
+                                                  float** output) {
+    cv::Mat shape_only(image_size, CV_8UC3);
+    std::vector<Object> objects;
+    decode(shape_only, output[0], output[1], &objects);
+    std::vector<Yolo26Detection> detections;
+    detections.reserve(objects.size());
+    for (const Object& object : objects) {
+        detections.push_back({object.rect, object.label, object.score});
+    }
+    return detections;
 }

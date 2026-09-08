@@ -4,9 +4,10 @@ sdkconfig.old
 dependencies.lock
 managed_components/
 .cache/
-*.kicad_prl
-.history
-*.lck
 artifacts/
-models/
 __pycache__/
+.venv/
+tools/cubie_video_capture
+videos/
+dataset/
+run-log/

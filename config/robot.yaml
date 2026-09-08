@@ -1,0 +1,175 @@
+%YAML:1.0
+---
+transport:
+  socket: /tmp/robotd.sock
+  serial_device: /dev/ttyAS2
+  baud_rate: 115200
+  telemetry_hz: 30.
+  command_timeout_ms: 250
+camera:
+  device: /dev/video0
+  calibration: config/camera_fisheye_1280x720.yaml
+  capture_width: 1280
+  capture_height: 720
+  capture_fps: 30.
+  visual_width: 320
+  visual_height: 180
+  record_enabled: 1
+  record_fps: 10.
+  visual_geometry_hz: 1.
+localization:
+  particles: 600
+  camera_height_m: 1.2910000000000000e-01
+  camera_pitch_deg: 3.0029600000000000e+01
+  camera_roll_deg: 2.0710000000000000e-01
+  initial_x_m: 3.0000000000000000e-01
+  initial_y_m: 1.
+  initial_yaw_deg: 0.
+  visual_pull_gain: 1.2000000000000000e-01
+  visual_precise_residual_m: 1.0000000000000000e-02
+  visual_residual_limit_m: 4.4999999999999998e-02
+  visual_yaw_reset_max_error_deg: 15.
+  visual_axis_certainty_min: 5.0000000000000003e-02
+  visual_axis_sigma_m: 1.4999999999999999e-01
+  visual_yaw_sigma_deg: 5.
+  visual_axis_max_correction_m: 1.
+  visual_axis_max_correction_deg: 30.
+  visual_axis_max_pull_gain: 8.0000000000000004e-01
+  # Detection landmark is the home rectangle's center, separate from the
+  # field-facing docking corner at (.20, .30).
+  home_landmark_x_m: .10
+  home_landmark_y_m: .15
+  home_landmark_sigma_m: .20
+  home_landmark_maximum_error_m: 1.20
+arena:
+  length_m: 3.
+  width_m: 1.985
+  fence_height_m: 2.5400000000000000e-01
+fence_hsv:
+  h_min: 96
+  s_min: 128
+  v_min: 82
+  h_max: 121
+  s_max: 255
+  v_max: 255
+servo:
+  operational_min_pulse_us: 1600
+  operational_max_pulse_us: 2000
+  firmware_min_pulse_us: 1550
+  firmware_max_pulse_us: 2125
+  # Paired targets: interpolate to each pulse over its duration. Repeating
+  # 1600 holds S3 open for one second after the three-second opening ramp.
+  unload_pulse_us: [1600, 1600, 1800, 2000]
+  unload_duration_ms: [3000, 1000, 500, 0]
+control:
+  # Allows the center/home position controller to use its 0.60 m/s cap.
+  # Object approach has an independent 0.45 m/s cap below.
+  max_linear_mps: 5.9999999999999998e-01
+  max_yaw_radps: 2.
+  max_linear_accel_mps2: 5.9999999999999998e-01
+  max_yaw_accel_radps2: 2.5
+  minimum_moving_linear_mps: .10
+  minimum_moving_left_mps: 0
+  minimum_moving_yaw_radps: 0
+approach:
+  translation_kp: 3.0
+  translation_ki: 4.0000000000000001e-02
+  translation_kd: 1.0
+  lateral_kp: 2.0
+  lateral_ki: 4.0000000000000001e-02
+  lateral_kd: 1.3
+  # Normal yaw tracking while approaching the object.
+  yaw_kp: 2.4
+  yaw_kd: 2.0
+  # Used only by the rotate-to-target alignment phase.
+  alignment_yaw_kp: 2.4
+  alignment_yaw_kd: 1.0
+  maximum_linear_mps: 4.5000000000000001e-01
+  maximum_yaw_radps: 1.4
+  maximum_linear_accel_mps2: 1.2
+  maximum_yaw_accel_radps2: 3.
+  # PID ends when the object contact reaches this robot-relative point;
+  # collection then immediately performs the intake dash.
+  target_forward_m: .20
+  target_left_m: .01
+  target_tolerance_m: .06
+  alignment_enter_yaw_deg: 30
+  alignment_exit_yaw_deg: 60
+  # Filter detector-scale PID output noise before the forward minimum command.
+  forward_command_deadband_mps: .04
+  left_command_deadband_mps: .04
+  yaw_command_deadband_radps: .05
+  capture_finish_distance_m: 3.0000000000000000e-01
+  capture_finish_speed_mps: 3.5000000000000000e-01
+  capture_finish_timeout_ms: 1800
+  # The lower-level wheel controller handles short direction reversals. Do
+  # not add a zero-command pause between target PID and the intake dash.
+  alignment_settle_ms: 0
+  # Keep the locally tracked static target through short detector dropouts.
+  target_timeout_ms: 3000
+  # Correct the local object memory aggressively from fresh NPU detections.
+  target_measurement_gain: .60
+search:
+  local_rotate_seconds: 10.
+  center_rotate_seconds: 10.
+  center_x_m: 1.5
+  center_y_m: .9925
+  # Enter the center search region at 0.25 m and only leave it after drifting
+  # beyond 0.35 m, preventing pose noise from oscillating translation.
+  center_entry_radius_m: .25
+  center_exit_radius_m: .35
+  # Return to the center of the 0.20 x 0.30 m home zone.
+  home_x_m: .10
+  home_y_m: .15
+  home_stop_radius_m: .20
+  # Search only: turn briskly when no collectible is visible. This does not
+  # raise the normal object-approach yaw limit.
+  rotation_speed_radps: 1.80
+  # Shared PID for travel to the arena center and home center. Keep I/D at
+  # zero until position localization and drivetrain response are tuned.
+  go_to_pos_translation_kp: .55
+  go_to_pos_translation_ki: 0.
+  go_to_pos_translation_kd: 0.
+  go_to_pos_yaw_kp: 1.0
+  go_to_pos_yaw_ki: 0.
+  go_to_pos_yaw_kd: 0.
+  # Closed-loop travel to center and home. Rotation-only search is unaffected.
+  maximum_linear_mps: .60
+  maximum_yaw_radps: 2.0
+  # After return-home reaches the home center, hold translation at zero while
+  # yawing to -145 deg (+/-10).
+  post_home_moonwalk_yaw_deg: -145.
+  post_home_moonwalk_yaw_tolerance_deg: 10.
+  post_home_moonwalk_yaw_kp: 1.5
+  post_home_moonwalk_timeout_seconds: 10.
+  post_home_turn_degrees: 180.
+  post_home_turn_yaw_kp: 1.5
+  post_home_turn_yaw_tolerance_deg: 5.
+  post_home_reverse_mps: .30
+  post_home_reverse_seconds: 2.
+  # Terminal cargo calibration: enter the waypoint, align yaw, run the three
+  # timed longitudinal legs, return to center, then proceed home and unload.
+  cargo_calibration_x_m: 1.0
+  cargo_calibration_y_m: 1.0
+  cargo_calibration_stop_radius_m: .15
+  cargo_calibration_yaw_deg: 0.
+  cargo_calibration_yaw_tolerance_deg: 5.
+  cargo_calibration_yaw_kp: 1.5
+  cargo_calibration_fast_reverse_mps: 1.0
+  cargo_calibration_fast_reverse_seconds: 1.5
+  cargo_calibration_slow_forward_mps: .30
+  cargo_calibration_slow_forward_seconds: 2.
+  cargo_calibration_final_reverse_mps: 1.0
+  cargo_calibration_final_reverse_seconds: 1.
+  cargo_calibration_linear_accel_mps2: 2.0
+detector:
+  backend: vip_lite
+  model: models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb
+  inference_hz: 30.
+  confidence_threshold: 3.5000000000000003e-01
+  nms_threshold: 4.4999999999999996e-01
+debug:
+  broadcast_enabled: 1
+  # The A314 access point filters client broadcast; use the debug host directly.
+  broadcast_address: "192.168.19.218"
+  broadcast_port: 3335

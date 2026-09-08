@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""Keyboard teleoperation through the local robotd Unix socket."""
+
+import argparse
+import re
+import select
+import socket
+import sys
+import termios
+import time
+import tty
+
+
+def request(socket_path, command):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(.5)
+        client.connect(socket_path)
+        client.sendall((command + "\n").encode())
+        return client.recv(1024).decode(errors="replace").strip()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--socket", default="/tmp/robotd.sock")
+    parser.add_argument("--linear", type=float, default=.10,
+                        help="linear velocity increment per key press in m/s")
+    parser.add_argument("--yaw", type=float, default=.50,
+                        help="yaw-rate increment per key press in rad/s")
+    parser.add_argument("--max-linear", type=float, default=.60,
+                        help="maximum absolute linear velocity in m/s")
+    parser.add_argument("--max-yaw", type=float, default=2.00,
+                        help="maximum absolute yaw rate in rad/s")
+    parser.add_argument("--period", type=float, default=.08,
+                        help="twist refresh period in seconds")
+    parser.add_argument("--servo-pulse-step", type=int, default=25,
+                        help="S3 raw-pulse increment in microseconds")
+    parser.add_argument("--servo-slew-us-per-second", type=float, default=250,
+                        help="maximum S3 pulse slew rate after a bracket command")
+    parser.add_argument("--servo-min-pulse", type=int, default=0,
+                        help="S3 released endpoint in microseconds (must be zero)")
+    parser.add_argument("--servo-active-min-pulse", type=int, default=1600,
+                        help="lowest active S3 calibration pulse in microseconds")
+    parser.add_argument("--servo-max-pulse", type=int, default=2000,
+                        help="highest S3 calibration pulse in microseconds")
+    args = parser.parse_args()
+    if (args.linear <= 0 or args.yaw <= 0 or args.max_linear <= 0 or
+            args.max_yaw <= 0 or args.period <= 0 or args.servo_pulse_step <= 0 or
+            args.servo_slew_us_per_second <= 0 or args.servo_active_min_pulse <= 0 or
+            args.servo_max_pulse <= 0):
+        parser.error("all control increments and period must be positive")
+    if args.servo_min_pulse != 0:
+        parser.error("--servo-min-pulse must be zero; it represents a released servo")
+    if args.servo_active_min_pulse > args.servo_max_pulse:
+        parser.error("--servo-active-min-pulse must not exceed --servo-max-pulse")
+
+    print("W/S forward/back, A/D left/right, Q/E yaw: each press adds speed")
+    print(f"limits: linear +-{args.max_linear:.2f} m/s, yaw +-{args.max_yaw:.2f} rad/s")
+    print("Space stop, Esc quit")
+    print("[ / ] S3 active range "
+          f"{args.servo_active_min_pulse}..{args.servo_max_pulse} us; R releases and remembers")
+    print("F/B GA25 forward/reverse, ,/. GA25 speed down/up, G stops GA25")
+    print("H starts collector, J stops collector, T shows state")
+    vx = vy = wz = 0.0
+    servo_pulse_us = 0
+    servo_target_pulse_us = 0
+    servo_last_active_pulse_us = args.servo_active_min_pulse
+    servo_resume_pending = False
+    ga25_speed = 0
+    ga25_direction = 1
+    old_settings = termios.tcgetattr(sys.stdin)
+
+    def issue(command, show=True):
+        try:
+            reply = request(args.socket, command)
+            if show:
+                print(reply)
+            return reply
+        except OSError as error:
+            print(f"robotd error: {error}", file=sys.stderr)
+            return None
+
+    def show_s3_status():
+        nonlocal servo_pulse_us, servo_target_pulse_us, servo_last_active_pulse_us, servo_resume_pending
+        reply = issue("s3", show=False)
+        if reply is None:
+            return
+        mode_match = re.search(r"^s3 (\w+)", reply)
+        raw_pulse_match = re.search(r"raw (\d+)us", reply)
+        current_match = re.search(r"current (\d+)deg", reply)
+        target_match = re.search(r"target (\d+)deg", reply)
+        current_pulse_match = re.search(r"current \d+deg (\d+)us", reply)
+        duty_match = re.search(r"(\d+\.\d+)%", reply)
+        moving_match = re.search(r"moving (\d+)", reply)
+        pulse_match = raw_pulse_match or current_pulse_match
+        if pulse_match is None:
+            print(reply)
+            return
+        mode = mode_match.group(1) if mode_match else "unknown"
+        duty = f", {duty_match.group(1)}%" if duty_match else ""
+        moving = " moving" if moving_match and moving_match.group(1) == "1" else ""
+        reported_pulse_us = int(pulse_match.group(1))
+        servo_last_active_pulse_us = max(args.servo_active_min_pulse,
+                                         min(args.servo_max_pulse, reported_pulse_us))
+        if mode == "released":
+            servo_pulse_us = 0
+            servo_target_pulse_us = servo_last_active_pulse_us
+            servo_resume_pending = False
+            print(f"S3 released: 0us, remembered {servo_last_active_pulse_us}us")
+            return
+        if raw_pulse_match:
+            servo_pulse_us = servo_last_active_pulse_us
+            servo_target_pulse_us = servo_pulse_us
+            print(f"S3 {mode}: {servo_pulse_us}us{duty}")
+        else:
+            current = current_match.group(1) if current_match else "?"
+            target = target_match.group(1) if target_match else "?"
+            servo_pulse_us = servo_last_active_pulse_us
+            servo_target_pulse_us = servo_pulse_us
+            print(f"S3 {mode}: {current}deg -> {target}deg, {servo_pulse_us}us{duty}{moving}")
+
+    def clamp(value, limit):
+        return max(-limit, min(limit, value))
+
+    def show_twist():
+        print(f"motion: vx={vx:+.2f} m/s vy={vy:+.2f} m/s wz={wz:+.2f} rad/s")
+
+    def show_ga25():
+        direction = "forward" if ga25_direction > 0 else "reverse"
+        print(f"GA25: {direction}, {ga25_speed}%")
+
+    def adjust_servo(delta_us):
+        nonlocal servo_pulse_us, servo_target_pulse_us, servo_resume_pending
+        base = servo_target_pulse_us if servo_pulse_us else servo_last_active_pulse_us
+        servo_target_pulse_us = max(args.servo_active_min_pulse,
+                                    min(args.servo_max_pulse, base + delta_us))
+        if servo_pulse_us == 0:
+            # The physical servo remains at its released position. The refresh
+            # loop resumes from this stored pulse and ramps to the new target.
+            servo_pulse_us = servo_last_active_pulse_us
+            servo_resume_pending = True
+
+    try:
+        show_s3_status()
+        tty.setcbreak(sys.stdin.fileno())
+        next_refresh = time.monotonic()
+        while True:
+            timeout = max(0, next_refresh - time.monotonic())
+            ready, _, _ = select.select([sys.stdin], [], [], timeout)
+            if ready:
+                key = sys.stdin.read(1).lower()
+                if key == "\x1b":
+                    break
+                if key == " ":
+                    vx = vy = wz = 0.0
+                    issue("stop")
+                    servo_pulse_us = 0
+                    servo_resume_pending = False
+                    continue
+                if key == "w":
+                    vx = clamp(vx + args.linear, args.max_linear)
+                    show_twist()
+                elif key == "s":
+                    vx = clamp(vx - args.linear, args.max_linear)
+                    show_twist()
+                elif key == "a":
+                    vy = clamp(vy + args.linear, args.max_linear)
+                    show_twist()
+                elif key == "d":
+                    vy = clamp(vy - args.linear, args.max_linear)
+                    show_twist()
+                elif key == "q":
+                    wz = clamp(wz + args.yaw, args.max_yaw)
+                    show_twist()
+                elif key == "e":
+                    wz = clamp(wz - args.yaw, args.max_yaw)
+                    show_twist()
+                elif key == "x":
+                    vx = 0.0
+                    show_twist()
+                elif key == "z":
+                    vy = 0.0
+                    show_twist()
+                elif key == "c":
+                    wz = 0.0
+                    show_twist()
+                elif key == "[":
+                    adjust_servo(-args.servo_pulse_step)
+                elif key == "]":
+                    adjust_servo(args.servo_pulse_step)
+                elif key == "r":
+                    issue("s3 release", show=False)
+                    servo_pulse_us = 0
+                    servo_resume_pending = False
+                    print(f"S3 released: 0us, remembered {servo_last_active_pulse_us}us")
+                elif key == "f":
+                    ga25_direction = 1
+                    show_ga25()
+                elif key == "b":
+                    ga25_direction = -1
+                    show_ga25()
+                elif key == ",":
+                    ga25_speed = max(0, ga25_speed - 5)
+                    show_ga25()
+                elif key == ".":
+                    ga25_speed = min(100, ga25_speed + 5)
+                    show_ga25()
+                elif key == "g":
+                    ga25_speed = 0
+                    issue("ga25 0", show=False)
+                    show_ga25()
+                elif key == "h":
+                    issue("collector start")
+                elif key == "j":
+                    issue("collector stop")
+                elif key == "t":
+                    issue("state")
+                    show_s3_status()
+                else: continue
+
+            now = time.monotonic()
+            if now >= next_refresh:
+                issue(f"twist {vx:.3f} {vy:.3f} {wz:.3f}", show=False)
+                if ga25_speed:
+                    issue(f"ga25 {ga25_direction * ga25_speed}", show=False)
+                if servo_pulse_us:
+                    maximum_step = max(1, round(args.servo_slew_us_per_second * args.period))
+                    pulse_changed = False
+                    if servo_pulse_us < servo_target_pulse_us:
+                        servo_pulse_us = min(servo_target_pulse_us,
+                                             servo_pulse_us + maximum_step)
+                        pulse_changed = True
+                    elif servo_pulse_us > servo_target_pulse_us:
+                        servo_pulse_us = max(servo_target_pulse_us,
+                                             servo_pulse_us - maximum_step)
+                        pulse_changed = True
+                    if pulse_changed or servo_resume_pending:
+                        servo_last_active_pulse_us = servo_pulse_us
+                        issue(f"s3 pulse {servo_pulse_us}", show=False)
+                        servo_resume_pending = False
+                next_refresh = now + args.period
+    finally:
+        issue("stop", show=False)
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
+
+if __name__ == "__main__":
+    main()
