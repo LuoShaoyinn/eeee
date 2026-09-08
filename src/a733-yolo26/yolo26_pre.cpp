@@ -67,15 +67,21 @@ void get_input_data(const char* image_file, unsigned char* input_data, int lette
 
     cv::resize(img, img, cv::Size(resize_cols, resize_rows));
 
-    // create a mat with input_data ptr
-    cv::Mat img_new(letterbox_rows, letterbox_cols, CV_8UC3, input_data);
+    cv::Mat img_new;
     int top   = (int)(round(dh - 0.1));
     int bot   = (int)(round(dh + 0.1));
     int left  = (int)(round(dw - 0.1));
     int right = (int)(round(dw + 0.1));
 
     // Letterbox filling
-    cv::copyMakeBorder(img, img_new, top, bot, left, right, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
+    cv::copyMakeBorder(img, img_new, top, bot, left, right, cv::BORDER_CONSTANT,
+                       cv::Scalar(114, 114, 114));
+    const int plane_size = letterbox_rows * letterbox_cols;
+    for (int channel = 0; channel < 3; ++channel) {
+        cv::Mat plane(letterbox_rows, letterbox_cols, CV_8UC1,
+                      input_data + channel * plane_size);
+        cv::extractChannel(img_new, plane, channel);
+    }
 }
 
 
@@ -120,6 +126,5 @@ int yolo26_preprocess_frame(const cv::Mat& sample, void* buff_ptr,
                        cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
     return 0;
 }
-
 
 

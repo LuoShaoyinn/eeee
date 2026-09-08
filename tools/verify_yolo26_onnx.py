@@ -70,17 +70,25 @@ def main() -> None:
         raise ValueError(f"Could not read {args.image}")
     tensor, scale, pad_x, pad_y = prepare(image)
     session = create_session(args.model)
-    output = session.run(None, {session.get_inputs()[0].name: tensor})[0][0]
+    outputs = session.run(None, {session.get_inputs()[0].name: tensor})
+    # The deployment graph exposes box coordinates and class scores as separate
+    # tensors so their INT8 quantization scales remain independent.  Accept
+    # that form as well as the original combined [1, 8, candidates] graph.
+    if len(outputs) == 2:
+        boxes_output, scores_output = (item[0] for item in outputs)
+    else:
+        combined = outputs[0][0]
+        boxes_output, scores_output = combined[:4], combined[4:]
 
     annotated = image.copy()
     total = 0
     for class_id, class_name in enumerate(CLASSES):
-        class_scores = output[4 + class_id]
+        class_scores = scores_output[class_id]
         indexes = np.flatnonzero(class_scores >= SCORE_THRESHOLD)
         boxes = []
         scores = []
         for index in indexes:
-            center_x, center_y, width, height = output[:4, index]
+            center_x, center_y, width, height = boxes_output[:, index]
             x = int(np.floor((center_x - width / 2 - pad_x) / scale))
             y = int(np.floor((center_y - height / 2 - pad_y) / scale))
             right = int(np.ceil((center_x + width / 2 - pad_x) / scale))
