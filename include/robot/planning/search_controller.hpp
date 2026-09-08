@@ -94,6 +94,7 @@ public:
     // Called by the IMU wall-contact detector. A detected impact completes
     // the active reverse leg early instead of continuing to drive into wall.
     bool report_cargo_wall_hit(Timestamp now);
+    bool cargo_wall_contact_armed() const;
     void reset();
 
 private:

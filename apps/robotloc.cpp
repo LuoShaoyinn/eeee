@@ -1407,10 +1407,8 @@ int main(int argc, char** argv) {
                                        .target_reached = search_result.phase == robot::SearchPhase::complete};
                 }
             }
-            const bool cargo_reverse =
-                (search_result.phase == robot::SearchPhase::cargo_calibration_reverse_fast ||
-                 search_result.phase == robot::SearchPhase::cargo_calibration_reverse_final) &&
-                search_result.command.forward_mps < 0;
+            const bool cargo_reverse = search_controller.cargo_wall_contact_armed() &&
+                                       search_result.command.forward_mps < 0;
             if (cargo_wall_contact.update(cargo_reverse, state.accel_g[0],
                                           std::chrono::milliseconds(state.imu_age_ms),
                                           capture_time) &&

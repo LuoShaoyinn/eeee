@@ -166,9 +166,17 @@ search:
   # Each step always has a timeout as a safety fallback. `until: imu_detect`
   # permits a wall-contact event to advance that step early.
   cargo_calibration_steps:
-    - { forward_mps: -1.0, timeout_s: 1.5, until: imu_detect }
-    - { forward_mps: .30, timeout_s: 2.0 }
-    - { forward_mps: -1.0, timeout_s: 1.0, until: imu_detect }
+    -
+      forward_mps: -1.0
+      timeout_s: 1.5
+      until: "imu_detect"
+    -
+      forward_mps: .30
+      timeout_s: 2.0
+    -
+      forward_mps: -1.0
+      timeout_s: 1.0
+      until: "imu_detect"
   cargo_calibration_linear_accel_mps2: 2.0
   # The IMU is +X forward. A sustained reverse command followed by a +X
   # acceleration spike indicates wall contact and advances the leg early.

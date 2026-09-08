@@ -335,6 +335,12 @@ bool SearchController::report_cargo_wall_hit(Timestamp now) {
     return true;
 }
 
+bool SearchController::cargo_wall_contact_armed() const {
+    return cargo_calibration_phase_ == CargoCalibrationPhase::motion &&
+           cargo_calibration_step_ < config_.cargo_calibration_steps.size() &&
+           config_.cargo_calibration_steps[cargo_calibration_step_].until_imu_detect;
+}
+
 void SearchController::reset() {
     lost_since_ = {};
     center_search_started_ = {};
