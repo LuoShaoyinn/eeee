@@ -1406,7 +1406,10 @@ int main(int argc, char** argv) {
             if (return_home_active && mission_state == robot::MissionState::safe_stop) {
                 return_home_active = false;
             }
-            if (approach_result.target_reached) {
+            // `target_reached` also represents the terminal return-home search
+            // phase. That path has already transitioned into unload, where the
+            // chassis must remain stationary while S3 runs its sequence.
+            if (approach_result.target_reached && mission_state != robot::MissionState::unload) {
                 // Remove and temporarily suppress only the collected object.
                 // Remaining tracks are static objects in the same local
                 // odometry frame and are valid candidates after the scan.
@@ -1428,9 +1431,13 @@ int main(int argc, char** argv) {
                         // and also leaves chassis and collector in their safe state.
                         (void)request_robotd(options.socket, "stop");
                     } else {
-                        robot::Twist2 requested =
-                            approach_result.target_valid && !approach_result.target_reached
-                                ? approach_result.command : robot::Twist2{};
+                        const bool unloading = mission_state == robot::MissionState::unload;
+                        // Never let a stale search/approach result move the
+                        // chassis during the S3 unload sequence.
+                        robot::Twist2 requested = !unloading && approach_result.target_valid &&
+                                                   !approach_result.target_reached
+                            ? approach_result.command
+                            : robot::Twist2{};
                         const bool pid_approach =
                             mission_state == robot::MissionState::approach_target && target.has_value() &&
                             !approach_result.capturing;
