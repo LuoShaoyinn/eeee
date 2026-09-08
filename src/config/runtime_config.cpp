@@ -104,7 +104,22 @@ void validate(const RuntimeConfig& config) {
         config.search_post_home_turn_yaw_tolerance_deg <= 0 ||
         config.search_post_home_turn_yaw_tolerance_deg >= 180 ||
         config.search_post_home_reverse_mps <= 0 ||
-        config.search_post_home_reverse_seconds <= 0) {
+        config.search_post_home_reverse_seconds <= 0 ||
+        config.search_cargo_calibration_x_m < 0 ||
+        config.search_cargo_calibration_x_m > config.arena_length_m ||
+        config.search_cargo_calibration_y_m < 0 ||
+        config.search_cargo_calibration_y_m > config.arena_width_m ||
+        config.search_cargo_calibration_stop_radius_m <= 0 ||
+        config.search_cargo_calibration_yaw_tolerance_deg <= 0 ||
+        config.search_cargo_calibration_yaw_tolerance_deg >= 180 ||
+        config.search_cargo_calibration_yaw_kp <= 0 ||
+        config.search_cargo_calibration_fast_reverse_mps <= 0 ||
+        config.search_cargo_calibration_fast_reverse_seconds <= 0 ||
+        config.search_cargo_calibration_slow_forward_mps <= 0 ||
+        config.search_cargo_calibration_slow_forward_seconds <= 0 ||
+        config.search_cargo_calibration_final_reverse_mps <= 0 ||
+        config.search_cargo_calibration_final_reverse_seconds <= 0 ||
+        config.search_cargo_calibration_linear_accel_mps2 <= 0) {
         throw std::runtime_error("search controller configuration is invalid");
     }
     if (config.fence_hsv_h_min < 0 || config.fence_hsv_h_max > 179 ||
@@ -260,6 +275,19 @@ RuntimeConfig load_runtime_config(const std::string& path) {
     read(search, "post_home_turn_yaw_tolerance_deg", config.search_post_home_turn_yaw_tolerance_deg);
     read(search, "post_home_reverse_mps", config.search_post_home_reverse_mps);
     read(search, "post_home_reverse_seconds", config.search_post_home_reverse_seconds);
+    read(search, "cargo_calibration_x_m", config.search_cargo_calibration_x_m);
+    read(search, "cargo_calibration_y_m", config.search_cargo_calibration_y_m);
+    read(search, "cargo_calibration_stop_radius_m", config.search_cargo_calibration_stop_radius_m);
+    read(search, "cargo_calibration_yaw_deg", config.search_cargo_calibration_yaw_deg);
+    read(search, "cargo_calibration_yaw_tolerance_deg", config.search_cargo_calibration_yaw_tolerance_deg);
+    read(search, "cargo_calibration_yaw_kp", config.search_cargo_calibration_yaw_kp);
+    read(search, "cargo_calibration_fast_reverse_mps", config.search_cargo_calibration_fast_reverse_mps);
+    read(search, "cargo_calibration_fast_reverse_seconds", config.search_cargo_calibration_fast_reverse_seconds);
+    read(search, "cargo_calibration_slow_forward_mps", config.search_cargo_calibration_slow_forward_mps);
+    read(search, "cargo_calibration_slow_forward_seconds", config.search_cargo_calibration_slow_forward_seconds);
+    read(search, "cargo_calibration_final_reverse_mps", config.search_cargo_calibration_final_reverse_mps);
+    read(search, "cargo_calibration_final_reverse_seconds", config.search_cargo_calibration_final_reverse_seconds);
+    read(search, "cargo_calibration_linear_accel_mps2", config.search_cargo_calibration_linear_accel_mps2);
     const cv::FileNode detector = file["detector"];
     read(detector, "backend", config.detector_backend);
     read(detector, "model", config.detector_model);

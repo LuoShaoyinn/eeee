@@ -80,7 +80,17 @@ int main() {
             config.search_post_home_moonwalk_yaw_tolerance_deg != 10. ||
             config.search_post_home_turn_degrees != 180. ||
             config.search_post_home_reverse_mps != .30 ||
-            config.search_post_home_reverse_seconds != 2.) {
+            config.search_post_home_reverse_seconds != 2. ||
+            config.search_cargo_calibration_x_m != 1.0 ||
+            config.search_cargo_calibration_y_m != 1.0 ||
+            config.search_cargo_calibration_stop_radius_m != .15 ||
+            config.search_cargo_calibration_yaw_deg != 0. ||
+            config.search_cargo_calibration_fast_reverse_mps != 1.0 ||
+            config.search_cargo_calibration_fast_reverse_seconds != 1.5 ||
+            config.search_cargo_calibration_slow_forward_mps != .30 ||
+            config.search_cargo_calibration_slow_forward_seconds != 2. ||
+            config.search_cargo_calibration_final_reverse_mps != 1.0 ||
+            config.search_cargo_calibration_final_reverse_seconds != 1.) {
             std::cerr << "unexpected search controller configuration\n";
             return 1;
         }

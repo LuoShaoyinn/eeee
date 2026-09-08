@@ -147,6 +147,21 @@ search:
   post_home_turn_yaw_tolerance_deg: 5.
   post_home_reverse_mps: .30
   post_home_reverse_seconds: 2.
+  # Terminal cargo calibration: enter the waypoint, align yaw, run the three
+  # timed longitudinal legs, return to center, then proceed home and unload.
+  cargo_calibration_x_m: 1.0
+  cargo_calibration_y_m: 1.0
+  cargo_calibration_stop_radius_m: .15
+  cargo_calibration_yaw_deg: 0.
+  cargo_calibration_yaw_tolerance_deg: 5.
+  cargo_calibration_yaw_kp: 1.5
+  cargo_calibration_fast_reverse_mps: 1.0
+  cargo_calibration_fast_reverse_seconds: 1.5
+  cargo_calibration_slow_forward_mps: .30
+  cargo_calibration_slow_forward_seconds: 2.
+  cargo_calibration_final_reverse_mps: 1.0
+  cargo_calibration_final_reverse_seconds: 1.
+  cargo_calibration_linear_accel_mps2: 2.0
 detector:
   backend: vip_lite
   model: models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb

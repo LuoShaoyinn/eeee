@@ -34,6 +34,19 @@ struct SearchConfig {
     double post_home_turn_yaw_tolerance_deg = 5.0;
     double post_home_reverse_mps = .30;
     double post_home_reverse_seconds = 2.0;
+    double cargo_calibration_x_m = 1.0;
+    double cargo_calibration_y_m = 1.0;
+    double cargo_calibration_stop_radius_m = .15;
+    double cargo_calibration_yaw_deg = 0;
+    double cargo_calibration_yaw_tolerance_deg = 5;
+    double cargo_calibration_yaw_kp = 1.5;
+    double cargo_calibration_fast_reverse_mps = 1.0;
+    double cargo_calibration_fast_reverse_seconds = 1.5;
+    double cargo_calibration_slow_forward_mps = .30;
+    double cargo_calibration_slow_forward_seconds = 2.0;
+    double cargo_calibration_final_reverse_mps = 1.0;
+    double cargo_calibration_final_reverse_seconds = 1.0;
+    double cargo_calibration_linear_accel_mps2 = 2.0;
 };
 
 enum class SearchPhase {
@@ -46,6 +59,12 @@ enum class SearchPhase {
     post_home_moonwalk,
     post_home_turn,
     post_home_reverse,
+    navigate_cargo_calibration,
+    cargo_calibration_align,
+    cargo_calibration_reverse_fast,
+    cargo_calibration_forward_slow,
+    cargo_calibration_reverse_final,
+    navigate_center_after_cargo,
     complete,
 };
 
@@ -81,9 +100,14 @@ private:
     bool direct_return_home_ = false;
     bool complete_ = false;
     enum class PostHomePhase { none, moonwalk, turn, reverse };
+    enum class CargoCalibrationPhase {
+        none, navigate, align, reverse_fast, forward_slow, reverse_final, return_center
+    };
     PostHomePhase post_home_phase_ = PostHomePhase::none;
     Timestamp post_home_phase_started_{};
     double post_home_turn_target_yaw_rad_ = 0;
+    CargoCalibrationPhase cargo_calibration_phase_ = CargoCalibrationPhase::none;
+    Timestamp cargo_calibration_phase_started_{};
     bool go_to_pos_goal_valid_ = false;
     double go_to_pos_goal_x_m_ = 0;
     double go_to_pos_goal_y_m_ = 0;

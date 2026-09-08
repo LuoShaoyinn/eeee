@@ -296,16 +296,8 @@ int main() {
     if (!require(search_result.phase == robot::SearchPhase::rotate_center,
                  "center travel does not consume the center-search dwell")) return 1;
     search_result = search.update({.x_m = 1.5, .y_m = .9925}, false, now + 15s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::return_home,
-                 "completed center search returns home")) return 1;
-    search_result = search.update({.x_m = .25, .y_m = .2}, false, now + 16s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk &&
-                     search_result.command.forward_mps == 0,
-                 "automatic return-home begins the post-home trajectory")) return 1;
-    search_result = search.update({.x_m = .25, .y_m = .2}, true, now + 13s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::tracking &&
-                     search_result.command.forward_mps == 0,
-                 "a target detection re-arms a completed search")) return 1;
+    if (!require(search_result.phase == robot::SearchPhase::navigate_cargo_calibration,
+                 "completed center search enters cargo calibration before home")) return 1;
 
     robot::ServoUnloadController unload({.pulse_us = {1600, 1600, 1800, 2000},
                                          .duration_ms = {3000, 1000, 500, 0}});
@@ -331,47 +323,33 @@ int main() {
     robot::SearchController return_home({.center_x_m = 1.5, .center_y_m = .9925,
                                          .center_entry_radius_m = .25,
                                          .home_x_m = .10, .home_y_m = .15,
-                                         .home_stop_radius_m = .20});
+                                         .home_stop_radius_m = .20,
+                                         .cargo_calibration_x_m = 1.0,
+                                         .cargo_calibration_y_m = 1.0,
+                                         .cargo_calibration_stop_radius_m = .15,
+                                         .cargo_calibration_fast_reverse_seconds = 1.5,
+                                         .cargo_calibration_slow_forward_seconds = 2.0,
+                                         .cargo_calibration_final_reverse_seconds = 1.0});
     return_home.begin_return_home();
     search_result = return_home.update({.x_m = .3, .y_m = 1.0}, true, now, .1);
-    if (!require(search_result.phase == robot::SearchPhase::navigate_center &&
+    if (!require(search_result.phase == robot::SearchPhase::navigate_cargo_calibration &&
                      std::hypot(search_result.command.forward_mps,
                                 search_result.command.left_mps) > 0,
-                 "explicit return-home reaches the center before home")) return 1;
-    search_result = return_home.update({.x_m = 1.5, .y_m = .9925}, true, now + 1s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::return_home &&
-                     std::hypot(search_result.command.forward_mps,
-                                search_result.command.left_mps) > 0,
-                 "explicit return-home leaves center directly for the corner")) return 1;
-    search_result = return_home.update({.x_m = .15, .y_m = .20, .yaw_rad = 0}, true, now + 2s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk,
-                 "explicit return-home begins the post-home moonwalk at the corner")) return 1;
-    search_result = return_home.update({.x_m = .15, .y_m = .20, .yaw_rad = 0}, true, now + 2s + 100ms, .1);
-    if (!require(search_result.phase == robot::SearchPhase::post_home_moonwalk &&
-                     search_result.command.forward_mps == 0 && search_result.command.left_mps == 0 &&
+                 "Home + Exit begins at the cargo calibration waypoint")) return 1;
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = .2}, true, now + 1s, .1);
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = .2}, true, now + 1100ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::cargo_calibration_align &&
                      search_result.command.yaw_radps < 0,
-                 "post-home yaw alignment holds translation at the home center")) return 1;
-    search_result = return_home.update({.x_m = .15, .y_m = .20,
-                                        .yaw_rad = -145.0 * std::numbers::pi / 180.0},
-                                       true, now + 3s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::post_home_turn,
-                 "moonwalk heading window transitions into the 180-degree turn")) return 1;
-    search_result = return_home.update({.x_m = .15, .y_m = .20,
-                                        .yaw_rad = 35.0 * std::numbers::pi / 180.0},
-                                       true, now + 4s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::post_home_reverse,
-                 "completed turn begins the timed reverse")) return 1;
-    search_result = return_home.update({.x_m = .15, .y_m = .20,
-                                        .yaw_rad = 35.0 * std::numbers::pi / 180.0},
-                                       true, now + 4s + 100ms, .1);
-    if (!require(search_result.phase == robot::SearchPhase::post_home_reverse &&
+                 "cargo calibration aligns yaw at its waypoint")) return 1;
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 2s, .1);
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 2100ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::cargo_calibration_reverse_fast &&
                      search_result.command.forward_mps < 0,
-                 "post-home reverse commands backward motion")) return 1;
-    search_result = return_home.update({.x_m = .15, .y_m = .20,
-                                        .yaw_rad = 35.0 * std::numbers::pi / 180.0},
-                                       true, now + 7s, .1);
-    if (!require(search_result.phase == robot::SearchPhase::complete,
-                 "explicit return-home stops after its two-second reverse")) return 1;
+                 "cargo calibration starts its fast reverse leg")) return 1;
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 4s, .1);
+    search_result = return_home.update({.x_m = 1.0, .y_m = 1.0, .yaw_rad = 0}, true, now + 4900ms, .1);
+    if (!require(search_result.phase == robot::SearchPhase::cargo_calibration_forward_slow,
+                 "cargo calibration enters its slow forward leg after reverse")) return 1;
 
     robot::DetectionFrame home_frame{
         .timestamp = now,

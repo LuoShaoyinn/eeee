@@ -129,6 +129,19 @@ struct RuntimeConfig {
     double search_post_home_turn_yaw_tolerance_deg = 5;
     double search_post_home_reverse_mps = .30;
     double search_post_home_reverse_seconds = 2;
+    double search_cargo_calibration_x_m = 1.0;
+    double search_cargo_calibration_y_m = 1.0;
+    double search_cargo_calibration_stop_radius_m = .15;
+    double search_cargo_calibration_yaw_deg = 0;
+    double search_cargo_calibration_yaw_tolerance_deg = 5;
+    double search_cargo_calibration_yaw_kp = 1.5;
+    double search_cargo_calibration_fast_reverse_mps = 1.0;
+    double search_cargo_calibration_fast_reverse_seconds = 1.5;
+    double search_cargo_calibration_slow_forward_mps = .30;
+    double search_cargo_calibration_slow_forward_seconds = 2.0;
+    double search_cargo_calibration_final_reverse_mps = 1.0;
+    double search_cargo_calibration_final_reverse_seconds = 1.0;
+    double search_cargo_calibration_linear_accel_mps2 = 2.0;
 
     std::string detector_backend = "vip_lite";
     std::string detector_model = "models/official_yolo26n_640x384_rgbfix_rebuild_a733.nb";
