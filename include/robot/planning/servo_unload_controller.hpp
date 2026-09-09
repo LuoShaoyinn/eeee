@@ -38,7 +38,7 @@ private:
 }  // namespace robot
 
 namespace robot {
-// Three batches of two open/close cycles, with a 5 cm advance between batches.
+// Five two-cycle batches: reverse 5 cm once, then advance 5 cm three times.
 class StagedUnloadController {
 public:
     explicit StagedUnloadController(ServoUnloadConfig config) : servo_(two_cycles(config)) {}
@@ -50,20 +50,21 @@ public:
         if (phase_ == 0 || phase_ == 3) {
             auto pulse = servo_.update(now);
             if (servo_.complete()) {
-                if (++batches_completed_ == 3) phase_ = 4;
+                if (++batches_completed_ == 5) phase_ = 4;
                 else { origin_ = odometry; started_ = now; phase_ = 1; }
             }
             return pulse;
         }
         if (phase_ == 1) {
+            const double direction = batches_completed_ == 1 ? -1.0 : 1.0;
             const double advance = std::cos(origin_.yaw_rad) * (odometry.x_m - origin_.x_m) +
                                    std::sin(origin_.yaw_rad) * (odometry.y_m - origin_.y_m);
             if (!std::isfinite(advance)) throw std::runtime_error("unload advance: invalid odometry");
-            if (advance >= .05) { phase_ = 2; started_ = now; }
+            if (direction * advance >= .05) { phase_ = 2; started_ = now; }
             else {
                 if (now - started_ > std::chrono::seconds(3))
                     throw std::runtime_error("unload advance: odometry timeout");
-                command_.forward_mps = .05;
+                command_.forward_mps = direction * .05;
             }
         } else if (phase_ == 2 && now - started_ >= std::chrono::milliseconds(500)) {
             servo_.reset(); phase_ = 3;

@@ -33,11 +33,11 @@ int main() {
         (void)staged.update(now, origin);
         (void)staged.update(now+2s, origin);
         (void)staged.update(now+2100ms, origin);
-        if (!require(staged.command().forward_mps == .05 && !staged.complete(), "advance after two unload cycles")) return 1;
+        if (!require(staged.command().forward_mps == -.05 && !staged.complete(), "reverse after two unload cycles")) return 1;
         auto lateral = origin; lateral.x_m += .04;
         (void)staged.update(now+2200ms, lateral);
-        if (!require(staged.command().forward_mps > 0, "lateral displacement must not complete forward advance")) return 1;
-        auto arrived = origin; arrived.y_m += .051;
+        if (!require(staged.command().forward_mps < 0, "lateral displacement must not complete reverse")) return 1;
+        auto arrived = origin; arrived.y_m -= .051;
         (void)staged.update(now+2300ms, arrived);
         if (!require(staged.command().forward_mps == 0 && !staged.complete(), "stop before second unload batch")) return 1;
         (void)staged.update(now+2800ms, arrived);
@@ -52,7 +52,18 @@ int main() {
         (void)staged.update(now+5600ms, final_position);
         (void)staged.update(now+5700ms, final_position);
         (void)staged.update(now+7700ms, final_position);
-        if (!require(staged.complete(), "third unload batch completes")) return 1;
+        if (!require(!staged.complete(), "third unload batch must not finish unloading")) return 1;
+        for (int leg = 0; leg < 2; ++leg) {
+            const auto leg_time = now + 7800ms + leg * 2800ms;
+            (void)staged.update(leg_time, final_position);
+            if (!require(staged.command().forward_mps > 0, "remaining legs move forward")) return 1;
+            final_position.y_m += .051;
+            (void)staged.update(leg_time+100ms, final_position);
+            (void)staged.update(leg_time+600ms, final_position);
+            (void)staged.update(leg_time+700ms, final_position);
+            (void)staged.update(leg_time+2700ms, final_position);
+        }
+        if (!require(staged.complete(), "fifth unload batch completes")) return 1;
         staged.reset(); (void)staged.update(now, origin); (void)staged.update(now+2s, origin);
         bool timed_out = false;
         try { (void)staged.update(now+6s, origin); } catch (const std::runtime_error&) { timed_out = true; }
