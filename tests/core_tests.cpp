@@ -37,13 +37,22 @@ int main() {
         auto lateral = origin; lateral.x_m += .04;
         (void)staged.update(now+2200ms, lateral);
         if (!require(staged.command().forward_mps > 0, "lateral displacement must not complete forward advance")) return 1;
-        auto arrived = origin; arrived.y_m += .031;
+        auto arrived = origin; arrived.y_m += .051;
         (void)staged.update(now+2300ms, arrived);
         if (!require(staged.command().forward_mps == 0 && !staged.complete(), "stop before second unload batch")) return 1;
         (void)staged.update(now+2800ms, arrived);
         (void)staged.update(now+2900ms, arrived);
         (void)staged.update(now+4900ms, arrived);
-        if (!require(staged.complete(), "second unload batch completes")) return 1;
+        if (!require(!staged.complete(), "second unload batch must not finish unloading")) return 1;
+        (void)staged.update(now+5s, arrived);
+        if (!require(staged.command().forward_mps > 0, "advance again after second batch")) return 1;
+        auto final_position = arrived; final_position.y_m += .051;
+        (void)staged.update(now+5100ms, final_position);
+        if (!require(staged.command().forward_mps == 0, "stop before third unload batch")) return 1;
+        (void)staged.update(now+5600ms, final_position);
+        (void)staged.update(now+5700ms, final_position);
+        (void)staged.update(now+7700ms, final_position);
+        if (!require(staged.complete(), "third unload batch completes")) return 1;
         staged.reset(); (void)staged.update(now, origin); (void)staged.update(now+2s, origin);
         bool timed_out = false;
         try { (void)staged.update(now+6s, origin); } catch (const std::runtime_error&) { timed_out = true; }
