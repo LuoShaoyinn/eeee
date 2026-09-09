@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <optional>
 #include <vector>
+#include <cmath>
+#include <stdexcept>
 
 #include "robot/core/types.hpp"
 
@@ -34,3 +36,51 @@ private:
 };
 
 }  // namespace robot
+
+namespace robot {
+// Two configured open/close cycles, measured advance, then two more cycles.
+class StagedUnloadController {
+public:
+    explicit StagedUnloadController(ServoUnloadConfig config) : servo_(two_cycles(config)) {}
+    void reset() { servo_.reset(); phase_ = 0; command_ = {}; }
+    bool complete() const { return phase_ == 4; }
+    Twist2 command() const { return command_; }
+    std::optional<int> update(Timestamp now, const Pose2& odometry) {
+        command_ = {};
+        if (phase_ == 0 || phase_ == 3) {
+            auto pulse = servo_.update(now);
+            if (servo_.complete()) {
+                if (phase_ == 3) phase_ = 4;
+                else { origin_ = odometry; started_ = now; phase_ = 1; }
+            }
+            return pulse;
+        }
+        if (phase_ == 1) {
+            const double advance = std::cos(origin_.yaw_rad) * (odometry.x_m - origin_.x_m) +
+                                   std::sin(origin_.yaw_rad) * (odometry.y_m - origin_.y_m);
+            if (!std::isfinite(advance)) throw std::runtime_error("unload advance: invalid odometry");
+            if (advance >= .03) { phase_ = 2; started_ = now; }
+            else {
+                if (now - started_ > std::chrono::seconds(3))
+                    throw std::runtime_error("unload advance: odometry timeout");
+                command_.forward_mps = .05;
+            }
+        } else if (phase_ == 2 && now - started_ >= std::chrono::milliseconds(500)) {
+            servo_.reset(); phase_ = 3;
+        }
+        return std::nullopt;
+    }
+private:
+    static ServoUnloadConfig two_cycles(ServoUnloadConfig config) {
+        if (config.pulse_us.size() < 4 || config.duration_ms.size() < 4)
+            throw std::runtime_error("staged unload requires two pulse pairs");
+        config.pulse_us.resize(4); config.duration_ms.resize(4);
+        return config;
+    }
+    ServoUnloadController servo_;
+    int phase_ = 0;
+    Pose2 origin_{};
+    Timestamp started_{};
+    Twist2 command_{};
+};
+}

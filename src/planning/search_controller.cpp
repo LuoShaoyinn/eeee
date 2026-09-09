@@ -349,6 +349,11 @@ bool SearchController::report_cargo_wall_hit(Timestamp now) {
     return true;
 }
 
+bool SearchController::collectibles_allowed() const {
+    return !direct_return_home_ && !complete_ &&
+           cargo_calibration_phase_ == CargoCalibrationPhase::none;
+}
+
 bool SearchController::cargo_wall_contact_armed() const {
     return cargo_calibration_phase_ == CargoCalibrationPhase::motion &&
            cargo_calibration_step_ < config_.cargo_calibration_steps.size() &&

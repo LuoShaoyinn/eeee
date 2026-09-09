@@ -27,6 +27,34 @@ bool require(bool condition, const char* message) {
 int main() {
     using namespace std::chrono_literals;
     const auto now = robot::MonotonicClock::now();
+    {
+        robot::StagedUnloadController staged({{1600,2000,1600,2000}, {0,1000,0,1000}});
+        const robot::Pose2 origin{.x_m=1, .y_m=1, .yaw_rad=1.5707963267948966};
+        (void)staged.update(now, origin);
+        (void)staged.update(now+2s, origin);
+        (void)staged.update(now+2100ms, origin);
+        if (!require(staged.command().forward_mps == .05 && !staged.complete(), "advance after two unload cycles")) return 1;
+        auto lateral = origin; lateral.x_m += .04;
+        (void)staged.update(now+2200ms, lateral);
+        if (!require(staged.command().forward_mps > 0, "lateral displacement must not complete forward advance")) return 1;
+        auto arrived = origin; arrived.y_m += .031;
+        (void)staged.update(now+2300ms, arrived);
+        if (!require(staged.command().forward_mps == 0 && !staged.complete(), "stop before second unload batch")) return 1;
+        (void)staged.update(now+2800ms, arrived);
+        (void)staged.update(now+2900ms, arrived);
+        (void)staged.update(now+4900ms, arrived);
+        if (!require(staged.complete(), "second unload batch completes")) return 1;
+        staged.reset(); (void)staged.update(now, origin); (void)staged.update(now+2s, origin);
+        bool timed_out = false;
+        try { (void)staged.update(now+6s, origin); } catch (const std::runtime_error&) { timed_out = true; }
+        if (!require(timed_out && staged.command().forward_mps == 0, "stalled advance aborts")) return 1;
+        robot::SearchController search;
+        if (!require(search.collectibles_allowed(), "initial collection enabled")) return 1;
+        search.begin_return_home();
+        if (!require(!search.collectibles_allowed(), "return sequence blocks collection")) return 1;
+        search.reset();
+        if (!require(search.collectibles_allowed(), "new mission restores collection")) return 1;
+    }
     robot::LocalizationState localization{.timestamp = now, .pose = {}, .position_sigma_m = .05,
                                           .globally_localized = true};
     robot::SafetySupervisor safety;

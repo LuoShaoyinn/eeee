@@ -1046,7 +1046,7 @@ int main(int argc, char** argv) {
         robot::ApproachResult approach_result;
         robot::SearchController search_controller(options.search);
         robot::WallContactDetector cargo_wall_contact(options.cargo_wall_contact);
-        robot::ServoUnloadController unload_controller(options.unload);
+        robot::StagedUnloadController unload_controller(options.unload);
         robot::SearchResult search_result;
         robot::SoloMission mission;
         robot::HomeObservation home_observation;
@@ -1376,8 +1376,10 @@ int main(int argc, char** argv) {
 #endif
             // The selected target remains in local wheel/IMU coordinates while
             // approaching. Other tracks remain available until capture ends.
+            const bool collect_allowed = search_controller.collectibles_allowed() && !return_home_active;
+            if (!collect_allowed) { local_target_tracker.reset(); approach_controller.reset(); }
             auto target = local_target_tracker.target(odometry_pose, capture_time);
-            if (!target && !return_home_active && mission.state() == robot::MissionState::search_target) {
+            if (!target && collect_allowed && mission.state() == robot::MissionState::search_target) {
                 target = local_target_tracker.acquire_nearest(odometry_pose, capture_time);
             }
             if (target) {
@@ -1432,8 +1434,13 @@ int main(int argc, char** argv) {
                 .unload_complete = unload_controller.complete(),
             });
             if (mission_state == robot::MissionState::unload) {
-                if (const auto pulse = unload_controller.update(capture_time)) {
+                try {
+                if (const auto pulse = unload_controller.update(capture_time, odometry_pose)) {
                     pending_unload_pulse_us = *pulse;
+                }
+                } catch (...) {
+                    try { (void)request_robotd(options.socket, "stop"); } catch (...) {}
+                    throw;
                 }
             }
             if (return_home_active && mission_state == robot::MissionState::safe_stop) {
@@ -1471,6 +1478,7 @@ int main(int argc, char** argv) {
                                                    !approach_result.target_reached
                             ? approach_result.command
                             : robot::Twist2{};
+                        if (unloading) requested = unload_controller.command();
                         const bool pid_approach =
                             mission_state == robot::MissionState::approach_target && target.has_value() &&
                             !approach_result.capturing;
@@ -1491,7 +1499,7 @@ int main(int argc, char** argv) {
                             last_approach_command_at = {};
                         }
                         const robot::Twist2 command = robot::clamp_twist(apply_command_minimum(requested,
-                            options.minimum_moving_linear_mps,
+                            unloading ? 0.0 : options.minimum_moving_linear_mps,
                             options.minimum_moving_left_mps,
                             options.minimum_moving_yaw_radps),
                             options.maximum_linear_mps, options.maximum_yaw_radps);

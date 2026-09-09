@@ -97,6 +97,7 @@ public:
     // the active reverse leg early instead of continuing to drive into wall.
     bool report_cargo_wall_hit(Timestamp now);
     bool cargo_wall_contact_armed() const;
+    bool collectibles_allowed() const;
     void reset();
 
 private:
