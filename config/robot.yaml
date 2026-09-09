@@ -108,7 +108,7 @@ approach:
   target_confirmation_gap_ms: 150
   target_minimum_observations: 1
 search:
-  local_rotate_seconds: 10.
+  local_rotate_seconds: 5.
   center_rotate_seconds: 10.
   # Only a sustained target track restarts the no-object search timer.
   target_reset_seconds: 2.
