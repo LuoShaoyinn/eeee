@@ -439,8 +439,8 @@ int main() {
     robot::SoloMission terminal_mission;
     terminal_mission.start();
     if (!require(terminal_mission.update({.search_complete = true}) == robot::MissionState::unload &&
-                     terminal_mission.update({.unload_complete = true}) == robot::MissionState::safe_stop,
-                 "completed return-home unloads before terminal stop")) return 1;
+                     terminal_mission.update({.unload_complete = true}) == robot::MissionState::search_target,
+                 "completed return-home unloads before restarting search")) return 1;
 
     robot::SearchController return_home({.center_x_m = 1.5, .center_y_m = .9925,
                                          .center_entry_radius_m = .25,

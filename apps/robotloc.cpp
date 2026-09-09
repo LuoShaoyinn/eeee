@@ -1425,6 +1425,7 @@ int main(int argc, char** argv) {
                                    .target_valid = search_result.phase != robot::SearchPhase::complete,
                                    .target_reached = search_result.phase == robot::SearchPhase::complete};
             }
+            const auto previous_mission_state = mission.state();
             const robot::MissionState mission_state = mission.update({
                 .target_active = target.has_value(),
                 .aligning = approach_result.aligning,
@@ -1433,6 +1434,23 @@ int main(int argc, char** argv) {
                 .search_complete = search_result.phase == robot::SearchPhase::complete,
                 .unload_complete = unload_controller.complete(),
             });
+            const bool begin_new_round = previous_mission_state == robot::MissionState::unload &&
+                                         mission_state == robot::MissionState::search_target;
+            if (begin_new_round) {
+                return_home_active = false;
+                local_target_tracker.reset();
+                world.replace_objects({});
+                target.reset();
+                approach_controller.reset();
+                approach_result = {};
+                search_controller.reset();
+                search_result = {};
+                cargo_wall_contact.reset();
+                unload_controller.reset();
+                pending_unload_pulse_us.reset();
+                last_approach_command = {};
+                last_approach_command_at = {};
+            }
             if (mission_state == robot::MissionState::unload) {
                 try {
                 if (const auto pulse = unload_controller.update(capture_time, odometry_pose)) {
@@ -1504,6 +1522,9 @@ int main(int argc, char** argv) {
                             options.minimum_moving_yaw_radps),
                             options.maximum_linear_mps, options.maximum_yaw_radps);
                         (void)request_robotd(options.socket, twist_command(command));
+                        if (begin_new_round) {
+                            (void)request_robotd(options.socket, "collector start");
+                        }
                         if (pending_unload_pulse_us) {
                             (void)request_robotd(options.socket,
                                 "s3 pulse " + std::to_string(*pending_unload_pulse_us));

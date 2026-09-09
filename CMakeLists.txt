@@ -91,6 +91,11 @@ install(FILES config/camera_fisheye_1280x720.yaml config/robot.yaml DESTINATION 
 install(PROGRAMS tools/uart_ota_update.py DESTINATION tools)
 
 if(BUILD_TESTING)
+    add_executable(robot_unload_round_tests tests/unload_round_tests.cpp)
+    target_link_libraries(robot_unload_round_tests PRIVATE robot_autonomy)
+    target_compile_options(robot_unload_round_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    add_test(NAME robot_unload_round_tests COMMAND robot_unload_round_tests)
+
     add_executable(robot_core_tests tests/core_tests.cpp)
     target_link_libraries(robot_core_tests PRIVATE robot_autonomy)
     target_compile_options(robot_core_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)

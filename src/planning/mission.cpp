@@ -27,7 +27,7 @@ MissionState SoloMission::update(const MissionInputs& inputs) {
         else if (!inputs.capturing) state_ = MissionState::search_target;
         break;
     case MissionState::unload:
-        if (inputs.unload_complete) state_ = MissionState::safe_stop;
+        if (inputs.unload_complete) state_ = MissionState::search_target;
         break;
     case MissionState::safe_stop: break;
     }
